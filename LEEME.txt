@@ -1,17 +1,48 @@
-PARCHE DATA VERSIONADA — THUNDER ELITE LEAGUE
+PARCHE DISCORD ↔ WEB + ESCUDOS
+================================
 
-Sustituye únicamente server.js en la raíz del repositorio.
-No sustituyas tu data.json actual.
+ARCHIVOS QUE DEBES SUSTITUIR
+----------------------------
+1. server.js       -> en la raíz del repositorio de la web/Vercel.
+2. discord-bot.js  -> en la carpeta donde se ejecuta el bot de Discord.
 
-Qué corrige:
-- Deja de leer la clave antigua y genérica de data.json en Upstash.
-- Crea una clave nueva basada en el contenido exacto del data.json de GitHub.
-- Una instancia antigua de Vercel ya no puede volver a imponer la data anterior.
-- Conserva las cuentas y los mensajes guardados en Upstash.
+NO SUSTITUYAS data.json.
 
-Después:
-1. Commit en GitHub.
-2. Vercel > Deployments > Redeploy sin Build Cache.
-3. Abre /api/health y comprueba:
-   "dataStorageMode": "repo-hash-versioned"
-4. Haz Ctrl + F5.
+VARIABLES OBLIGATORIAS EN LOS DOS SITIOS
+----------------------------------------
+La web de Vercel y el bot deben usar EXACTAMENTE la misma base de Upstash y el mismo prefijo:
+
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+TEL_REDIS_PREFIX=tel:web:v1:
+
+No pegues aquí ni publiques los valores reales.
+
+DESPUÉS DE SUBIR LOS ARCHIVOS
+-----------------------------
+1. En Vercel: Deployments -> Redeploy -> desactivar Use existing Build Cache.
+2. Reinicia completamente el proceso del bot de Discord.
+3. En el registro del bot debe aparecer una línea parecida a:
+   [bot-storage] Sincronización Upstash activa. Clave web: ...data:...
+4. Abre en el navegador:
+   https://TU-DOMINIO.vercel.app/api/health
+   Debe mostrar:
+   "persistentStorage":"upstash-redis"
+   "dataStorageMode":"repo-hash-versioned-shared-with-discord"
+5. Crea o edita un club desde Discord y recarga la web con Ctrl+F5.
+
+QUÉ CORRIGE
+-----------
+- El bot escribía en la antigua clave data.json, mientras Vercel leía una clave versionada distinta.
+- Ahora el bot detecta automáticamente la clave activa de la web y escribe en ella.
+- Los escudos se guardan también en Upstash para que Vercel pueda servirlos aunque el bot esté en otro ordenador.
+- /data.json devuelve los clubes hidratados con una ruta estable de logo.
+- Las copas, clasificación, equipos y ficha de equipo reciben el mismo club oficial por ID.
+
+IMPORTANTE
+----------
+Si el bot no tiene las variables de Upstash, los comandos funcionarán en Discord pero los cambios solo se guardarán en el data.json local del ordenador y NO aparecerán en Vercel.
+
+RECUPERACIÓN DEL CLUB QUE ACABAS DE CREAR
+-----------------------------------------
+Al reiniciar, el bot conserva y migra automáticamente a la clave activa los clubes creados en Discord durante las últimas 72 horas, siempre que su rol siga existiendo en el servidor. Esto permite recuperar pepeCG sin volver a crear el rol.

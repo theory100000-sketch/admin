@@ -70,6 +70,10 @@ const telRedisToken = String(
   process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || ''
 ).trim();
 const TEL_REDIS_PREFIX = String(process.env.TEL_REDIS_PREFIX || 'tel:web:v1:');
+const TEL_REDIS_SAFE_PREFIX = TEL_REDIS_PREFIX.endsWith(':') ? TEL_REDIS_PREFIX : `${TEL_REDIS_PREFIX}:`;
+function telClubLogoRedisKey(clubKey){
+  return `${TEL_REDIS_SAFE_PREFIX}club-logo:${String(clubKey || '').trim()}`;
+}
 let telRedis = null;
 if(telRedisUrl && telRedisToken){
   try{
@@ -466,7 +470,10 @@ app.get('/api/tel-health', (req,res)=>{
     ok:true,
     express:true,
     adminPages:Object.keys(TEL_ADMIN_PAGES),
-    adminSession:telHasAdminSession(req)
+    adminSession:telHasAdminSession(req),
+    redisConnected:Boolean(telRedis),
+    dataStorageMode:'repo-hash-versioned-shared-with-discord',
+    activeDataKey:telRedisActiveDataKey()
   });
 });
 
@@ -554,10 +561,12 @@ function clubBelongsToLeague(club, liga) {
 
 function pickLogoUrl(club) {
   const candidates = [
+    // La URL original de Discord se prueba antes que una ruta local del ordenador del bot.
+    club.escudoDiscordUrl, club.attachmentUrl, club.archivoUrl,
     club.escudoUrl, club.logoUrl, club.logo, club.escudo,
     club.imagen, club.imagenUrl, club.image, club.imageUrl,
     club.avatar, club.avatarUrl, club.icon, club.iconUrl,
-    club.attachmentUrl, club.archivoUrl, club.escudoPath, club.escudoFilename
+    club.escudoPath, club.escudoFilename
   ];
 
   for (let value of candidates) {
@@ -719,7 +728,7 @@ app.get("/api/health", (req, res) => {
     adminPasswordConfigured: TEL_ADMIN_PASSWORD_CONFIGURED || !TEL_IS_VERCEL,
     sessionSecretConfigured: Boolean(process.env.WEB_SESSION_SECRET) || !TEL_IS_VERCEL,
     dataRevision: TEL_REPO_DATA_REVISION,
-    dataStorageMode: 'repo-hash-versioned',
+    dataStorageMode: 'repo-hash-versioned-shared-with-discord',
     guildId: process.env.GUILD_ID || null,
     clientId: process.env.CLIENT_ID || null
   });
@@ -1087,6 +1096,32 @@ app.get('/api/club-logo', async (req,res)=>{
     const data = readJson(DATA_FILE, {clubes:[],competiciones:[]});
     const club = telFindClubByKey(data, req.query.key);
     if(!club) return res.status(404).send('Escudo no encontrado');
+
+    // Los escudos creados por Discord se guardan también en Upstash. De esta
+    // forma Vercel puede servirlos aunque el bot se ejecute en otro ordenador.
+    const clubKey = club.id || club._id || club.clubId || req.query.key;
+    if(telRedis && clubKey){
+      try{
+        const stored = await telRedis.get(telClubLogoRedisKey(clubKey));
+        if(stored !== null && stored !== undefined){
+          let payload = stored;
+          if(typeof payload === 'string'){
+            try{ payload = JSON.parse(payload); }catch(error){ payload = null; }
+          }
+          if(payload && payload.base64){
+            const buffer = Buffer.from(String(payload.base64), 'base64');
+            if(buffer.length){
+              res.set('Content-Type', String(payload.contentType || 'image/png'));
+              res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+              return res.send(buffer);
+            }
+          }
+        }
+      }catch(error){
+        console.warn('[club-logo] No se pudo leer el escudo de Upstash:', error.message || error);
+      }
+    }
+
     const source = telResolveClubLogo(club);
     if(!source) return res.status(404).send('Escudo no encontrado');
     res.set('Cache-Control','no-store');
@@ -3575,7 +3610,10 @@ app.get('/data.json', (req,res)=>{
   res.set('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
   res.set('Pragma','no-cache');
   res.set('Expires','0');
-  res.sendFile(telFinalAdminDataPath());
+  const data = readJson(DATA_FILE, {clubes:[],jugadores:[],competiciones:[]});
+  // La web pública recibe los clubes hidratados con su ID y una ruta estable
+  // de escudo, igual que /api/data. No se expone la ruta local del ordenador del bot.
+  res.json(telHydrateDataForClient(data));
 });
 app.get('/api/data-live', (req,res)=>{
   try{

@@ -306,15 +306,40 @@ if(telBotRedisUrl && telBotRedisToken){
 }
 let telBotStorageReady = false;
 let telBotRemoteVersion = '';
+let telBotActiveDataRedisKey = '';
 let telBotPersistQueue = Promise.resolve();
+let telBotPreSyncLocalData = null;
+const TEL_REDIS_SAFE_PREFIX = TEL_REDIS_PREFIX.endsWith(':') ? TEL_REDIS_PREFIX : `${TEL_REDIS_PREFIX}:`;
+const TEL_MAX_LOGO_BYTES = Math.max(100000, Number(process.env.TEL_MAX_LOGO_BYTES || 1500000));
 function telBotRedisKey(name){ return `${TEL_REDIS_PREFIX}${name}`; }
 function telBotVersionKey(){ return `${TEL_REDIS_PREFIX}__version`; }
+function telBotActiveDataKey(){ return `${TEL_REDIS_PREFIX}__active_data_key`; }
+function telBotClubLogoKey(clubKey){ return `${TEL_REDIS_SAFE_PREFIX}club-logo:${String(clubKey || '').trim()}`; }
+async function telBotResolveDataRedisKey(force=false){
+  if(!telBotRedis) return telBotRedisKey('data.json');
+  if(!force && telBotActiveDataRedisKey) return telBotActiveDataRedisKey;
+  try{
+    const raw = await telBotRedis.get(telBotActiveDataKey());
+    const candidate = String(raw || '').trim();
+    if(candidate && candidate.startsWith(TEL_REDIS_PREFIX)){
+      telBotActiveDataRedisKey = candidate;
+      return candidate;
+    }
+  }catch(error){
+    console.warn('[bot-storage] No se pudo leer la clave activa de la web:', error.message || error);
+  }
+  telBotActiveDataRedisKey = telBotRedisKey('data.json');
+  return telBotActiveDataRedisKey;
+}
 async function telBotRefreshFromRedis(force=false){
   if(!telBotRedis) return;
+  const previousDataKey = telBotActiveDataRedisKey;
+  const dataKey = await telBotResolveDataRedisKey(true);
   const remoteVersionRaw = await telBotRedis.get(telBotVersionKey());
   const remoteVersion = String(remoteVersionRaw || '');
-  if(!force && remoteVersion === telBotRemoteVersion) return;
-  const stored = await telBotRedis.get(telBotRedisKey('data.json'));
+  const activeKeyChanged = Boolean(previousDataKey && previousDataKey !== dataKey);
+  if(!force && !activeKeyChanged && remoteVersion === telBotRemoteVersion) return;
+  const stored = await telBotRedis.get(dataKey);
   if(stored !== null && stored !== undefined){
     const content = typeof stored === 'string' ? stored : JSON.stringify(stored, null, 2);
     fs.writeFileSync(DATA_FILE, content, 'utf8');
@@ -327,11 +352,105 @@ function telBotPersistData(content){
   telBotPersistQueue = telBotPersistQueue
     .catch(()=>{})
     .then(async()=>{
-      await telBotRedis.set(telBotRedisKey('data.json'), String(content));
+      const dataKey = await telBotResolveDataRedisKey(true);
+      await telBotRedis.set(dataKey, String(content));
+      // Copia de compatibilidad para instalaciones antiguas. La web nueva usa dataKey.
+      const legacyKey = telBotRedisKey('data.json');
+      if(legacyKey !== dataKey) await telBotRedis.set(legacyKey, String(content));
       await telBotRedis.set(telBotVersionKey(), version);
       telBotRemoteVersion = version;
+      console.log(`[bot-storage] data.json sincronizado con la web en ${dataKey}`);
     })
     .catch(error=>console.error('[bot-storage] No se pudo sincronizar data.json:', error));
+}
+async function telBotPersistClubLogo(clubKey, logo){
+  if(!telBotRedis || !clubKey || !logo?.base64) return false;
+  try{
+    const payload = JSON.stringify({
+      contentType: logo.contentType || 'image/png',
+      base64: logo.base64,
+      size: Number(logo.size || 0),
+      updatedAt: new Date().toISOString()
+    });
+    await telBotRedis.set(telBotClubLogoKey(clubKey), payload);
+    return true;
+  }catch(error){
+    console.warn('[bot-storage] No se pudo guardar el escudo en Upstash:', error.message || error);
+    return false;
+  }
+}
+async function telBotDeleteClubLogo(clubKey){
+  if(!telBotRedis || !clubKey) return;
+  try{ await telBotRedis.del(telBotClubLogoKey(clubKey)); }catch(error){}
+}
+async function telBotBackfillClubLogos(data){
+  if(!telBotRedis || !Array.isArray(data?.clubes)) return;
+  for(const club of data.clubes){
+    const clubKey = telClubStableId(club);
+    if(!clubKey) continue;
+    try{
+      const exists = await telBotRedis.exists(telBotClubLogoKey(clubKey));
+      if(exists) continue;
+      const fileName = club.escudoFilename || (club.escudoPath ? path.basename(String(club.escudoPath)) : '');
+      if(!fileName) continue;
+      const diskPath = path.join(PUBLIC_ESCUDOS_DIR, path.basename(fileName));
+      if(!fs.existsSync(diskPath)) continue;
+      const buffer = fs.readFileSync(diskPath);
+      if(!buffer.length || buffer.length > TEL_MAX_LOGO_BYTES) continue;
+      const ext = path.extname(fileName).toLowerCase();
+      const contentType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+        : ext === '.webp' ? 'image/webp'
+        : ext === '.gif' ? 'image/gif'
+        : 'image/png';
+      await telBotPersistClubLogo(clubKey, {
+        contentType,
+        base64: buffer.toString('base64'),
+        size: buffer.length
+      });
+    }catch(error){}
+  }
+}
+
+async function telBotRecoverRecentLocalClubs(){
+  const snapshot = telBotPreSyncLocalData;
+  if(!snapshot || !Array.isArray(snapshot.clubes) || !client?.guilds?.cache) return;
+  const current = cargarDatos();
+  if(!Array.isArray(current.clubes)) current.clubes = [];
+  if(!Array.isArray(current.jugadores)) current.jugadores = [];
+  const hours = Math.max(1, Number(process.env.TEL_MIGRATION_WINDOW_HOURS || 72));
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  const norm = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const currentIds = new Set(current.clubes.flatMap(club => [club.id, club.rolId, club.nombre, club.nombreVisual].filter(Boolean).map(norm)));
+  const recovered = [];
+
+  for(const club of snapshot.clubes){
+    const createdAt = Date.parse(club.creadoEn || club.actualizadoEn || snapshot.sync?.updatedAt || 0);
+    if(!Number.isFinite(createdAt) || createdAt < cutoff) continue;
+    const keys = [club.id, club.rolId, club.nombre, club.nombreVisual].filter(Boolean).map(norm);
+    if(keys.some(key => currentIds.has(key))) continue;
+    const roleStillExists = Boolean(club.rolId) && client.guilds.cache.some(guild => guild.roles.cache.has(String(club.rolId)));
+    if(!roleStillExists) continue;
+
+    current.clubes.push(JSON.parse(JSON.stringify(club)));
+    keys.forEach(key => currentIds.add(key));
+    recovered.push(club);
+
+    const relatedPlayers = (snapshot.jugadores || []).filter(player =>
+      String(player.clubId || '') === String(club.id || '') ||
+      norm(player.club || player.clubNombre) === norm(club.nombre)
+    );
+    for(const player of relatedPlayers){
+      const playerId = String(player.usuarioId || player.discordId || player.id || '');
+      const exists = current.jugadores.some(item => String(item.usuarioId || item.discordId || item.id || '') === playerId && playerId);
+      if(!exists) current.jugadores.push(JSON.parse(JSON.stringify(player)));
+    }
+  }
+
+  if(!recovered.length) return;
+  guardarDatos(current);
+  await telBotPersistQueue;
+  await telBotBackfillClubLogos(current);
+  console.log(`[bot-storage] Recuperados ${recovered.length} club(es) recientes creados en Discord: ${recovered.map(c=>c.nombre).join(', ')}`);
 }
 
 const CANAL_NORMATIVA_ID = "1521946924733698108";
@@ -603,11 +722,14 @@ async function guardarEscudoLocal(attachment, clubName) {
       url: `/escudos/${filename}`,
       remoteUrl,
       path: `public/escudos/${filename}`,
-      filename
+      filename,
+      contentType: contentType || 'image/png',
+      size: buffer.length,
+      base64: buffer.length <= TEL_MAX_LOGO_BYTES ? buffer.toString('base64') : ''
     };
   } catch (error) {
     console.warn(`[web-sync] No se pudo guardar el escudo local de ${clubName}:`, error.message || error);
-    return { url: remoteUrl, remoteUrl, path: "", filename: "" };
+    return { url: remoteUrl, remoteUrl, path: "", filename: "", contentType: String(attachment?.contentType || "image/png"), size: 0, base64: "" };
   }
 }
 
@@ -620,10 +742,13 @@ function guardarDatos(data) {
 
 async function telPrepareBotStorage(){
   try{
+    telBotPreSyncLocalData = cargarDatos();
     if(telBotRedis) await telBotRefreshFromRedis(true);
     telBotStorageReady = true;
-    guardarDatos(cargarDatos());
+    const preparedData = cargarDatos();
+    guardarDatos(preparedData);
     await telBotPersistQueue;
+    await telBotBackfillClubLogos(preparedData);
     if(telBotRedis){
       const timer = setInterval(()=>{
         telBotRefreshFromRedis(false).catch(error=>{
@@ -631,7 +756,7 @@ async function telPrepareBotStorage(){
         });
       }, 2500);
       timer.unref?.();
-      console.log('[bot-storage] Sincronización Upstash activa.');
+      console.log(`[bot-storage] Sincronización Upstash activa. Clave web: ${await telBotResolveDataRedisKey(true)}`);
     }
     console.log("[web-sync] Datos de Discord preparados para la web.");
   }catch(error){
@@ -1764,8 +1889,13 @@ async function rechazarOfertaFichaje(interaction, data, oferta) {
   );
 }
 
-client.once("ready", () => {
+client.once("ready", async () => {
   console.log(`✅ Bot conectado como ${client.user.tag}`);
+  try{
+    await telBotRecoverRecentLocalClubs();
+  }catch(error){
+    console.warn('[bot-storage] No se pudieron recuperar clubes locales recientes:', error.message || error);
+  }
 });
 
 client.on("guildMemberAdd", async member => {
@@ -2154,6 +2284,7 @@ client.on("interactionCreate", async interaction => {
       });
 
       const clubCreado = data.clubes[data.clubes.length - 1];
+      await telBotPersistClubLogo(clubCreado.id, escudoGuardado);
       for (const usuarioDirectiva of directivaParaPlantilla) {
         data.jugadores.push(crearRegistroJugadorWeb(usuarioDirectiva, clubCreado, interaction, {
           agregadoComoDirectiva: true
@@ -2376,6 +2507,7 @@ client.on("interactionCreate", async interaction => {
         club.escudoDiscordUrl = escudo.url;
         club.escudoPath = escudoGuardado.path || club.escudoPath || "";
         club.escudoFilename = escudoGuardado.filename || club.escudoFilename || "";
+        await telBotPersistClubLogo(club.id || telClubStableId(club), escudoGuardado);
         cambios.push("Escudo actualizado y sincronizado con la web");
       }
 
