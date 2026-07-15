@@ -229,7 +229,7 @@
     }
     pollVersion(false);
     // Comprobación ligera permanente: mantiene sincronizadas las distintas instancias.
-    setInterval(()=>pollVersion(false), 4000);
+    setInterval(()=>pollVersion(false), 2000);
   });
 
   window.addEventListener('beforeunload', ()=>{
