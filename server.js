@@ -91,17 +91,45 @@ function telRedisKey(name){
 function telRedisVersionKey(){
   return `${TEL_REDIS_PREFIX}__version`;
 }
+function telRedisRepoDataHashKey(){
+  return `${TEL_REDIS_PREFIX}__repo_data_hash`;
+}
+const TEL_REPO_DATA_PATH = path.join(__dirname, 'data.json');
+const TEL_REPO_DATA_CONTENT = telNativeFs.existsSync(TEL_REPO_DATA_PATH)
+  ? telNativeFs.readFileSync(TEL_REPO_DATA_PATH, 'utf8')
+  : '';
+const TEL_REPO_DATA_HASH = TEL_REPO_DATA_CONTENT
+  ? crypto.createHash('sha256').update(TEL_REPO_DATA_CONTENT).digest('hex')
+  : '';
 async function telLoadPersistentFiles(force=false){
   if(!TEL_IS_VERCEL || !telRedis) return;
   const now = Date.now();
   if(!force && telPersistentStateLoaded && now - telPersistentLastCheck < 2000) return;
   telPersistentLastCheck = now;
 
-  const remoteVersionRaw = await telRedis.get(telRedisVersionKey());
-  const remoteVersion = String(remoteVersionRaw || '');
-  if(telPersistentStateLoaded && remoteVersion === telPersistentRemoteVersion) return;
+  let remoteVersionRaw = await telRedis.get(telRedisVersionKey());
+  let remoteVersion = String(remoteVersionRaw || '');
+  const storedRepoHashRaw = await telRedis.get(telRedisRepoDataHashKey());
+  const storedRepoHash = String(storedRepoHashRaw || '');
+  const repoDataChanged = Boolean(TEL_REPO_DATA_HASH && storedRepoHash !== TEL_REPO_DATA_HASH);
+
+  /* Si data.json cambia en GitHub, se importa una sola vez a Upstash. */
+  let repoDataSeeded = false;
+  if(repoDataChanged){
+    const version = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    telNativeFs.writeFileSync(path.join(TEL_RUNTIME_DIR, 'data.json'), TEL_REPO_DATA_CONTENT, 'utf8');
+    await telRedis.set(telRedisKey('data.json'), TEL_REPO_DATA_CONTENT);
+    await telRedis.set(telRedisRepoDataHashKey(), TEL_REPO_DATA_HASH);
+    await telRedis.set(telRedisVersionKey(), version);
+    remoteVersion = version;
+    repoDataSeeded = true;
+    console.log('[vercel-storage] Nueva data.json de GitHub importada en Upstash.');
+  }
+
+  if(telPersistentStateLoaded && remoteVersion === telPersistentRemoteVersion && !repoDataSeeded) return;
 
   for(const name of TEL_MUTABLE_FILE_NAMES){
+    if(repoDataSeeded && name === 'data.json') continue;
     const stored = await telRedis.get(telRedisKey(name));
     if(stored === null || stored === undefined) continue;
     const content = typeof stored === 'string' ? stored : JSON.stringify(stored, null, 2);
@@ -116,6 +144,7 @@ async function telLoadPersistentFiles(force=false){
     }
   }catch(error){}
 }
+
 function telEnsurePersistentFiles(){
   if(!TEL_IS_VERCEL || !telRedis) return Promise.resolve();
   if(!telPersistentLoadPromise){
@@ -512,6 +541,82 @@ function pickLogoUrl(club) {
   return "";
 }
 
+
+function telLogoSlug(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function telFindClubByKey(data, rawKey){
+  const key = String(rawKey || '').trim();
+  const wanted = normalizeText(key);
+  const clubs = findDataList(data || {}, ['clubes','equipos','teams']);
+  let club = clubs.find(item => [item.id,item._id,item.clubId,item.nombre,item.name,item.nombreVisual,item.clubNombre]
+    .some(value => value && (String(value) === key || normalizeText(value) === wanted)));
+  if(club) return club;
+
+  for(const comp of findDataList(data || {}, ['competiciones','ligas','torneos'])){
+    const team = (comp.equipos || []).find(item => [item.slotId,item.id,item._id,item.clubId,item.nombre,item.name,item.nombreVisual,item.clubNombre]
+      .some(value => value && (String(value) === key || normalizeText(value) === wanted)));
+    if(!team) continue;
+    const masterKey = team.clubId || team.idClub || team.clubNombre || team.nombre || team.nombreVisual;
+    club = clubs.find(item => [item.id,item._id,item.clubId,item.nombre,item.name,item.nombreVisual,item.clubNombre]
+      .some(value => value && normalizeText(value) === normalizeText(masterKey)));
+    return club || team;
+  }
+  return null;
+}
+
+function telResolveClubLogo(club){
+  if(!club) return null;
+  const publicEscudos = path.join(__dirname, 'public', 'escudos');
+  const direct = pickLogoUrl(club);
+  if(direct){
+    if(/^https?:\/\//i.test(direct)) return {type:'remote', value:direct};
+    if(direct.startsWith('/api/club-logo')) return null;
+    const localName = path.basename(String(direct).replaceAll('\\','/'));
+    const localPath = path.join(publicEscudos, localName);
+    if(localName && fs.existsSync(localPath)) return {type:'file', value:localPath, filename:localName};
+  }
+
+  const slug = telLogoSlug(club.nombre || club.clubNombre || club.nombreVisual || club.name);
+  if(slug && fs.existsSync(publicEscudos)){
+    try{
+      const files = fs.readdirSync(publicEscudos)
+        .filter(name => new RegExp(`^escudo-${slug}(?:-|\\.)`, 'i').test(name) && /\.(?:png|jpe?g|webp|gif|svg)$/i.test(name))
+        .sort((a,b)=>b.localeCompare(a));
+      if(files[0]) return {type:'file', value:path.join(publicEscudos, files[0]), filename:files[0]};
+    }catch(error){}
+  }
+  return null;
+}
+
+function telStableClubLogoUrl(club){
+  if(!club || !telResolveClubLogo(club)) return '';
+  const key = club.id || club._id || club.clubId || club.nombre || club.clubNombre || club.nombreVisual || club.name;
+  return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : '';
+}
+
+function telCanonicalTeam(data, team){
+  if(!team || typeof team !== 'object') return team;
+  const master = telFindClubByKey(data, team.clubId || team.idClub || team.clubNombre || team.nombre || team.nombreVisual || team.name);
+  if(!master || master === team) return team;
+  return {
+    ...team,
+    clubId: master.id || master._id || master.clubId || team.clubId || '',
+    clubNombre: master.nombre || master.clubNombre || master.name || team.clubNombre || '',
+    nombre: master.nombreVisual || master.nombre || master.name || team.nombre || '',
+    nombreVisual: master.nombreVisual || master.nombre || master.name || team.nombreVisual || '',
+    emoji: master.emoji || team.emoji || '⚡',
+    presidenteTag: master.presidenteTag || master.presidente || team.presidenteTag || '',
+    escudoUrl: telStableClubLogoUrl(master) || pickLogoUrl(master) || pickLogoUrl(team) || ''
+  };
+}
+
 function normalizePlayerForWeb(player, club) {
   const discordId = String(player.usuarioId || player.discordId || player.idJugador || player.id || "");
   const tag = player.usuarioTag || player.discord || player.discordTag || discordId || "Jugador";
@@ -549,7 +654,7 @@ function normalizeClubForWeb(club, data) {
     nombre,
     nombreVisual,
     emoji: club.emoji || "⚡",
-    escudoUrl: pickLogoUrl(club),
+    escudoUrl: telStableClubLogoUrl(club) || pickLogoUrl(club),
     colorHex: club.colorHex || club.color || "",
     presupuesto: Number(club.presupuesto || club.budget || 0),
     presidenteId: club.presidenteId || null,
@@ -625,14 +730,14 @@ function telHydrateDataForClient(rawData){
     });
   }
   clubs.forEach(club=>{
-    const logo=telClientLogo(club);
-    if(logo){ club.escudoUrl=logo; if(!club.escudoPath && logo.startsWith('/escudos/')) club.escudoPath=logo.slice(1); }
+    const logo = telStableClubLogoUrl(club) || telClientLogo(club);
+    if(logo) club.escudoUrl=logo;
     indexObject(clubIndex,club,[club.id,club._id,club.clubId,club.nombre,club.nombreVisual,club.clubNombre,club.name]);
   });
   function findClub(source){
     if(!source) return null;
     const values = typeof source === 'string' ? [source] : [
-      source.clubId,source.id,source._id,source.slotId,source.clubNombre,
+      source.clubId,source.idClub,source.id,source._id,source.slotId,source.clubNombre,
       source.nombre,source.nombreVisual,source.name,source.equipo,source.club
     ];
     for(const value of values){
@@ -644,35 +749,42 @@ function telHydrateDataForClient(rawData){
   }
   function hydrateTeam(source){
     const input = source && typeof source === 'object' ? source : {};
-    const base = findClub(input) || (typeof source === 'string' ? findClub(source) : null) || {};
-    const out = {...base,...input};
+    const base = findClub(input) || (typeof source === 'string' ? findClub(source) : null);
+    if(base){
+      const canonicalName = base.nombre || base.clubNombre || base.name || telClientCleanName(base.nombreVisual) || 'Equipo';
+      const canonicalVisual = base.nombreVisual || base.nombre || base.name || canonicalName;
+      return {
+        ...input,
+        clubId: base.id || base._id || base.clubId || input.clubId || '',
+        clubNombre: canonicalName,
+        nombre: canonicalVisual,
+        nombreVisual: canonicalVisual,
+        emoji: base.emoji || input.emoji || '⚡',
+        presidenteTag: base.presidenteTag || base.presidente || input.presidenteTag || '',
+        escudoUrl: telStableClubLogoUrl(base) || telClientLogo(base) || telClientLogo(input) || ''
+      };
+    }
     const canonical = telClientCleanName(
-      input.clubNombre || base.nombre || input.nombreVisual || input.nombre || input.name ||
+      input.clubNombre || input.nombreVisual || input.nombre || input.name ||
       (typeof source === 'string' ? source : '') || 'Equipo'
     ) || 'Equipo';
-    out.clubNombre = input.clubNombre || base.nombre || canonical;
-    out.nombre = input.nombre || input.nombreVisual || base.nombreVisual || base.nombre || canonical;
-    out.nombreVisual = input.nombreVisual || input.nombre || base.nombreVisual || base.nombre || canonical;
-    const logo = telClientLogo(input) || telClientLogo(base);
-    if(logo){
-      out.escudoUrl=logo;
-      if(!out.escudoPath && logo.startsWith('/escudos/')) out.escudoPath=logo.slice(1);
-    }
-    return out;
+    return {
+      ...input,
+      clubNombre: input.clubNombre || canonical,
+      nombre: input.nombre || input.nombreVisual || canonical,
+      nombreVisual: input.nombreVisual || input.nombre || canonical,
+      escudoUrl: telClientLogo(input)
+    };
   }
   const comps = Array.isArray(data.competiciones) ? data.competiciones : [];
   comps.forEach(comp=>{
     comp.equipos = Array.isArray(comp.equipos) ? comp.equipos.map(hydrateTeam) : [];
     const teamIndex = new Map();
     comp.equipos.forEach((team,index)=>{
-      indexObject(teamIndex,team,[
-        team.slotId,team.id,team._id,team.clubId,team.clubNombre,
-        team.nombre,team.nombreVisual,team.name,`slot-${index+1}`
-      ]);
+      indexObject(teamIndex,team,[team.slotId,team.id,team._id,team.clubId,team.clubNombre,team.nombre,team.nombreVisual,team.name,`slot-${index+1}`]);
     });
     function resolveParticipant(reference,embeddedName){
-      const values=[reference,embeddedName];
-      for(const value of values){
+      for(const value of [reference,embeddedName]){
         if(!value) continue;
         const found=teamIndex.get(String(value)) || teamIndex.get(telClientNorm(value));
         if(found) return found;
@@ -683,29 +795,25 @@ function telHydrateDataForClient(rawData){
     if(Array.isArray(comp.clasificacion)){
       comp.clasificacion = comp.clasificacion.map(row=>{
         const base=resolveParticipant(row?.slotId || row?.clubId || row?.id,row?.clubNombre || row?.nombre || row?.nombreVisual);
-        return hydrateTeam({...base,...row});
+        return hydrateTeam({...row,...(base || {}),slotId:row?.slotId || base?.slotId || ''});
       });
     }
     if(Array.isArray(comp.partidos)){
       comp.partidos = comp.partidos.map(match=>{
-        const local=resolveParticipant(
-          match.localSlotId || match.localClubId || match.localId,
-          match.localNombre || match.nombreLocal || match.equipoLocal
-        );
-        const away=resolveParticipant(
-          match.visitanteSlotId || match.visitanteClubId || match.visitanteId,
-          match.visitanteNombre || match.nombreVisitante || match.equipoVisitante
-        );
+        const local=resolveParticipant(match.localSlotId || match.localClubId || match.localId,match.localNombre || match.nombreLocal || match.equipoLocal);
+        const away=resolveParticipant(match.visitanteSlotId || match.visitanteClubId || match.visitanteId,match.visitanteNombre || match.nombreVisitante || match.equipoVisitante);
         if(local){
           match.localNombre=telClientCleanName(local.clubNombre || local.nombre || local.nombreVisual) || 'Por definir';
           match.localLogo=telClientLogo(local);
           match.localEscudo=match.localLogo;
+          match.localClubId=local.clubId || '';
           if(!match.localSlotId) match.localSlotId=local.slotId || local.id || local.clubId || '';
         }
         if(away){
           match.visitanteNombre=telClientCleanName(away.clubNombre || away.nombre || away.nombreVisual) || 'Por definir';
           match.visitanteLogo=telClientLogo(away);
           match.visitanteEscudo=match.visitanteLogo;
+          match.visitanteClubId=away.clubId || '';
           if(!match.visitanteSlotId) match.visitanteSlotId=away.slotId || away.id || away.clubId || '';
         }
         return match;
@@ -930,6 +1038,23 @@ app.get("/api/sanciones", (req, res) => {
 
 app.get("/api/comandos", (req, res) => {
   res.json(readJson(COMMANDS_FILE, []));
+});
+
+// Escudo estable por ID o nombre del club.
+app.get('/api/club-logo', async (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[],competiciones:[]});
+    const club = telFindClubByKey(data, req.query.key);
+    if(!club) return res.status(404).send('Escudo no encontrado');
+    const source = telResolveClubLogo(club);
+    if(!source) return res.status(404).send('Escudo no encontrado');
+    res.set('Cache-Control','no-store');
+    if(source.type === 'file') return res.sendFile(source.value);
+    return res.redirect(302, '/api/logo?url=' + encodeURIComponent(source.value));
+  }catch(error){
+    console.error('[club-logo]',error);
+    return res.status(404).send('Escudo no encontrado');
+  }
 });
 
 // Proxy local de escudos/logos.
@@ -5022,7 +5147,9 @@ function telPanelName(t,fallback){
     .trim();
 }
 function telPanelLogo(t){
-  return telClientLogo(t);
+  if(!t) return '';
+  const key=t.clubId || t.idClub || t.clubNombre || t.nombre || t.nombreVisual || t.name || t.id;
+  return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : telClientLogo(t);
 }
 function telPanelTeam(comp,slot,data,match,side){
   const teams = comp?.equipos || [];
@@ -5045,7 +5172,7 @@ function telPanelTeam(comp,slot,data,match,side){
     const club=clubs.find(t=>[t.id,t.clubId,t.clubNombre,t.nombre,t.nombreVisual,t.name].some(value=>value && telPanelNorm(value)===wanted));
     if(club) found=club;
   }
-  if(found) return found;
+  if(found) return telCanonicalTeam(data, found);
   const embeddedLogo = side === 'local'
     ? (match?.localLogo || match?.localEscudo || '')
     : (match?.visitanteLogo || match?.visitanteEscudo || '');
