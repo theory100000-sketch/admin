@@ -1,0 +1,11 @@
+.env
+node_modules
+server.js.pre-vercel
+DIAGNOSTICO_*
+README_*.txt
+*.bat
+*.sh
+discord-bot.js
+deploy-commands.js
+verify-commands.js
+start-all.js

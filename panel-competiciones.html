@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Competiciones · Admin TEL</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#050b18;--panel:#0a1426;--panel2:#0c172b;--line:rgba(255,255,255,.10);--muted:#9eabc1;--purple:#a33cff;--purple2:#6e21e8;--green:#18ca67;--blue:#2490ff;--red:#ff405f;--yellow:#ffba22}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;min-height:100vh;color:#f8fbff;font-family:Inter,Arial,Helvetica,sans-serif;background:radial-gradient(circle at 85% 0%,rgba(76,36,175,.24),transparent 32%),radial-gradient(circle at 12% 0%,rgba(0,116,255,.08),transparent 25%),linear-gradient(135deg,#050b18,#071123 60%,#070d1c)}
+button,input,select{font:inherit}
+.admin-layout{display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:24px 18px;background:linear-gradient(180deg,#071121,#050a14);border-right:1px solid rgba(255,255,255,.08)}
+.brand{display:flex;align-items:center;gap:13px;padding:0 8px 26px;border-bottom:1px solid rgba(255,255,255,.08)}
+.shield{width:51px;height:57px;position:relative;display:grid;place-items:center;color:#fff;font-size:21px;background:linear-gradient(145deg,#963dff,#3b1a8e);clip-path:polygon(50% 0,92% 15%,86% 72%,50% 100%,14% 72%,8% 15%)}
+.shield:after{content:"🏆";width:35px;height:40px;display:grid;place-items:center;background:#091326;clip-path:polygon(50% 0,92% 15%,86% 72%,50% 100%,14% 72%,8% 15%);font-size:16px}
+.brand h2{margin:0;font-size:20px;line-height:1.03;text-transform:uppercase}.brand span{color:#be53ff;font-size:14px}
+.side-title{margin:30px 12px 14px;color:#b94bff;font-size:12px;font-weight:1000;text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:7px}
+.nav a{display:flex;align-items:center;gap:13px;padding:13px 14px;color:#d9e1ee;text-decoration:none;border-radius:10px;font-size:14px;font-weight:800;transition:.15s}.nav a .ico{width:20px;text-align:center;font-size:18px}.nav a:hover,.nav a.active{background:linear-gradient(90deg,rgba(133,42,255,.34),rgba(133,42,255,.10));color:#d377ff;box-shadow:inset 3px 0 #a43cff}
+.admin-user{margin-top:auto;display:flex;align-items:center;gap:10px;padding:13px;border:1px solid rgba(255,255,255,.11);border-radius:13px;background:rgba(255,255,255,.025)}
+.admin-user .avatar{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#7427ef,#3d178e)}.admin-user b{display:block;font-size:13px}.admin-user small{color:var(--muted);font-size:11px}
+.main{padding:27px 28px 34px;overflow:auto}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:21px}.top h1{margin:0 0 8px;font-size:31px;line-height:1}.top p{margin:0;color:#c3ccda;font-size:14px}.sync{display:flex;align-items:center;gap:9px;padding:12px 17px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(6,12,25,.74);color:#eef3fb;cursor:pointer}.sync span{color:#a745ff;font-size:21px}
+.toolbar{display:grid;grid-template-columns:204px minmax(220px,320px) minmax(370px,1fr);gap:16px;align-items:center;margin-bottom:15px}.new-btn{height:43px;border:0;border-radius:8px;background:linear-gradient(135deg,#7224dc,#9e2cff);color:#fff;font-weight:1000;cursor:pointer}.search{position:relative}.search:before{content:"⌕";position:absolute;left:14px;top:9px;color:#a8b2c4;font-size:22px}.search input{height:43px;padding:0 14px 0 40px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:#091326;color:#fff;width:100%}.tabs{height:43px;display:grid;grid-template-columns:repeat(4,1fr);border:1px solid rgba(255,255,255,.13);border-radius:8px;overflow:hidden}.tabs button{border:0;border-right:1px solid rgba(255,255,255,.10);background:#091326;color:#e6ebf4;font-weight:900;cursor:pointer}.tabs button:last-child{border-right:0}.tabs button.active{background:linear-gradient(180deg,#6c21db,#431584);box-shadow:inset 0 0 0 1px #b152ff}
+.workspace{display:grid;grid-template-columns:minmax(510px,.92fr) minmax(610px,1.15fr);gap:15px;margin-bottom:14px}.card{border:1px solid rgba(255,255,255,.10);border-radius:14px;background:linear-gradient(180deg,rgba(11,22,42,.94),rgba(7,15,30,.95));box-shadow:0 22px 55px rgba(0,0,0,.16)}.card-head{padding:16px 18px 0}.card h2{margin:0;font-size:17px}.card-body{padding:15px 18px 17px}
+.form-grid{display:grid;grid-template-columns:1.18fr .98fr;gap:14px 18px}.field label{display:block;margin-bottom:7px;color:#eef2f8;font-size:12px;font-weight:800}.field input,.field select{width:100%;height:41px;padding:0 12px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#091326;color:#fff;outline:none}.field input:focus,.field select:focus{border-color:#8c3cff;box-shadow:0 0 0 2px rgba(140,60,255,.15)}.field-help{display:block;margin-top:6px;color:#8f9db3;font-size:10px;line-height:1.25}.league-rounds-row[hidden]{display:none!important}
+.type-label{margin:15px 0 8px;font-size:12px;font-weight:800}.type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}.type-option{min-height:70px;display:flex;align-items:center;gap:11px;padding:12px;border:1px solid rgba(255,255,255,.16);border-radius:9px;background:#091326;color:#fff;text-align:left;cursor:pointer}.type-option .type-ico{font-size:25px}.type-option b{display:block;font-size:14px}.type-option small{display:block;margin-top:4px;color:#a9b4c7;font-size:10px;line-height:1.2}.type-option.active{border-color:#b84fff;background:linear-gradient(135deg,rgba(123,42,212,.32),rgba(70,23,130,.25));box-shadow:inset 0 0 0 1px rgba(205,104,255,.35)}
+.inline-grid{display:grid;grid-template-columns:1fr 1.13fr;gap:14px;margin-top:13px}
+.format-switch{min-height:41px;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:12px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#091326;padding:8px 12px;font-size:12px}
+.radio-line{display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;min-width:0;color:#eef2f8;font-weight:800;white-space:nowrap;line-height:1.1;text-align:center}
+.radio-line input[type="radio"]{width:18px!important;height:18px!important;min-width:18px;flex:0 0 18px;margin:0;padding:0;accent-color:#9d3cff;appearance:auto;background:transparent;border:0;box-shadow:none}
+.radio-line span{display:inline-block;white-space:nowrap}
+.switch-row{height:41px;display:flex;align-items:center;justify-content:space-between;padding:0 11px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#091326}.toggle{width:43px;height:22px;border:0;border-radius:999px;background:#29344b;position:relative;cursor:pointer}.toggle:after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s}.toggle.on{background:linear-gradient(90deg,#6e21d9,#a437ff)}.toggle.on:after{left:24px}
+.actions-row{display:grid;grid-template-columns:1.25fr .95fr;gap:10px;margin-top:14px}.save-comp,.save-teams{height:41px;border:0;border-radius:7px;background:linear-gradient(135deg,#0bb854,#1bd46c);color:#fff;font-weight:1000;cursor:pointer}.cancel{height:41px;border:1px solid rgba(255,255,255,.13);border-radius:7px;background:#091326;color:#fff;font-weight:800;cursor:pointer}
+.participants-card .card-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:2px}.count{font-size:12px;color:#c2cad8}.count b{color:#b64cff}.participants-layout{display:grid;grid-template-columns:1fr 112px 1fr;gap:13px;align-items:center}.list-title{margin-bottom:8px;font-size:11px;font-weight:900}.team-search{position:relative;margin-bottom:7px}.team-search:before{content:"⌕";position:absolute;left:11px;top:7px;color:#9ca8bc}.team-search input{height:33px;width:100%;padding:0 10px 0 31px;border:1px solid rgba(255,255,255,.13);border-radius:7px;background:#081225;color:#fff;font-size:11px}.team-list{height:294px;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:#081225}.team-item{display:grid;grid-template-columns:25px minmax(0,1fr) 23px;gap:8px;align-items:center;min-height:36px;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.08);font-size:11px}.team-item:last-child{border-bottom:0}.team-logo{width:24px;height:24px;border-radius:50%;object-fit:contain;background:#050914;border:1px solid rgba(255,255,255,.12)}.team-fallback{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#16223a;color:#b955ff;font-weight:1000}.team-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}.round-btn{width:21px;height:21px;padding:0;border-radius:6px;border:1px solid #8b35ff;background:rgba(135,46,255,.18);color:#d483ff;font-weight:1000;cursor:pointer}.round-btn.remove{border-color:transparent;background:transparent;color:#dce3ee;font-size:17px}.move-buttons{display:flex;flex-direction:column;gap:13px}.move-buttons button{height:43px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:#091326;color:#fff;font-size:11px;font-weight:900;cursor:pointer}.move-buttons .add{background:linear-gradient(135deg,#6321d0,#8427e8);border-color:#8d3fff}.selected-panel .team-list{height:327px}.save-teams{width:100%;margin-top:13px}
+.lower{display:grid;grid-template-columns:230px minmax(0,1fr);gap:15px}.summary{padding:16px}.summary-title{display:flex;align-items:center;gap:9px;margin-bottom:11px;font-size:15px;font-weight:1000}.summary-title span{color:#a63fff}.summary-row{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12px}.summary-row:last-child{border-bottom:0}.summary-row .label{display:flex;align-items:center;gap:9px;color:#c9d1df}.summary-row .label span{color:#b64cff}.summary-row b{font-size:14px}
+.table-card{overflow:hidden}.table-title{padding:16px 18px 11px;font-size:17px;font-weight:1000}.table-wrap{overflow:auto}.comp-table{width:100%;border-collapse:collapse;min-width:880px}.comp-table th{padding:10px 12px;color:#c7cfdd;font-size:10px;text-align:left;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}.comp-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.07);font-size:11px}.comp-name{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:1000}.type-badge,.status-badge{display:inline-flex;padding:5px 9px;border-radius:5px;font-size:10px;font-weight:900}.type-badge.copa{background:rgba(153,55,255,.22);color:#d185ff}.type-badge.liga{background:rgba(36,144,255,.20);color:#72baff}.type-badge.grupos{background:rgba(255,183,26,.16);color:#ffc95b}.status-badge{background:transparent;gap:6px;align-items:center}.status-dot{width:7px;height:7px;border-radius:50%;background:#24d46f}.status-badge.borrador .status-dot{background:#ffbc22}.status-badge.finalizada .status-dot{background:#8896ab}.row-actions{display:flex;gap:7px;white-space:nowrap}.row-actions button,.row-actions a{padding:7px 9px;border-radius:5px;border:1px solid rgba(255,255,255,.14);background:#081225;color:#fff;font-size:9px;font-weight:900;text-decoration:none;cursor:pointer}.row-actions .edit{border-color:#7c36d4;color:#c673ff}.row-actions .teams{border-color:#1e6cc2;color:#65b3ff}.row-actions .delete{border-color:#a72a40;color:#ff6279}.table-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 1px;color:#929fb2;font-size:10px}.pagination{display:flex;gap:7px}.pagination button{width:32px;height:32px;border:1px solid rgba(255,255,255,.13);border-radius:7px;background:#081225;color:#fff}.pagination button.active{border-color:#9b42ff;background:#5420a5}
+.empty{padding:24px;text-align:center;color:#9eabc1}.toast{position:fixed;right:24px;bottom:24px;max-width:380px;padding:13px 16px;border-radius:10px;font-weight:900;font-size:13px;display:none;z-index:30}.toast.ok{display:block;background:#0f3625;border:1px solid #1dcc6a;color:#6effa3}.toast.bad{display:block;background:#3b1420;border:1px solid #ff405f;color:#ff93a5}
+@media(max-width:1250px){.admin-layout{grid-template-columns:1fr}.sidebar{display:none}.workspace,.lower{grid-template-columns:1fr}.toolbar{grid-template-columns:1fr}.participants-layout{grid-template-columns:1fr}.move-buttons{flex-direction:row}.move-buttons button{flex:1}.team-list,.selected-panel .team-list{height:240px}}
+@media(max-width:700px){.main{padding:20px 14px}.top{flex-direction:column}.form-grid,.type-grid,.inline-grid,.actions-row{grid-template-columns:1fr}.top h1{font-size:27px}}
+</style>
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar">
+    <div class="brand"><div class="shield"></div><div><h2>Thunder<br><span>Elite League</span></h2></div></div>
+    <div class="side-title">Admin</div>
+    <nav class="nav">
+      <a href="/panel-admin.html"><span class="ico">⌂</span>Volver al panel principal</a>
+      <a class="active" href="/panel-competiciones.html"><span class="ico">▥</span>Competiciones</a>
+    </nav>
+    <div class="admin-user"><div class="avatar">🛡</div><div><b>Admin TEL</b><small>Administrador</small></div><span style="margin-left:auto">⌄</span></div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div><h1>Crear y gestionar competiciones</h1><p>Crea ligas o copas, configura el formato y administra los equipos participantes.</p></div>
+      <button class="sync" id="syncBtn"><span>⟳</span> Sincronizar</button>
+    </header>
+
+    <section class="toolbar">
+      <button class="new-btn" id="newBtn">＋ Nueva competición</button>
+      <div class="search"><input id="competitionSearch" placeholder="Buscar competición..."></div>
+      <div class="tabs" id="filterTabs"><button class="active" data-filter="todas">Todas</button><button data-filter="activas">Activas</button><button data-filter="borrador">Borrador</button><button data-filter="finalizadas">Finalizadas</button></div>
+    </section>
+
+    <section class="workspace" id="editorArea">
+      <article class="card">
+        <div class="card-head"><h2>Datos de la competición</h2></div>
+        <div class="card-body">
+          <input id="competitionId" type="hidden">
+          <div class="form-grid">
+            <div class="field"><label>Nombre de la competición</label><input id="competitionName" placeholder="Nombre de la competición"></div>
+            <div class="field"><label>Temporada</label><select id="season"><option>Temporada 1</option><option>Temporada 2</option><option>Temporada 3</option></select></div>
+          </div>
+          <div class="type-label">Tipo de competición</div>
+          <div class="type-grid" id="typeGrid">
+            <button class="type-option active" data-type="liga"><span class="type-ico">🏆</span><span><b>Liga</b><small>Todos contra todos</small></span></button>
+            <button class="type-option" data-type="copa"><span class="type-ico">🏆</span><span><b>Copa</b><small>Eliminación directa</small></span></button>
+            <button class="type-option" data-type="grupos"><span class="type-ico">⌘</span><span><b>Grupos + Playoffs</b><small>Fase de grupos y playoffs</small></span></button>
+          </div>
+          <div class="inline-grid">
+            <div class="field"><label>Estado</label><select id="status"><option value="activa">🟢 Activa</option><option value="borrador">🟡 Borrador</option><option value="finalizada">⚫ Finalizada</option></select></div>
+            <div class="field"><label>Formato</label><div class="format-switch"><label class="radio-line"><input type="radio" name="format" value="ida_vuelta" checked><span>Ida y vuelta</span></label><label class="radio-line"><input type="radio" name="format" value="solo_ida"><span>Solo ida</span></label></div></div>
+          </div>
+          <div class="inline-grid">
+            <div class="field"><label>Nº máximo de equipos</label><select id="maxTeams"><option>4</option><option selected>8</option><option>10</option><option>12</option><option>16</option><option>20</option><option>24</option><option>32</option></select></div>
+            <div class="field"><label>Inscripciones abiertas</label><div class="switch-row"><span id="registrationText">Abiertas</span><button class="toggle on" id="registrationToggle" type="button"></button></div></div>
+          </div>
+          <div class="inline-grid league-rounds-row" id="leagueRoundsRow">
+            <div class="field"><label>Nº de jornadas de la liga</label><input id="leagueRounds" type="number" min="1" max="100" step="1" value="14"><small class="field-help">El administrador puede elegir cualquier cantidad entre 1 y 100.</small></div>
+            <div class="field"><label>Calendario</label><div class="switch-row"><span id="leagueRoundsText">Se crearán 14 jornadas</span></div><small class="field-help">Si se cambia después, se regenerará el calendario de la liga.</small></div>
+          </div>
+          <div class="inline-grid">
+            <div class="field"><label>Fecha de inicio</label><input id="startDate" type="date"></div>
+            <div class="field"><label>Fecha de cierre / fin</label><input id="endDate" type="date"></div>
+          </div>
+          <div class="actions-row"><button class="save-comp" id="saveCompetition">▣ Guardar competición</button><button class="cancel" id="cancelEdit">Cancelar</button></div>
+        </div>
+      </article>
+
+      <article class="card participants-card">
+        <div class="card-head"><h2>Equipos participantes</h2><div class="count"><b id="selectedCount">0</b> / <span id="maxCount">8</span> equipos</div></div>
+        <div class="card-body">
+          <div class="participants-layout">
+            <div>
+              <div class="list-title">Equipos disponibles</div>
+              <div class="team-search"><input id="teamSearch" placeholder="Buscar equipo..."></div>
+              <div class="team-list" id="availableTeams"></div>
+            </div>
+            <div class="move-buttons"><button class="add" id="addVisible">Añadir →</button><button id="removeAll">← Quitar</button></div>
+            <div class="selected-panel">
+              <div class="list-title">Equipos seleccionados</div>
+              <div class="team-list" id="selectedTeams"></div>
+            </div>
+          </div>
+          <button class="save-teams" id="saveParticipants">♙ Guardar participantes</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="lower">
+      <article class="card summary">
+        <div class="summary-title"><span>⌁</span>Resumen</div>
+        <div class="summary-row"><div class="label"><span>🏆</span>Competiciones activas</div><b id="sumActive">0</b></div>
+        <div class="summary-row"><div class="label"><span>♙</span>Equipos inscritos</div><b id="sumTeams">0</b></div>
+        <div class="summary-row"><div class="label"><span>♜</span>Copas</div><b id="sumCups">0</b></div>
+        <div class="summary-row"><div class="label"><span>▧</span>Ligas</div><b id="sumLeagues">0</b></div>
+      </article>
+
+      <article class="card table-card">
+        <div class="table-title">Competiciones creadas</div>
+        <div class="table-wrap"><table class="comp-table"><thead><tr><th>Nombre</th><th>Tipo</th><th>Equipos</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Acciones</th></tr></thead><tbody id="competitionRows"></tbody></table></div>
+      </article>
+    </section>
+    <div class="table-footer"><span id="tableInfo">Mostrando 0 competiciones</span><div class="pagination"><button>‹</button><button class="active">1</button><button>›</button></div></div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+let manager={competitions:[],clubs:[]};
+let selectedType='liga';
+let registrationsOpen=true;
+let selectedClubNames=[];
+let currentFilter='todas';
+let telCompetitionAutosaveTimer=null;
+let telParticipantsAutosaveTimer=null;
+window.__telFormDirty=false;
+window.__telAutosaveBusy=false;
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+async function fetchJson(url,opts){try{const r=await fetch(url,Object.assign({cache:'no-store'},opts||{}));const j=await r.json();return Object.assign({status:r.status},j)}catch(e){return {ok:false,message:e.message}}}
+async function loginSilently(){const me=await fetchJson('/api/auth/me');if(!me?.admin){location.href='/?admin_login=1#login';throw new Error('admin_required');}return me;}
+function toast(text,ok=true){const el=$('toast');el.textContent=text;el.className='toast '+(ok?'ok':'bad');setTimeout(()=>el.className='toast',2800)}
+function cleanName(s){return String(s||'').replace(/^[^\p{L}\p{N}]+/u,'').trim()}
+function logo(team){return team.logo?`<img loading="lazy" decoding="async" class="team-logo" src="${esc(team.logo)}" onerror="this.outerHTML='<span class=&quot;team-fallback&quot;>${esc((cleanName(team.nombre)||'?')[0])}</span>'">`:`<span class="team-fallback">${esc((cleanName(team.nombre)||'?')[0])}</span>`}
+function statusLabel(v){return v==='borrador'?'Borrador':v==='finalizada'?'Finalizada':'Activa'}
+function typeLabel(v){return v==='copa'?'Copa':v==='grupos'?'Grupos + Playoffs':'Liga'}
+function typeIcon(v){return v==='grupos'?'⌘':'🏆'}
+
+async function load(preferredId){
+  await loginSilently();
+  const res=await fetchJson('/api/admin/competitions-manager');
+  if(!res.ok){toast(res.message||'No se pudo cargar.',false);return}
+  manager=res;
+  renderSummary();
+  renderTable();
+  if(preferredId){const found=manager.competitions.find(c=>c.id===preferredId);if(found) selectCompetition(found.id)}
+  renderTeams();
+}
+function renderSummary(){
+  $('sumActive').textContent=manager.competitions.filter(c=>c.estado==='activa').length;
+  $('sumTeams').textContent=manager.competitions.reduce((n,c)=>n+Number(c.equipos||0),0);
+  $('sumCups').textContent=manager.competitions.filter(c=>c.tipo==='copa').length;
+  $('sumLeagues').textContent=manager.competitions.filter(c=>c.tipo==='liga').length;
+}
+function filteredCompetitions(){
+  const q=$('competitionSearch').value.toLowerCase().trim();
+  return manager.competitions.filter(c=>{
+    if(q && !c.nombre.toLowerCase().includes(q)) return false;
+    if(currentFilter==='activas' && c.estado!=='activa') return false;
+    if(currentFilter==='borrador' && c.estado!=='borrador') return false;
+    if(currentFilter==='finalizadas' && c.estado!=='finalizada') return false;
+    return true;
+  });
+}
+function renderTable(){
+  const rows=filteredCompetitions();
+  $('competitionRows').innerHTML=rows.length?rows.map(c=>`<tr>
+    <td><div class="comp-name"><span>${typeIcon(c.tipo)}</span>${esc(c.nombre)}</div></td>
+    <td><span class="type-badge ${esc(c.tipo)}">${esc(typeLabel(c.tipo))}</span></td>
+    <td>${c.equipos} equipos</td>
+    <td><span class="status-badge ${esc(c.estado)}"><span class="status-dot"></span>${esc(statusLabel(c.estado))}</span></td>
+    <td>${esc(c.fechaInicio||'—')}</td><td>${esc(c.fechaFin||'—')}</td>
+    <td><div class="row-actions"><button class="edit" data-edit="${esc(c.id)}">✎ Editar</button><button class="teams" data-teams="${esc(c.id)}">♙ Gestionar equipos</button><a href="${c.tipo==='copa'?'/panel-copas.html':'/panel-resultados.html'}">Resultados</a><button class="delete" data-delete="${esc(c.id)}">▣ Eliminar</button></div></td>
+  </tr>`).join(''):`<tr><td colspan="7"><div class="empty">No hay competiciones para mostrar.</div></td></tr>`;
+  $('tableInfo').textContent=`Mostrando 1 a ${rows.length} de ${rows.length} competiciones`;
+  document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>selectCompetition(b.dataset.edit));
+  document.querySelectorAll('[data-teams]').forEach(b=>b.onclick=()=>{selectCompetition(b.dataset.teams);$('editorArea').scrollIntoView({behavior:'smooth'})});
+  document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteCompetition(b.dataset.delete));
+}
+function naturalLeagueRounds(teamCount,idaVuelta){
+  let teams=Math.max(2,Number(teamCount||2));
+  if(teams%2)teams+=1;
+  return Math.max(1,(teams-1)*(idaVuelta?2:1));
+}
+function updateLeagueRoundsText(){
+  const input=$('leagueRounds');
+  if(!input)return;
+  let value=Math.max(1,Math.min(100,Number(input.value||1)));
+  input.value=String(value);
+  $('leagueRoundsText').textContent=`Se crearán ${value} jornada${value===1?'':'s'}`;
+}
+function setType(type){
+  selectedType=type;
+  document.querySelectorAll('.type-option').forEach(b=>b.classList.toggle('active',b.dataset.type===type));
+  document.querySelectorAll('input[name="format"]').forEach(r=>r.disabled=type==='copa');
+  if($('leagueRoundsRow'))$('leagueRoundsRow').hidden=type!=='liga';
+  updateLeagueRoundsText();
+}
+function newCompetition(){
+  window.__telFormDirty=false;
+  $('competitionId').value='';$('competitionName').value='';$('season').value='Temporada 1';$('status').value='activa';$('maxTeams').value='8';$('leagueRounds').value=String(naturalLeagueRounds(8,true));$('startDate').value='';$('endDate').value='';
+  selectedClubNames=[];registrationsOpen=true;$('registrationToggle').classList.add('on');$('registrationText').textContent='Abiertas';setType('liga');document.querySelector('input[name="format"][value="ida_vuelta"]').checked=true;updateLeagueRoundsText();renderTeams();$('competitionName').focus();
+}
+function selectCompetition(id){
+  window.__telFormDirty=false;
+  const c=manager.competitions.find(x=>x.id===id);if(!c)return;
+  $('competitionId').value=c.id;$('competitionName').value=c.nombre;$('season').value=[...$('season').options].some(o=>o.value===c.temporada)?c.temporada:'Temporada 1';$('status').value=c.estado;$('maxTeams').value=String(c.maxEquipos||8);$('leagueRounds').value=String(c.numeroJornadas||naturalLeagueRounds(c.equipos||c.maxEquipos||8,c.idaVuelta!==false));$('startDate').value=c.fechaInicio||'';$('endDate').value=c.fechaFin||'';
+  registrationsOpen=c.inscripcionesAbiertas!==false;$('registrationToggle').classList.toggle('on',registrationsOpen);$('registrationText').textContent=registrationsOpen?'Abiertas':'Cerradas';setType(c.tipo);document.querySelector(`input[name="format"][value="${c.idaVuelta?'ida_vuelta':'solo_ida'}"]`).checked=true;
+  selectedClubNames=c.participantes.map(p=>p.nombre);updateLeagueRoundsText();renderTeams();
+}
+function renderTeams(){
+  const q=$('teamSearch').value.toLowerCase().trim();
+  const selectedSet=new Set(selectedClubNames.map(n=>n.toLowerCase()));
+  const available=manager.clubs.filter(c=>!selectedSet.has(c.nombre.toLowerCase()) && (!q||c.nombre.toLowerCase().includes(q)));
+  $('availableTeams').innerHTML=available.length?available.map(c=>`<div class="team-item">${logo(c)}<span class="team-name">${esc(cleanName(c.nombreVisual||c.nombre))}</span><button class="round-btn" data-add="${esc(c.nombre)}">＋</button></div>`).join(''):`<div class="empty">Sin equipos disponibles.</div>`;
+  const selected=selectedClubNames.map(n=>manager.clubs.find(c=>c.nombre===n)||{nombre:n,nombreVisual:n,logo:''});
+  $('selectedTeams').innerHTML=selected.length?selected.map(c=>`<div class="team-item">${logo(c)}<span class="team-name">${esc(cleanName(c.nombreVisual||c.nombre))}</span><button class="round-btn remove" data-remove="${esc(c.nombre)}">×</button></div>`).join(''):`<div class="empty">No hay equipos seleccionados.</div>`;
+  $('selectedCount').textContent=selectedClubNames.length;$('maxCount').textContent=$('maxTeams').value;
+  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addTeam(b.dataset.add));document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>removeTeam(b.dataset.remove));
+}
+function telMarkCompetitionDirty(){window.__telFormDirty=true;}
+async function telRefreshManagerSummary(){
+  const fresh=await fetchJson('/api/admin/competitions-manager');
+  if(!fresh.ok) return;
+  manager=fresh;
+  renderSummary();
+  renderTable();
+  renderTeams();
+}
+function telScheduleCompetitionAutosave(){
+  telMarkCompetitionDirty();
+  clearTimeout(telCompetitionAutosaveTimer);
+  telCompetitionAutosaveTimer=setTimeout(()=>{
+    const name=$('competitionName').value.trim();
+    if(name.length<3) return;
+    saveCompetition(true);
+  },900);
+}
+function telScheduleParticipantsAutosave(){
+  telMarkCompetitionDirty();
+  clearTimeout(telParticipantsAutosaveTimer);
+  telParticipantsAutosaveTimer=setTimeout(async()=>{
+    if(!$('competitionId').value){
+      const name=$('competitionName').value.trim();
+      if(name.length<3) return;
+      const created=await saveCompetition(true);
+      if(!created) return;
+    }
+    saveParticipants(false,true);
+  },900);
+}
+function addTeam(name){
+  const max=Number($('maxTeams').value||8);
+  if(selectedClubNames.length>=max){toast(`El máximo es ${max} equipos.`,false);return}
+  if(!selectedClubNames.includes(name))selectedClubNames.push(name);
+  renderTeams();
+  telScheduleParticipantsAutosave();
+}
+function removeTeam(name){
+  selectedClubNames=selectedClubNames.filter(n=>n!==name);
+  renderTeams();
+  telScheduleParticipantsAutosave();
+}
+async function saveCompetition(silent=false,force=false){
+  const formatInput=document.querySelector('input[name="format"]:checked');
+  const payload={id:$('competitionId').value,nombre:$('competitionName').value,temporada:$('season').value,tipo:selectedType,estado:$('status').value,idaVuelta:(formatInput?.value||'ida_vuelta')==='ida_vuelta',maxEquipos:Number($('maxTeams').value),numeroJornadas:selectedType==='liga'?Math.max(1,Math.min(100,Number($('leagueRounds').value||1))):null,inscripcionesAbiertas:registrationsOpen,fechaInicio:$('startDate').value,fechaFin:$('endDate').value,force};
+  if(payload.nombre.trim().length<3){if(!silent)toast('Escribe el nombre de la competición.',false);return false}
+  window.__telAutosaveBusy=true;
+  window.__telOwnWriteUntil=Date.now()+3000;
+  const res=await fetchJson('/api/admin/competitions-manager/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  window.__telAutosaveBusy=false;
+  if(res.status===409&&res.needsConfirmation){
+    if(silent){toast('Hay resultados guardados. Guarda manualmente para confirmar el cambio de jornadas.',false);return false}
+    if(confirm(res.message+' ¿Continuar?'))return saveCompetition(false,true);
+    return false;
+  }
+  if(!res.ok){toast(res.message||'No se pudo guardar.',false);return false}
+  $('competitionId').value=res.id;
+  window.__telFormDirty=false;
+  if(silent){toast('Competición autoguardada.');await telRefreshManagerSummary();}
+  else{toast(res.message);await load(res.id);}
+  return true;
+}
+async function saveParticipants(force=false,silent=false){
+  const compId=$('competitionId').value;
+  if(!compId){if(!silent)toast('Guarda primero la competición.',false);return false}
+  window.__telAutosaveBusy=true;
+  window.__telOwnWriteUntil=Date.now()+3000;
+  const res=await fetchJson('/api/admin/competitions-manager/participants',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({compId,clubNames:selectedClubNames,force})});
+  window.__telAutosaveBusy=false;
+  if(res.status===409&&res.needsConfirmation){
+    if(silent){toast('Hay resultados guardados. Usa “Guardar participantes” para confirmar el cambio.',false);return false}
+    if(confirm(res.message+' ¿Continuar?'))return saveParticipants(true,false);
+    return false;
+  }
+  if(!res.ok){toast(res.message||'No se pudieron guardar los participantes.',false);return false}
+  window.__telFormDirty=false;
+  if(silent){toast('Participantes autoguardados.');await telRefreshManagerSummary();}
+  else{toast(res.message);await load(compId);}
+  return true;
+}
+async function deleteCompetition(id){const c=manager.competitions.find(x=>x.id===id);if(!confirm(`¿Eliminar ${c?.nombre||'esta competición'}?`))return;const res=await fetchJson('/api/admin/competitions-manager/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({compId:id})});if(!res.ok){toast(res.message||'No se pudo eliminar.',false);return}toast(res.message);newCompetition();await load();}
+
+$('newBtn').onclick=newCompetition;$('cancelEdit').onclick=newCompetition;$('syncBtn').onclick=()=>load($('competitionId').value);$('saveCompetition').onclick=()=>saveCompetition(false);$('saveParticipants').onclick=()=>saveParticipants(false,false);$('registrationToggle').onclick=()=>{registrationsOpen=!registrationsOpen;$('registrationToggle').classList.toggle('on',registrationsOpen);$('registrationText').textContent=registrationsOpen?'Abiertas':'Cerradas';telScheduleCompetitionAutosave()};
+$('typeGrid').onclick=e=>{const b=e.target.closest('.type-option');if(b){setType(b.dataset.type);telScheduleCompetitionAutosave()}};$('maxTeams').onchange=()=>{renderTeams();telScheduleCompetitionAutosave()};$('teamSearch').oninput=renderTeams;$('competitionSearch').oninput=renderTable;
+['competitionName','season','status','startDate','endDate'].forEach(id=>{$(id).addEventListener('input',telScheduleCompetitionAutosave);$(id).addEventListener('change',telScheduleCompetitionAutosave)});$('leagueRounds').addEventListener('input',()=>{updateLeagueRoundsText();telScheduleCompetitionAutosave()});$('leagueRounds').addEventListener('change',()=>{updateLeagueRoundsText();telScheduleCompetitionAutosave()});
+document.querySelectorAll('input[name="format"]').forEach(input=>input.addEventListener('change',telScheduleCompetitionAutosave));
+$('addVisible').onclick=()=>{const q=$('teamSearch').value.toLowerCase().trim();manager.clubs.filter(c=>!selectedClubNames.includes(c.nombre)&&(!q||c.nombre.toLowerCase().includes(q))).forEach(c=>{if(selectedClubNames.length<Number($('maxTeams').value))selectedClubNames.push(c.nombre)});renderTeams();telScheduleParticipantsAutosave()};$('removeAll').onclick=()=>{selectedClubNames=[];renderTeams();telScheduleParticipantsAutosave()};
+$('filterTabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;currentFilter=b.dataset.filter;document.querySelectorAll('#filterTabs button').forEach(x=>x.classList.toggle('active',x===b));renderTable()};
+window.telRefreshCurrent = load;
+document.addEventListener('DOMContentLoaded',async()=>{newCompetition();await load();if(manager.competitions[0])selectCompetition(manager.competitions[0].id)});
+</script>
+</body>
+</html>
+
+<script src="/tel-live-sync.js?v=20260714-global2"></script>

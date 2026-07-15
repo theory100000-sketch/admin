@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Resultados de partidos · Admin TEL</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#061020;color:#f8fbff;font-family:Inter,Arial,Helvetica,sans-serif;min-height:100vh}
+.admin-layout{display:grid;grid-template-columns:250px 1fr;min-height:100vh;background:
+radial-gradient(circle at 85% 0%,rgba(114,45,255,.35),transparent 35%),
+linear-gradient(120deg,#061020,#0a1428 60%,#091123)}
+.sidebar{background:linear-gradient(180deg,#071226,#050b16);border-right:1px solid rgba(255,255,255,.08);padding:28px 22px;display:flex;flex-direction:column;gap:22px}
+.brand{display:flex;align-items:center;gap:12px;padding-bottom:28px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand-icon{width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#4b1dc9,#8e35ff);display:flex;align-items:center;justify-content:center;font-size:30px}
+.brand h2{margin:0;font-size:20px;line-height:1.05;text-transform:uppercase}.brand span{color:#b64cff}
+.side-title{color:#b64cff;font-size:12px;font-weight:900;text-transform:uppercase;margin:10px 0 8px}
+.nav{display:flex;flex-direction:column;gap:8px}
+.nav a{display:flex;align-items:center;gap:12px;color:#dce5f2;text-decoration:none;padding:13px 14px;border-radius:12px;font-weight:800}
+.nav a.active,.nav a:hover{background:linear-gradient(90deg,rgba(137,42,255,.35),rgba(137,42,255,.12));color:#d78cff;box-shadow:inset 3px 0 #a840ff}
+.admin-user{margin-top:auto;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.03)}
+.admin-user .avatar{width:36px;height:36px;border-radius:50%;background:#8033ff;display:flex;align-items:center;justify-content:center}
+.admin-user b{display:block;font-size:13px}.admin-user small{color:#aeb9c9}
+.main{padding:34px 38px 28px;overflow:auto}
+.header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:24px}
+.header h1{font-size:40px;line-height:1;margin:0 0 10px}.header p{margin:0;color:#c4cedf;font-size:17px}
+.sync,.back{border:1px solid rgba(160,77,255,.35);background:rgba(160,77,255,.08);color:#d9c8ff;border-radius:12px;padding:12px 18px;font-weight:900;cursor:pointer;text-decoration:none}
+.filters{display:grid;grid-template-columns:1.2fr .8fr 1.3fr 1.4fr;gap:16px;background:rgba(8,15,30,.82);border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:16px 20px;margin-bottom:22px}
+.field label{display:block;font-size:13px;color:#c7d2e2;margin-bottom:8px}
+select,input,textarea{width:100%;border:1px solid rgba(255,255,255,.13);border-radius:12px;background:#081225;color:#fff;padding:14px 16px;font-weight:800;font-size:15px}
+.segment{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid rgba(255,255,255,.13);border-radius:12px;overflow:hidden}
+.segment button{border:0;background:#081225;color:#fff;padding:14px;font-weight:900;cursor:pointer}
+.segment button.active{background:linear-gradient(135deg,#6d2ee8,#8f36ff)}
+.results{display:flex;flex-direction:column;gap:12px}
+
+/* LIGAS */
+.match-card{display:grid;grid-template-columns:1fr 270px 260px 190px;gap:22px;align-items:center;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:linear-gradient(180deg,rgba(13,26,48,.92),rgba(8,15,30,.94));padding:18px 26px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+.teams{display:grid;grid-template-columns:1fr 220px 1fr;gap:18px;align-items:center}
+.team{display:flex;align-items:center;gap:18px;min-width:0}.team.right{justify-content:flex-end;text-align:right}.team.right .logo{order:2}
+.logo{width:72px;height:72px;border-radius:50%;object-fit:contain;background:#050914;border:1px solid rgba(255,255,255,.16)}
+.placeholder-logo{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#111b30,#273552);display:flex;align-items:center;justify-content:center;font-weight:1000;color:#b64cff;border:1px solid rgba(255,255,255,.16)}
+.team-name{font-size:20px;font-weight:1000;line-height:1.05;overflow-wrap:anywhere}
+.status{font-size:13px;margin-top:8px;font-weight:900}.status.ok{color:#21dd73}.status.pending{color:#ffd029}
+.score-box{display:grid;grid-template-columns:100px 28px 100px;align-items:center;justify-content:center;gap:10px}
+.score-box input{font-size:34px;text-align:center;font-weight:1000;padding:14px 8px;border-radius:12px}.dash{text-align:center;font-size:28px;font-weight:1000}
+.winner-select{grid-column:1 / -1;margin-top:8px;padding:10px 12px;border-color:rgba(33,221,115,.45);font-size:14px}
+.date-box{border-left:1px solid rgba(255,255,255,.12);padding-left:22px;display:grid;gap:8px}.jornada-badge{display:inline-flex;align-items:center;justify-content:center;width:max-content;max-width:100%;padding:7px 11px;border:1px solid rgba(177,82,255,.45);border-radius:999px;background:rgba(139,48,255,.14);color:#dca4ff;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em}
+.date-row label{font-size:12px;color:#aeb9c9;display:block;margin-bottom:5px}.date-row input{padding:9px 12px;font-size:13px}
+.actions{border-left:1px solid rgba(255,255,255,.12);padding-left:22px;display:grid;gap:10px}
+.save{background:linear-gradient(135deg,#19b85c,#20d875);border:0;color:#fff;border-radius:11px;padding:13px;font-weight:1000;cursor:pointer}
+.date-save,.delete{background:#081225;border:1px solid rgba(255,255,255,.13);color:#fff;border-radius:11px;padding:12px;font-weight:900;cursor:pointer}.delete{color:#d8e2ef}
+
+/* COPAS */
+.cup-admin{display:none}
+body.cup-mode .league-results{display:none}
+body.cup-mode .cup-admin{display:block}
+.cup-top{display:grid;grid-template-columns:1.05fr .85fr 1.2fr;gap:16px;background:rgba(8,15,30,.82);border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:18px 22px;margin-bottom:16px}
+.cup-stat{display:flex;align-items:center;gap:22px;justify-content:center}
+.cup-stat div{display:grid;place-items:center}.cup-stat b{font-size:28px}.cup-stat span{font-size:12px;color:#c4cedf}
+.cup-progress{display:flex;align-items:center;justify-content:center;gap:14px;color:#aeb9c9;font-weight:900}
+.dot{width:12px;height:12px;border-radius:50%;background:#26c469}.line{width:70px;height:2px;background:linear-gradient(90deg,#26c469,#3a4a68)}
+.cup-layout{display:grid;grid-template-columns:420px 1fr;gap:18px}
+.cup-list,.cup-editor{border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(180deg,rgba(13,26,48,.92),rgba(8,15,30,.94));padding:18px}
+.cup-list h2{margin:0 0 14px;font-size:20px}
+.cup-mini-list{display:flex;flex-direction:column;gap:12px;max-height:640px;overflow:auto;padding-right:4px}
+.cup-mini{border:1px solid rgba(255,255,255,.12);border-radius:13px;background:#081225;padding:14px;cursor:pointer}
+.cup-mini.active{border-color:#7e63ff;box-shadow:0 0 0 2px rgba(126,99,255,.22)}
+.cup-mini-row{display:grid;grid-template-columns:34px 1fr 44px 18px 44px 1fr 34px;gap:8px;align-items:center}
+.cup-mini img,.cup-edit-logo{width:42px;height:42px;border-radius:50%;object-fit:contain;background:#050914;border:1px solid rgba(255,255,255,.12)}
+.cup-mini .cup-mini-row img{width:34px;height:34px}
+.cup-mini-name{font-size:12px;font-weight:1000;line-height:1.05;overflow-wrap:anywhere}
+.cup-mini-score{height:40px;border:1px solid rgba(255,255,255,.12);border-radius:9px;display:grid;place-items:center;font-weight:1000;font-size:20px}
+.cup-mini-meta{display:flex;justify-content:center;gap:18px;margin-top:12px;color:#aeb9c9;font-size:12px}
+.cup-editor{padding:26px}
+.editing{display:inline-flex;background:rgba(69,110,255,.35);color:#9cc2ff;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:1000;margin-bottom:20px}
+.cup-edit-head{display:grid;grid-template-columns:1fr 320px 1fr;gap:22px;align-items:center;margin-bottom:28px}
+.cup-edit-team{display:flex;align-items:center;gap:18px}.cup-edit-team.right{justify-content:flex-end;text-align:right}.cup-edit-team.right .cup-edit-logo{order:2}
+.cup-edit-logo{width:76px;height:76px}.cup-edit-name{font-size:24px;font-weight:1000;line-height:1.05}
+.cup-edit-score{display:grid;grid-template-columns:110px 28px 110px;gap:14px;align-items:center;justify-content:center}
+.cup-edit-score input{height:74px;text-align:center;font-size:40px;font-weight:1000;border-radius:12px}
+.cup-form{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px}
+.cup-form.full{grid-template-columns:1fr}.cup-form label{display:block;margin-bottom:8px;color:#e4ebf7;font-weight:800}
+.cup-save{width:100%;background:linear-gradient(135deg,#18b85a,#1fd875);border:0;border-radius:12px;color:#fff;padding:15px;font-size:16px;font-weight:1000;cursor:pointer}
+.cup-delete{margin-top:10px;width:100%;background:#081225;border:1px solid rgba(255,255,255,.13);border-radius:12px;color:#dce5f2;padding:13px;font-weight:900;cursor:pointer}
+
+.empty{padding:24px;text-align:center;color:#bfc8d8;border:1px dashed rgba(255,255,255,.14);border-radius:16px}
+.msg{position:fixed;right:24px;bottom:24px;padding:13px 16px;border-radius:12px;font-weight:900;display:none;z-index:20}.msg.ok{display:block;background:rgba(25,184,92,.14);border:1px solid rgba(25,184,92,.4);color:#21dd73}.msg.bad{display:block;background:rgba(255,70,110,.14);border:1px solid rgba(255,70,110,.4);color:#ff6888}
+@media(max-width:1200px){.admin-layout{grid-template-columns:1fr}.sidebar{display:none}.filters,.cup-top{grid-template-columns:1fr}.match-card,.cup-layout{grid-template-columns:1fr}.teams,.cup-edit-head{grid-template-columns:1fr}.team.right,.cup-edit-team.right{justify-content:flex-start;text-align:left}.team.right .logo,.cup-edit-team.right .cup-edit-logo{order:0}.date-box,.actions{border-left:0;padding-left:0}.score-box,.cup-edit-score{justify-content:start}}
+</style>
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-icon">🏆</div><div><h2>Thunder<br><span>Elite League</span></h2></div></div>
+    <div>
+      <div class="side-title">Admin</div>
+      <nav class="nav">
+        <a href="/panel-admin.html">⌂ Volver al panel principal</a>
+        <a class="active" href="/panel-resultados.html">◉ Partidos</a>
+      </nav>
+    </div>
+    <div class="admin-user"><div class="avatar">🛡️</div><div><b>Admin TEL</b><small>Administrador</small></div></div>
+  </aside>
+
+  <main class="main">
+    <div class="header">
+      <div><p style="letter-spacing:4px;color:#71f6ff;font-size:12px;font-weight:1000;margin-bottom:8px">THUNDER ELITE LEAGUE</p><h1 id="pageTitle">Resultados de partidos</h1><p id="pageSub">Introduce marcador, fecha y hora</p></div>
+      <button class="sync" id="syncBtn">↻ Sincronizar</button>
+    </div>
+
+    <section class="filters league-filters">
+      <div class="field"><label>Competición</label><select id="competitionFilter"></select></div>
+      <div class="field"><label>Jornada</label><select id="roundFilter"><option value="">Todas</option></select></div>
+      <div class="field"><label>Estado</label><div class="segment"><button data-status="" class="active">Todos</button><button data-status="pendiente">Pendiente</button><button data-status="finalizado">Finalizado</button></div></div>
+      <div class="field"><label>Buscar partido o equipo</label><input id="searchInput" placeholder="🔍  Buscar..."></div>
+    </section>
+
+    <section class="cup-admin">
+      <div class="cup-top">
+        <div class="field"><label>Competición</label><select id="cupCompetitionFilter"></select></div>
+        <div class="field"><label>Fase</label><select id="cupPhaseFilter"><option value="1">Cuartos de final</option><option value="2">Semifinales</option><option value="3">Final</option></select></div>
+        <div class="cup-stat"><div><b id="cupTotal">0</b><span>partidos</span></div><div><b id="cupDone">0</b><span>finalizados</span></div><div><b id="cupPending">0</b><span>pendientes</span></div><div class="cup-progress"><span class="dot"></span><span class="line"></span><span class="dot"></span><span class="line"></span><span class="dot"></span></div></div>
+      </div>
+      <div class="cup-layout">
+        <div class="cup-list"><h2 id="cupPhaseTitle">Cuartos de final</h2><div id="cupMiniList" class="cup-mini-list"></div></div>
+        <div class="cup-editor" id="cupEditor"></div>
+      </div>
+    </section>
+
+    <section id="resultsList" class="results league-results"></section>
+  </main>
+</div>
+<div id="msg" class="msg"></div>
+
+<script>
+let data = {competiciones:[], matches:[]};
+let statusFilter = "";
+let selectedCupMatchId = null;
+
+async function fetchJson(url, opts){
+  try{ const r = await fetch(url, Object.assign({cache:"no-store"}, opts || {})); return await r.json(); }
+  catch(e){ return {ok:false,message:e.message}; }
+}
+function esc(s){return String(s ?? "").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+function showMsg(text, ok=true){const el=document.getElementById("msg");el.textContent=text;el.className="msg "+(ok?"ok":"bad");setTimeout(()=>{el.className="msg";},2400);}
+function logoHtml(src, name, cls='logo'){ if(src) return `<img loading="lazy" decoding="async" class="${cls}" src="${esc(src)}" onerror="this.outerHTML='<div class=&quot;placeholder-logo&quot;>${esc((name||'?')[0]||'?')}</div>'">`; return `<div class="placeholder-logo">${esc((name||'?')[0]||'?')}</div>`; }
+function roundOf(m){const r=String(m.ronda||'').toLowerCase(); if(r.includes('semi')) return '2'; if(r.includes('final')) return '3'; if(r.includes('cuarto')) return '1'; return String(m.jornada||'1');}
+async function loginSilently(){const me=await fetchJson('/api/auth/me');if(!me?.admin){location.href='/?admin_login=1#login';throw new Error('admin_required');}return me;}
+async function load(){await loginSilently(); const res = await fetchJson("/api/tel-panel/matches"); if(!res.ok){ showMsg(res.message || "No se pudo cargar", false); return; } data = res; fillFilters(); renderAll();}
+function leagueCompetitions(){return data.competiciones.filter(c=>!c.isCup);}
+function selectedComp(){const leagues=leagueCompetitions();return leagues.find(c=>c.id===competitionFilter.value) || leagues[0] || null;}
+function selectedCupComp(){return data.competiciones.find(c=>c.id===cupCompetitionFilter.value) || data.competiciones.find(c=>c.isCup) || data.competiciones[0];}
+function fillFilters(){
+  const cur = competitionFilter.value;
+  const leagues = leagueCompetitions();
+  competitionFilter.innerHTML = leagues.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join("");
+  if(cur && leagues.some(c=>c.id===cur)) competitionFilter.value = cur;
+  else if(leagues[0]) competitionFilter.value = leagues[0].id;
+
+  const cupCur = cupCompetitionFilter.value;
+  const cups = data.competiciones.filter(c=>c.isCup);
+  cupCompetitionFilter.innerHTML = cups.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join("");
+  if(cupCur && cups.some(c=>c.id===cupCur)) cupCompetitionFilter.value = cupCur;
+
+  const roundCur = roundFilter.value;
+  const rounds = [...new Set(data.matches.filter(m=>m.compId===competitionFilter.value).map(m=>m.jornada || m.ronda).filter(Boolean))];
+  roundFilter.innerHTML = `<option value="">Todas</option>` + rounds.map(r=>`<option value="${esc(r)}">Jornada ${esc(r)}</option>`).join("");
+  if(roundCur && rounds.some(r=>String(r)===String(roundCur))) roundFilter.value = roundCur;
+}
+function renderAll(){
+  const comp = selectedComp();
+  document.body.classList.remove("cup-mode");
+  document.querySelector(".league-filters").style.display = "grid";
+  pageTitle.textContent = "Resultados de partidos";
+  pageSub.textContent = "Introduce marcador, fecha y hora";
+  if(!comp){
+    resultsList.innerHTML = `<div class="empty">No hay ligas disponibles.</div>`;
+    return;
+  }
+  renderLeague();
+}
+function filteredLeague(){
+  const comp = competitionFilter.value;
+  const round = roundFilter.value;
+  const search = searchInput.value.toLowerCase().trim();
+  return data.matches.filter(m=>{
+    if(comp && m.compId !== comp) return false;
+    if(round && String(m.jornada || m.ronda) !== String(round)) return false;
+    if(statusFilter && m.estado !== statusFilter) return false;
+    if(search && !(String(m.localNombre).toLowerCase().includes(search) || String(m.visitanteNombre).toLowerCase().includes(search))) return false;
+    return true;
+  });
+}
+function renderLeague(){
+  const list = resultsList;
+  const matches = filteredLeague();
+  if(!matches.length){ list.innerHTML = `<div class="empty">No hay partidos para mostrar.</div>`; return; }
+  list.innerHTML = matches.map(m=>{
+    const lg = m.localGoles ?? "", vg = m.visitanteGoles ?? "";
+    const statusClass = m.finalizado ? "ok" : "pending";
+    const winnerText = m.finalizado ? (Number(m.localGoles) === Number(m.visitanteGoles) ? "Empate" : (Number(m.localGoles) > Number(m.visitanteGoles) ? `🏆 Gana ${m.localNombre}` : `🏆 Gana ${m.visitanteNombre}`)) : "Sin resultado";
+    return `<article class="match-card" data-comp-id="${esc(m.compId)}" data-match-id="${esc(m.id)}">
+      <div class="teams">
+        <div class="team">${logoHtml(m.localLogo,m.localNombre)}<div><div class="team-name">${esc(m.localNombre)}</div><div class="status ${statusClass}">● ${m.finalizado?"Guardado":"Pendiente"}</div></div></div>
+        <div class="score-box"><input class="lg" type="number" min="0" step="1" value="${esc(lg)}" placeholder="-"><div class="dash">-</div><input class="vg" type="number" min="0" step="1" value="${esc(vg)}" placeholder="-"><select class="winner-select"><option>${esc(winnerText)}</option></select></div>
+        <div class="team right"><div><div class="team-name">${esc(m.visitanteNombre)}</div><div class="status ${statusClass}">● ${m.finalizado?"Finalizado":"Pendiente"}</div></div>${logoHtml(m.visitanteLogo,m.visitanteNombre)}</div>
+      </div>
+      <div class="date-box"><div class="jornada-badge">Jornada ${esc(m.jornada || m.ronda || 1)}</div><div class="date-row"><label>Fecha</label><input class="fecha" type="date" value="${esc(m.fecha || '')}"></div><div class="date-row"><label>Hora</label><input class="hora" type="time" value="${esc(m.hora || '')}"></div></div>
+      <div class="actions"><button class="save">✓ Guardar resultado</button><button class="date-save">▣ Guardar fecha</button><button class="delete">🗑 Borrar resultado</button></div>
+    </article>`;
+  }).join("");
+  bindCards();
+}
+function cupMatches(){
+  const comp = selectedCupComp();
+  const phase = cupPhaseFilter.value;
+  return data.matches.filter(m=>m.compId===comp?.id && roundOf(m)===phase);
+}
+function renderCup(){
+  const comp = selectedCupComp();
+  if(!comp){ cupMiniList.innerHTML = `<div class="empty">No hay copas.</div>`; cupEditor.innerHTML = ""; return; }
+  competitionFilter.value = comp.id;
+  const matches = cupMatches();
+  cupTotal.textContent = matches.length;
+  cupDone.textContent = matches.filter(m=>m.finalizado).length;
+  cupPending.textContent = matches.filter(m=>!m.finalizado).length;
+  cupPhaseTitle.textContent = cupPhaseFilter.options[cupPhaseFilter.selectedIndex]?.textContent || "Fase";
+  if(!matches.some(m=>m.id===selectedCupMatchId)) selectedCupMatchId = matches[0]?.id || null;
+
+  cupMiniList.innerHTML = matches.map(m=>{
+    const lg = m.localGoles ?? "-", vg = m.visitanteGoles ?? "-";
+    return `<div class="cup-mini ${m.id===selectedCupMatchId?'active':''}" data-id="${esc(m.id)}">
+      <div class="cup-mini-row">
+        ${logoHtml(m.localLogo,m.localNombre,'')}
+        <div class="cup-mini-name">${esc(m.localNombre)}</div>
+        <div class="cup-mini-score">${esc(lg)}</div>
+        <div style="text-align:center;font-weight:1000">-</div>
+        <div class="cup-mini-score">${esc(vg)}</div>
+        <div class="cup-mini-name" style="text-align:right">${esc(m.visitanteNombre)}</div>
+        ${logoHtml(m.visitanteLogo,m.visitanteNombre,'')}
+      </div>
+      <div class="cup-mini-meta"><span>▣ ${esc(m.fecha || 'Fecha por definir')}</span><span>◷ ${esc(m.hora || '--:--')}</span><span style="color:${m.finalizado?'#21dd73':'#aeb9c9'}">● ${m.finalizado?'Finalizado':'Pendiente'}</span></div>
+    </div>`;
+  }).join("") || `<div class="empty">No hay partidos en esta fase.</div>`;
+  document.querySelectorAll(".cup-mini").forEach(el=>el.onclick=()=>{selectedCupMatchId=el.dataset.id; renderCup();});
+  renderCupEditor(matches.find(m=>m.id===selectedCupMatchId));
+}
+function renderCupEditor(m){
+  if(!m){ cupEditor.innerHTML = `<div class="empty">Selecciona un partido.</div>`; return; }
+  const lg = m.localGoles ?? "", vg = m.visitanteGoles ?? "";
+  const winnerText = m.finalizado ? (Number(m.localGoles) > Number(m.visitanteGoles) ? m.localNombre : Number(m.localGoles)<Number(m.visitanteGoles) ? m.visitanteNombre : "Empate") : "Sin resultado";
+  cupEditor.innerHTML = `<span class="editing">EDITANDO</span>
+    <div class="cup-edit-head">
+      <div class="cup-edit-team">${logoHtml(m.localLogo,m.localNombre,'cup-edit-logo')}<div class="cup-edit-name">${esc(m.localNombre)}</div></div>
+      <div class="cup-edit-score"><input class="lg" type="number" min="0" step="1" value="${esc(lg)}" placeholder="-"><div class="dash">-</div><input class="vg" type="number" min="0" step="1" value="${esc(vg)}" placeholder="-"></div>
+      <div class="cup-edit-team right"><div class="cup-edit-name">${esc(m.visitanteNombre)}</div>${logoHtml(m.visitanteLogo,m.visitanteNombre,'cup-edit-logo')}</div>
+    </div>
+    <div class="cup-form">
+      <div><label>Ganador</label><select><option>${esc(winnerText)}</option></select></div>
+      <div><label>Fecha</label><input class="fecha" type="date" value="${esc(m.fecha || '')}"></div>
+      <div><label>Hora</label><input class="hora" type="time" value="${esc(m.hora || '')}"></div>
+    </div>
+    <div class="cup-form"><div><label>Estado</label><select><option>${m.finalizado?'Finalizado':'Pendiente'}</option></select></div></div>
+    <div class="cup-form full"><div><label>Notas (opcional)</label><textarea rows="4" placeholder="Añade notas sobre el partido (opcional)..."></textarea></div></div>
+    <button class="cup-save">💾 Guardar resultado</button><button class="cup-delete">🗑 Borrar resultado</button>`;
+  cupEditor.querySelector(".cup-save").onclick = ()=>saveFrom(cupEditor,m,false,false,false);
+  cupEditor.querySelector(".cup-delete").onclick = ()=>saveFrom(cupEditor,m,true,false,false);
+  cupEditor.querySelectorAll(".lg,.vg").forEach(input=>input.addEventListener("input",()=>telScheduleResultAutosave(cupEditor,m,"score")));
+  cupEditor.querySelectorAll(".fecha,.hora").forEach(input=>input.addEventListener("change",()=>telScheduleResultAutosave(cupEditor,m,"date")));
+}
+const telResultAutosaveTimers = new Map();
+async function saveFrom(root,m,clear=false,dateOnly=false,silent=false){
+  if(!m || !root) return;
+  const localRaw = root.querySelector(".lg")?.value ?? "";
+  const visitanteRaw = root.querySelector(".vg")?.value ?? "";
+  const localGoles = localRaw === "" ? null : Number(localRaw);
+  const visitanteGoles = visitanteRaw === "" ? null : Number(visitanteRaw);
+  const payload = {
+    compId:m.compId,
+    matchId:m.id,
+    localGoles,
+    visitanteGoles,
+    fecha:root.querySelector(".fecha")?.value || "",
+    hora:root.querySelector(".hora")?.value || "",
+    clear,
+    dateOnly
+  };
+  if(!clear && !dateOnly && (!Number.isInteger(localGoles)||!Number.isInteger(visitanteGoles)||localGoles<0||visitanteGoles<0)){
+    if(!silent) showMsg("Pon los dos marcadores para guardar.",false);
+    return;
+  }
+  window.__telAutosaveBusy = true;
+  window.__telOwnWriteUntil = Date.now() + 2800;
+  const res=await fetchJson("/api/tel-panel/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  window.__telAutosaveBusy = false;
+  if(!res.ok){showMsg(res.message||"No se pudo guardar",false);return;}
+  if(!silent) showMsg(res.message||"Guardado");
+  else showMsg(dateOnly?"Fecha y hora autoguardadas.":"Resultado autoguardado.");
+  await load();
+}
+function telScheduleResultAutosave(card,m,kind){
+  const key = `${m.compId}:${m.id}:${kind}`;
+  clearTimeout(telResultAutosaveTimers.get(key));
+  const timer = setTimeout(()=>{
+    if(kind === "date"){
+      saveFrom(card,m,false,true,true);
+      return;
+    }
+    const localRaw = card.querySelector(".lg")?.value ?? "";
+    const visitanteRaw = card.querySelector(".vg")?.value ?? "";
+    if(localRaw === "" || visitanteRaw === "") return;
+    saveFrom(card,m,false,false,true);
+  },850);
+  telResultAutosaveTimers.set(key,timer);
+}
+function bindCards(){
+  document.querySelectorAll(".match-card").forEach(card=>{
+    const m = data.matches.find(x=>x.compId===card.dataset.compId && x.id===card.dataset.matchId);
+    if(!m) return;
+    card.querySelector(".save").onclick = ()=>saveFrom(card,m,false,false,false);
+    card.querySelector(".date-save").onclick = ()=>saveFrom(card,m,false,true,false);
+    card.querySelector(".delete").onclick = ()=>saveFrom(card,m,true,false,false);
+    card.querySelectorAll(".lg,.vg").forEach(input=>{
+      input.addEventListener("input",()=>telScheduleResultAutosave(card,m,"score"));
+      input.addEventListener("change",()=>telScheduleResultAutosave(card,m,"score"));
+    });
+    card.querySelectorAll(".fecha,.hora").forEach(input=>{
+      input.addEventListener("change",()=>telScheduleResultAutosave(card,m,"date"));
+    });
+  });
+}
+competitionFilter.onchange = ()=>{fillFilters();renderAll();};
+cupCompetitionFilter.onchange = ()=>{competitionFilter.value=cupCompetitionFilter.value;selectedCupMatchId=null;renderAll();};
+cupPhaseFilter.onchange = ()=>{selectedCupMatchId=null;renderCup();};
+roundFilter.onchange = renderLeague;
+searchInput.oninput = renderLeague;
+document.querySelectorAll(".segment button").forEach(btn=>btn.onclick=()=>{document.querySelectorAll(".segment button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");statusFilter=btn.dataset.status;renderLeague();});
+syncBtn.onclick = load;
+window.telRefreshCurrent = load;
+load();
+</script>
+
+<script id="tel-panel-copas-link-script">
+(function(){
+  function add(){
+    if(document.querySelector(".tel-panel-copas-link")) return;
+    const a=document.createElement("a");
+    a.href="/panel-copas.html";
+    a.className="tel-panel-copas-link";
+    a.textContent="Panel copas";
+    a.style.cssText="display:inline-flex;align-items:center;margin:6px 10px;padding:10px 14px;border:1px solid rgba(177,82,255,.55);border-radius:12px;color:#fff;text-decoration:none;font-weight:1000;background:linear-gradient(135deg,#1a2840,#7d25ff);text-transform:uppercase";
+    const target=document.querySelector("header nav") || document.querySelector("header") || document.querySelector("nav") || document.body;
+    target.appendChild(a);
+  }
+  document.addEventListener("DOMContentLoaded",add);
+})();
+</script>
+
+</body>
+</html>
+<script src="/tel-live-sync.js?v=20260714-global2"></script>

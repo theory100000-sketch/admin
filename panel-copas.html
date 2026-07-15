@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editar resultados de competición · Copas TEL</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
+  color:#f8fbff;
+  font-family:Inter,Arial,Helvetica,sans-serif;
+  background:
+    radial-gradient(circle at 92% 0%,rgba(98,48,210,.45),transparent 35%),
+    radial-gradient(circle at 0% 10%,rgba(0,180,255,.12),transparent 30%),
+    linear-gradient(120deg,#071424,#0b1428 54%,#0b1024);
+}
+.page{max-width:1720px;margin:0 auto;padding:30px 42px 42px}
+.top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:24px;
+  margin-bottom:28px;
+}
+.kicker{
+  color:#72f6ff;
+  letter-spacing:4px;
+  font-size:12px;
+  font-weight:1000;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+h1{
+  margin:0;
+  font-size:48px;
+  line-height:1;
+  letter-spacing:-1.5px;
+}
+.breadcrumb{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  color:#b9c6d8;
+  font-size:15px;
+  margin-top:16px;
+}
+.breadcrumb b{color:#fff}
+.back{
+  color:#fff;
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid rgba(255,255,255,.15);
+  background:rgba(7,15,29,.75);
+  border-radius:12px;
+  padding:14px 18px;
+  font-weight:1000;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.filters{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:22px;
+  background:rgba(9,18,34,.75);
+  padding:24px;
+  display:grid;
+  grid-template-columns:1fr 1fr 340px 330px;
+  gap:20px;
+  align-items:center;
+  margin-bottom:16px;
+}
+.field label{
+  display:block;
+  color:#aebbd0;
+  font-size:13px;
+  margin-bottom:8px;
+}
+select,input,textarea{
+  width:100%;
+  border:1px solid rgba(255,255,255,.13);
+  background:#081225;
+  color:#fff;
+  border-radius:12px;
+  padding:15px 16px;
+  font-size:16px;
+  font-weight:800;
+}
+select{appearance:auto}
+.stats{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:12px;
+  background:rgba(255,255,255,.025);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;
+  padding:14px;
+}
+.stat{display:flex;align-items:center;justify-content:center;gap:10px}
+.stat .icon{font-size:25px}.stat b{font-size:30px}.stat span{font-size:12px;color:#b9c6d8;display:block}
+.bracket-mini{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  color:#9aa8bd;
+}
+.b-dot{width:12px;height:12px;border-radius:50%;background:#22c766}
+.b-line{width:44px;height:2px;background:linear-gradient(90deg,#22c766,#34465d)}
+.b-dot.off{background:#8b97ab}.b-line.off{background:#34465d}
+.layout{
+  display:grid;
+  grid-template-columns:520px 1fr;
+  gap:18px;
+}
+.left,.right{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:22px;
+  background:linear-gradient(180deg,rgba(12,26,48,.88),rgba(7,14,28,.92));
+  box-shadow:0 24px 80px rgba(0,0,0,.24);
+}
+.left{padding:24px}
+.left h2{margin:0 0 16px;font-size:22px}
+.list{display:flex;flex-direction:column;gap:12px;max-height:660px;overflow:auto;padding-right:4px}
+.mini-card{
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:13px;
+  background:#081225;
+  padding:14px;
+  cursor:pointer;
+  transition:.15s;
+}
+.mini-card:hover{border-color:rgba(126,99,255,.55)}
+.mini-card.active{
+  border-color:#8069ff;
+  box-shadow:0 0 0 2px rgba(126,99,255,.26), inset 0 0 0 1px rgba(255,255,255,.04);
+}
+.mini-row{
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) 52px 18px 52px minmax(0,1fr) 42px;
+  gap:9px;
+  align-items:center;
+}
+.logo{
+  width:42px;height:42px;border-radius:50%;object-fit:contain;
+  background:#050914;border:1px solid rgba(255,255,255,.14)
+}
+.placeholder-logo{
+  width:42px;height:42px;border-radius:50%;
+  display:grid;place-items:center;
+  background:linear-gradient(135deg,#101b31,#263653);
+  color:#b64cff;font-weight:1000;border:1px solid rgba(255,255,255,.14)
+}
+.mini-name{font-size:12px;font-weight:1000;line-height:1.05;overflow-wrap:anywhere}
+.mini-name.right-name{text-align:right}
+.mini-score{
+  height:42px;
+  border:1px solid rgba(255,255,255,.13);
+  border-radius:9px;
+  display:grid;
+  place-items:center;
+  font-size:21px;
+  font-weight:1000;
+}
+.mini-meta{
+  display:flex;
+  justify-content:center;
+  gap:18px;
+  margin-top:12px;
+  color:#aeb9c9;
+  font-size:13px;
+}
+.ok{color:#21dd73}.pending{color:#aeb9c9}
+.right{padding:28px}
+.editing{
+  display:inline-flex;
+  background:rgba(69,110,255,.34);
+  color:#9cc2ff;
+  border-radius:8px;
+  padding:7px 12px;
+  font-size:12px;
+  font-weight:1000;
+  margin-bottom:24px;
+}
+.editor-head{
+  display:grid;
+  grid-template-columns:1fr 360px 1fr;
+  gap:24px;
+  align-items:center;
+  margin-bottom:30px;
+}
+.big-team{
+  display:flex;
+  align-items:center;
+  gap:18px;
+}
+.big-team.right-team{
+  justify-content:flex-end;
+  text-align:right;
+}
+.big-team.right-team .big-logo{order:2}
+.big-logo{
+  width:78px;height:78px;border-radius:50%;object-fit:contain;background:#050914;border:1px solid rgba(255,255,255,.14)
+}
+.big-name{
+  font-size:24px;
+  font-weight:1000;
+  line-height:1.06;
+  overflow-wrap:anywhere;
+}
+.big-score{
+  display:grid;
+  grid-template-columns:120px 28px 120px;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+}
+.big-score input{
+  height:76px;
+  border-radius:12px;
+  text-align:center;
+  font-size:42px;
+  font-weight:1000;
+}
+.dash{
+  text-align:center;
+  font-size:28px;
+  font-weight:1000;
+}
+.form-row{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:20px;
+  margin-bottom:18px;
+}
+.form-row.two{grid-template-columns:1fr 1fr}
+.form-row.full{grid-template-columns:1fr}
+.form-row label{
+  display:block;
+  color:#e4ecf7;
+  font-weight:800;
+  margin-bottom:8px;
+}
+textarea{min-height:105px;resize:vertical}
+.save{
+  width:100%;
+  margin-top:18px;
+  border:0;
+  background:linear-gradient(135deg,#18b85a,#21d875);
+  color:#fff;
+  border-radius:12px;
+  padding:16px;
+  font-size:17px;
+  font-weight:1000;
+  cursor:pointer;
+}
+.delete{
+  width:100%;
+  margin-top:10px;
+  border:1px solid rgba(255,255,255,.13);
+  background:#081225;
+  color:#dce5f2;
+  border-radius:12px;
+  padding:13px;
+  font-weight:900;
+  cursor:pointer;
+}
+.empty{
+  padding:24px;
+  text-align:center;
+  color:#bfc8d8;
+  border:1px dashed rgba(255,255,255,.14);
+  border-radius:16px;
+}
+.msg{
+  position:fixed;
+  right:24px;
+  bottom:24px;
+  padding:13px 16px;
+  border-radius:12px;
+  font-weight:900;
+  display:none;
+  z-index:20
+}
+.msg.ok{display:block;background:rgba(25,184,92,.14);border:1px solid rgba(25,184,92,.4);color:#21dd73}
+.msg.bad{display:block;background:rgba(255,70,110,.14);border:1px solid rgba(255,70,110,.4);color:#ff6888}
+@media(max-width:1200px){
+  .filters,.layout,.editor-head,.form-row,.form-row.two{grid-template-columns:1fr}
+  .big-team.right-team{justify-content:flex-start;text-align:left}
+  .big-team.right-team .big-logo{order:0}
+  .page{padding:22px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top">
+    <div>
+      <div class="kicker">Thunder Elite League</div>
+      <h1>Editar resultados de competición</h1>
+      <div class="breadcrumb">
+        <span>Administración</span><span>›</span><span>Competiciones</span><span>›</span><span id="bcComp">Copa</span><span>›</span><b id="bcPhase">Cuartos de final</b>
+      </div>
+    </div>
+    <a class="back" href="/panel-admin.html">← Panel principal</a>
+  </div>
+
+  <section class="filters">
+    <div class="field">
+      <label>Competición</label>
+      <select id="competitionFilter"></select>
+    </div>
+    <div class="field">
+      <label>Fase</label>
+      <select id="phaseFilter">
+        <option value="1">Cuartos de final</option>
+        <option value="2">Semifinales</option>
+        <option value="3">Final</option>
+      </select>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="icon">▣</span><div><b id="total">0</b><span>partidos</span></div></div>
+      <div class="stat"><span class="icon ok">✓</span><div><b id="done">0</b><span>finalizados</span></div></div>
+      <div class="stat"><span class="icon">◷</span><div><b id="pending">0</b><span>pendientes</span></div></div>
+    </div>
+    <div class="bracket-mini">
+      <span>Cuartos</span><span class="b-dot"></span><span class="b-line"></span><span class="b-dot"></span><span class="b-line off"></span><span class="b-dot off"></span><span>Final</span>
+    </div>
+  </section>
+
+  <section class="layout">
+    <aside class="left">
+      <h2 id="phaseTitle">Cuartos de final</h2>
+      <div id="matchList" class="list"></div>
+    </aside>
+
+    <main class="right" id="editor"></main>
+  </section>
+</div>
+
+<div id="msg" class="msg"></div>
+
+<script>
+let data = {competiciones:[],matches:[]};
+let selectedId = null;
+
+function esc(s){return String(s ?? "").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+async function fetchJson(url, opts){
+  try{const r=await fetch(url,Object.assign({cache:"no-store"},opts||{}));return await r.json();}
+  catch(e){return {ok:false,message:e.message};}
+}
+function showMsg(text, ok=true){
+  const el=document.getElementById("msg");
+  el.textContent=text; el.className="msg "+(ok?"ok":"bad");
+  setTimeout(()=>{el.className="msg";},2500);
+}
+function logoHtml(src,name,cls="logo"){
+  if(src) return `<img loading="lazy" decoding="async" class="${cls}" src="${esc(src)}" onerror="this.outerHTML='<div class=&quot;placeholder-logo&quot;>${esc((name||'?')[0]||'?')}</div>'">`;
+  return `<div class="placeholder-logo">${esc((name||'?')[0]||'?')}</div>`;
+}
+function cleanText(v){
+  return String(v || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .trim();
+}
+
+function explicitRoundOf(m){
+  const txt = cleanText(`${m.ronda || ""} ${m.rondaNombre || ""} ${m.fase || ""} ${m.nombreRonda || ""} ${m.roundName || ""}`);
+  const n = Number(m.ronda || m.round || m.faseNumero || m.jornada || 0);
+
+  if(txt.includes("semi") || n === 2) return "2";
+  if(txt.includes("final") && !txt.includes("cuarto") && !txt.includes("semi") || n === 3) return "3";
+  if(txt.includes("cuarto") || txt.includes("quarter") || n === 1) return "1";
+
+  return "";
+}
+
+function roundOf(m){
+  return explicitRoundOf(m) || "1";
+}
+async function loginSilently(){const me=await fetchJson('/api/auth/me');if(!me?.admin){location.href='/?admin_login=1#login';throw new Error('admin_required');}return me;}
+async function load(){
+  await loginSilently();
+  const res=await fetchJson("/api/tel-panel/matches");
+  if(!res.ok){showMsg(res.message||"No se pudo cargar",false);return;}
+  data=res;
+  fillComps();
+  render();
+}
+function fillComps(){
+  const cups=data.competiciones.filter(c=>c.isCup);
+  const cur=competitionFilter.value;
+  competitionFilter.innerHTML=cups.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join("");
+  if(cur && cups.some(c=>c.id===cur)) competitionFilter.value=cur;
+}
+function comp(){
+  return data.competiciones.find(c=>c.id===competitionFilter.value) || data.competiciones.find(c=>c.isCup);
+}
+function allCupMatches(){
+  const c = comp();
+  return data.matches.filter(m => m.compId === c?.id);
+}
+
+function matches(){
+  const c = comp();
+  const phase = phaseFilter.value;
+  const all = allCupMatches();
+
+  let direct = all.filter(m => roundOf(m) === phase);
+  if(direct.length) return direct;
+
+  // Fallback importante:
+  // Si data.json no marca bien "cuartos/semis/final", dividimos por orden.
+  // Primeros 4 = cuartos, siguientes 2 = semifinales, último = final.
+  const ordered = [...all];
+  if(phase === "1") return ordered.slice(0, 4);
+  if(phase === "2") return ordered.slice(4, 6);
+  if(phase === "3") return ordered.slice(6, 7);
+
+  return direct;
+}
+function render(){
+  const c=comp();
+  const ms=matches();
+  const phaseName=phaseFilter.options[phaseFilter.selectedIndex]?.textContent || "Fase";
+  bcComp.textContent=c?.nombre || "Copa";
+  bcPhase.textContent=phaseName;
+  phaseTitle.textContent=phaseName;
+  total.textContent=ms.length;
+  done.textContent=ms.filter(m=>m.finalizado).length;
+  pending.textContent=ms.filter(m=>!m.finalizado).length;
+  if(!ms.some(m=>m.id===selectedId)) selectedId=ms[0]?.id || null;
+  renderList(ms);
+  renderEditor(ms.find(m=>m.id===selectedId));
+}
+function renderList(ms){
+  if(!ms.length){
+    const all = allCupMatches();
+    matchList.innerHTML=`<div class="empty">No hay partidos en esta fase.<br><br>Partidos encontrados en esta copa: ${all.length}</div>`;
+    return;
+  }
+  matchList.innerHTML=ms.map(m=>{
+    const lg=m.localGoles ?? "-";
+    const vg=m.visitanteGoles ?? "-";
+    return `<div class="mini-card ${m.id===selectedId?'active':''}" data-id="${esc(m.id)}">
+      <div class="mini-row">
+        ${logoHtml(m.localLogo,m.localNombre)}
+        <div class="mini-name">${esc(m.localNombre)}</div>
+        <div class="mini-score">${esc(lg)}</div>
+        <div style="text-align:center;font-weight:1000">-</div>
+        <div class="mini-score">${esc(vg)}</div>
+        <div class="mini-name right-name">${esc(m.visitanteNombre)}</div>
+        ${logoHtml(m.visitanteLogo,m.visitanteNombre)}
+      </div>
+      <div class="mini-meta">
+        <span>▣ ${esc(m.fecha || "Fecha por definir")}</span>
+        <span>◷ ${esc(m.hora || "--:--")}</span>
+        <span class="${m.finalizado?'ok':'pending'}">● ${m.finalizado?'Finalizado':'Pendiente'}</span>
+      </div>
+    </div>`;
+  }).join("");
+  document.querySelectorAll(".mini-card").forEach(el=>{
+    el.onclick=()=>{selectedId=el.dataset.id;render();}
+  });
+}
+function renderEditor(m){
+  if(!m){editor.innerHTML=`<div class="empty">Selecciona un partido.</div>`;return;}
+  const lg=m.localGoles ?? "";
+  const vg=m.visitanteGoles ?? "";
+  const winner=m.finalizado ? (Number(m.localGoles)>Number(m.visitanteGoles)?m.localNombre:Number(m.localGoles)<Number(m.visitanteGoles)?m.visitanteNombre:"Empate") : "Sin resultado";
+  editor.innerHTML=`<span class="editing">EDITANDO</span>
+    <div class="editor-head">
+      <div class="big-team">${logoHtml(m.localLogo,m.localNombre,"big-logo")}<div class="big-name">${esc(m.localNombre)}</div></div>
+      <div class="big-score"><input class="lg" type="number" min="0" step="1" value="${esc(lg)}" placeholder="-"><div class="dash">-</div><input class="vg" type="number" min="0" step="1" value="${esc(vg)}" placeholder="-"></div>
+      <div class="big-team right-team"><div class="big-name">${esc(m.visitanteNombre)}</div>${logoHtml(m.visitanteLogo,m.visitanteNombre,"big-logo")}</div>
+    </div>
+    <div class="form-row">
+      <div><label>Ganador</label><select><option>${esc(winner)}</option></select></div>
+      <div><label>Fecha</label><input class="fecha" type="date" value="${esc(m.fecha||'')}"></div>
+      <div><label>Hora</label><input class="hora" type="time" value="${esc(m.hora||'')}"></div>
+    </div>
+    <div class="form-row two">
+      <div><label>Estado</label><select><option>${m.finalizado?'Finalizado':'Pendiente'}</option></select></div>
+      <div><label>Fase</label><select><option>${esc(bcPhase.textContent)}</option></select></div>
+    </div>
+    <div class="form-row full"><div><label>Notas (opcional)</label><textarea maxlength="300" placeholder="Añade notas sobre el partido (opcional)..."></textarea></div></div>
+    <button class="save">💾 Guardar resultado</button>
+    <button class="delete">🗑 Borrar resultado</button>`;
+  editor.querySelector(".save").onclick=()=>save(m,false,false,false);
+  editor.querySelector(".delete").onclick=()=>save(m,true,false,false);
+  editor.querySelectorAll(".lg,.vg").forEach(input=>{
+    input.addEventListener("input",()=>telScheduleCupAutosave(m,"score"));
+    input.addEventListener("change",()=>telScheduleCupAutosave(m,"score"));
+  });
+  editor.querySelectorAll(".fecha,.hora").forEach(input=>{
+    input.addEventListener("change",()=>telScheduleCupAutosave(m,"date"));
+  });
+}
+const telCupAutosaveTimers = new Map();
+function telScheduleCupAutosave(m,kind){
+  const key=`${m.compId}:${m.id}:${kind}`;
+  clearTimeout(telCupAutosaveTimers.get(key));
+  const timer=setTimeout(()=>{
+    if(kind==="date"){
+      save(m,false,true,true);
+      return;
+    }
+    const localRaw=editor.querySelector(".lg")?.value ?? "";
+    const awayRaw=editor.querySelector(".vg")?.value ?? "";
+    if(localRaw==="" || awayRaw==="") return;
+    if(Number(localRaw)===Number(awayRaw)){
+      showMsg("En copa no puede haber empate.",false);
+      return;
+    }
+    save(m,false,false,true);
+  },850);
+  telCupAutosaveTimers.set(key,timer);
+}
+async function save(m,clear=false,dateOnly=false,silent=false){
+  const localRaw=editor.querySelector(".lg")?.value ?? "";
+  const awayRaw=editor.querySelector(".vg")?.value ?? "";
+  const payload={
+    compId:m.compId,matchId:m.id,
+    localGoles:localRaw===""?null:Number(localRaw),
+    visitanteGoles:awayRaw===""?null:Number(awayRaw),
+    fecha:editor.querySelector(".fecha")?.value||"",
+    hora:editor.querySelector(".hora")?.value||"",
+    clear,
+    dateOnly
+  };
+  if(!clear && !dateOnly && (!Number.isInteger(payload.localGoles)||!Number.isInteger(payload.visitanteGoles)||payload.localGoles<0||payload.visitanteGoles<0)){
+    if(!silent) showMsg("Pon los dos marcadores.",false);
+    return;
+  }
+  if(!clear && !dateOnly && payload.localGoles===payload.visitanteGoles){
+    showMsg("En copa no puede haber empate.",false);
+    return;
+  }
+  window.__telAutosaveBusy=true;
+  window.__telOwnWriteUntil=Date.now()+2800;
+  const res=await fetchJson("/api/tel-panel/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  window.__telAutosaveBusy=false;
+  if(!res.ok){showMsg(res.message||"No se pudo guardar",false);return;}
+  await load();
+
+  // Al completar una fase, mostrar automáticamente la siguiente.
+  const currentPhase = phaseFilter.value;
+  const currentMatches = matches();
+  const phaseCompleted = currentMatches.length > 0 && currentMatches.every(match => match.finalizado);
+  if(!clear && !dateOnly && phaseCompleted && currentPhase === "1"){
+    phaseFilter.value = "2";
+    selectedId = null;
+    render();
+    showMsg("Cuartos completados: semifinales actualizadas automáticamente.");
+    return;
+  }
+  if(!clear && !dateOnly && phaseCompleted && currentPhase === "2"){
+    phaseFilter.value = "3";
+    selectedId = null;
+    render();
+    showMsg("Semifinales completadas: final actualizada automáticamente.");
+    return;
+  }
+  showMsg(silent?(dateOnly?"Fecha y hora autoguardadas.":"Resultado autoguardado."):(res.message||"Guardado"));
+}
+competitionFilter.onchange=()=>{selectedId=null;render();};
+phaseFilter.onchange=()=>{selectedId=null;render();};
+window.telRefreshCurrent = load;
+load();
+</script>
+</body>
+</html>
+<script src="/tel-live-sync.js?v=20260714-global2"></script>

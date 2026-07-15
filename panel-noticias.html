@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Noticias · Admin TEL</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#030813;--panel:#081328;--panel2:#0b172d;--line:rgba(255,255,255,.11);--muted:#aab5c7;--purple:#a33cff;--purple2:#6320d2;--green:#18cb68;--red:#ff526f}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;color:#fff;font-family:Inter,Arial,sans-serif;background:radial-gradient(circle at 82% 0%,rgba(96,38,190,.22),transparent 32%),linear-gradient(135deg,#030813,#071022)}button,input,select,textarea{font:inherit}.shell{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}.sidebar{position:sticky;top:0;height:100vh;padding:24px 16px;display:flex;flex-direction:column;background:#040a15;border-right:1px solid var(--line)}.brand{display:flex;gap:12px;align-items:center;padding:0 8px 24px;border-bottom:1px solid var(--line)}.logo{width:52px;height:58px;display:grid;place-items:center;background:linear-gradient(145deg,#a23cff,#4c1aaa);clip-path:polygon(50% 0,92% 16%,85% 73%,50% 100%,15% 73%,8% 16%);font-size:22px}.brand b{display:block;text-transform:uppercase;font-size:19px}.brand span{color:#c75bff;font-size:13px;font-weight:900}.kicker{margin:28px 10px 12px;color:#c153ff;font-size:12px;font-weight:1000;text-transform:uppercase}.nav{display:flex;flex-direction:column;gap:6px}.nav a{padding:13px 14px;border-radius:9px;color:#dce4ef;text-decoration:none;font-weight:850}.nav a.active,.nav a:hover{background:linear-gradient(90deg,rgba(132,43,241,.38),rgba(132,43,241,.1));box-shadow:inset 3px 0 #b746ff}.user{margin-top:auto;padding:12px;border:1px solid var(--line);border-radius:12px;color:#dfe6f1;background:rgba(255,255,255,.025)}.main{padding:28px;min-width:0}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:20px}.top h1{margin:0 0 7px;font-size:34px}.top p{margin:0;color:var(--muted)}.sync{height:42px;padding:0 16px;border:1px solid var(--line);border-radius:9px;background:#081226;color:#fff;cursor:pointer}.grid{display:grid;grid-template-columns:minmax(420px,.9fr) minmax(520px,1.2fr);gap:16px}.card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,rgba(10,23,45,.97),rgba(6,14,29,.97));box-shadow:0 20px 55px rgba(0,0,0,.2)}.card h2{margin:0;padding:17px 18px 0;font-size:18px}.body{padding:16px 18px 18px}.field{margin-bottom:13px}.field label{display:block;margin-bottom:7px;font-size:12px;font-weight:900;color:#e9edf5}.field input,.field select,.field textarea{width:100%;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#081225;color:#fff;outline:none}.field input,.field select{height:42px;padding:0 12px}.field textarea{min-height:106px;padding:11px 12px;resize:vertical}.field input:focus,.field select:focus,.field textarea:focus{border-color:#9f3cff;box-shadow:0 0 0 2px rgba(159,60,255,.14)}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.save,.clear{height:42px;border-radius:8px;font-weight:1000;cursor:pointer}.save{border:0;background:linear-gradient(135deg,#11b95a,#1bd873);color:#fff}.clear{border:1px solid var(--line);background:#081225;color:#fff}.news-list{display:flex;flex-direction:column;gap:11px;max-height:690px;overflow:auto;padding-right:3px}.item{display:grid;grid-template-columns:78px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:11px;background:#081226}.thumb{width:78px;height:65px;border-radius:9px;display:grid;place-items:center;overflow:hidden;background:linear-gradient(145deg,#401174,#15132b);font-size:28px}.thumb img{width:100%;height:100%;object-fit:cover}.item h3{margin:0 0 5px;font-size:15px}.meta{color:#b95cff;font-size:10px;font-weight:1000;text-transform:uppercase}.item p{margin:5px 0 0;color:var(--muted);font-size:12px;line-height:1.35}.item-actions{display:flex;flex-direction:column;gap:7px}.item-actions button{padding:8px 10px;border-radius:7px;background:#0b1730;color:#fff;border:1px solid var(--line);cursor:pointer;font-size:11px;font-weight:900}.item-actions .delete{border-color:rgba(255,82,111,.5);color:#ff8ba0}.empty{padding:28px;border:1px dashed var(--line);border-radius:10px;text-align:center;color:var(--muted)}.toast{position:fixed;right:22px;bottom:22px;display:none;padding:12px 16px;border-radius:9px;background:#10223b;border:1px solid var(--line);font-weight:900}.toast.show{display:block}.toast.bad{color:#ff9aae;border-color:rgba(255,82,111,.55)}
+@media(max-width:1050px){.shell{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.grid{grid-template-columns:1fr}}@media(max-width:650px){.main{padding:18px 12px}.top{flex-direction:column}.two,.actions{grid-template-columns:1fr}.item{grid-template-columns:58px minmax(0,1fr)}.thumb{width:58px;height:58px}.item-actions{grid-column:1/-1;flex-direction:row}}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="brand"><div class="logo">🏆</div><div><b>Thunder</b><span>Elite League</span></div></div>
+  <div class="kicker">Admin</div>
+  <nav class="nav">
+    <a href="/panel-admin.html">⌂ Panel principal</a>
+    <a href="/panel-copas.html">♜ Copas</a>
+    <a href="/panel-competiciones.html">＋ Crear competiciones</a>
+    <a href="/panel-resultados.html">☷ Resultados</a>
+    <a class="active" href="/panel-noticias.html">▤ Noticias</a>
+    <a href="/">↩ Volver a la web</a>
+  </nav>
+  <div class="user"><b>Admin TEL</b><br><small>Administrador</small></div>
+</aside>
+<main class="main">
+  <header class="top"><div><h1>Crear y gestionar noticias</h1><p>Publica las noticias que aparecerán en la portada y en la sección Noticias.</p></div><button class="sync" id="syncBtn">⟳ Sincronizar</button></header>
+  <section class="grid">
+    <article class="card"><h2 id="formTitle">Nueva noticia</h2><div class="body">
+      <input id="newsId" type="hidden">
+      <div class="field"><label>Título</label><input id="title" maxlength="180" placeholder="Título de la noticia"></div>
+      <div class="two"><div class="field"><label>Categoría</label><select id="category"><option>Anuncios</option><option>Torneos</option><option>Comunidad</option><option>Resultados</option><option>Reglamento</option></select></div><div class="field"><label>Fecha</label><input id="date" type="date"></div></div>
+      <div class="field"><label>Resumen</label><textarea id="summary" maxlength="500" placeholder="Texto breve que se verá en las tarjetas"></textarea></div>
+      <div class="field"><label>Contenido completo</label><textarea id="content" maxlength="6000" placeholder="Contenido de la noticia"></textarea></div>
+      <div class="field"><label>Imagen (URL opcional)</label><input id="image" maxlength="800" placeholder="https://..."></div>
+      <div class="actions"><button class="save" id="saveBtn">💾 Publicar noticia</button><button class="clear" id="clearBtn">Limpiar</button></div>
+    </div></article>
+    <article class="card"><h2>Noticias publicadas</h2><div class="body"><div id="newsList" class="news-list"><div class="empty">Cargando noticias…</div></div></div></article>
+  </section>
+</main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+let news=[];
+async function json(url,opts){try{const r=await fetch(url,Object.assign({cache:'no-store'},opts||{}));const data=await r.json();return Object.assign({status:r.status},data)}catch(e){return {ok:false,message:e.message}}}
+function toast(msg,bad=false){const e=$('toast');e.textContent=msg;e.className='toast show'+(bad?' bad':'');setTimeout(()=>e.className='toast',2500)}
+function niceDate(v){if(!v)return 'Sin fecha';try{return new Date(v+'T12:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'})}catch(e){return v}}
+function clearForm(){$('newsId').value='';$('title').value='';$('category').value='Anuncios';$('date').value=new Date().toISOString().slice(0,10);$('summary').value='';$('content').value='';$('image').value='';$('formTitle').textContent='Nueva noticia';$('saveBtn').textContent='💾 Publicar noticia'}
+function render(){const box=$('newsList');box.innerHTML=news.length?news.map(n=>`<article class="item"><div class="thumb">${n.imagen?`<img loading="lazy" decoding="async" src="${esc(n.imagen)}" alt="">`:'📰'}</div><div><div class="meta">${esc(n.categoria||'Anuncios')} · ${esc(niceDate(n.fecha))}</div><h3>${esc(n.titulo)}</h3><p>${esc(n.resumen)}</p></div><div class="item-actions"><button data-edit="${esc(n.id)}">Editar</button><button class="delete" data-delete="${esc(n.id)}">Eliminar</button></div></article>`).join(''):'<div class="empty">Todavía no hay noticias. Publica la primera desde el formulario.</div>';box.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(b.dataset.edit));box.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>removeNews(b.dataset.delete));}
+async function load(){const me=await json('/api/auth/me');if(!me.admin){location.href='/?admin_login=1#login';return}const r=await json('/api/noticias');if(!r.ok){toast(r.message||'No se pudieron cargar las noticias.',true);return}news=r.noticias||[];render()}
+function edit(id){const n=news.find(x=>String(x.id)===String(id));if(!n)return;$('newsId').value=n.id;$('title').value=n.titulo||'';$('category').value=n.categoria||'Anuncios';$('date').value=n.fecha||'';$('summary').value=n.resumen||'';$('content').value=n.contenido||'';$('image').value=n.imagen||'';$('formTitle').textContent='Editar noticia';$('saveBtn').textContent='💾 Guardar cambios';scrollTo({top:0,behavior:'smooth'})}
+async function save(){const payload={id:$('newsId').value,titulo:$('title').value,categoria:$('category').value,fecha:$('date').value,resumen:$('summary').value,contenido:$('content').value,imagen:$('image').value};const r=await json('/api/admin/noticias',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){toast(r.message||'No se pudo guardar.',true);return}toast(r.message||'Noticia guardada.');clearForm();await load()}
+async function removeNews(id){if(!confirm('¿Eliminar esta noticia?'))return;const r=await json('/api/admin/noticias/'+encodeURIComponent(id),{method:'DELETE'});if(!r.ok){toast(r.message||'No se pudo eliminar.',true);return}toast('Noticia eliminada.');await load()}
+$('saveBtn').onclick=save;$('clearBtn').onclick=clearForm;$('syncBtn').onclick=load;document.addEventListener('DOMContentLoaded',()=>{clearForm();load()});window.telRefreshCurrent=load;
+</script>
+<script src="/tel-live-sync.js?v=20260714-global2"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+CORRECCIÓN DE LOGIN APLICADA
+
+Cambios incluidos:
+- Un solo flujo de login/registro para usuarios y administrador.
+- La sincronización ya no recarga toda la página cada pocos segundos.
+- El segundo router respeta la sesión activa.
+- La cookie admin usa una clave estable en Vercel.
+
+En Vercel configura como mínimo:
+ADMIN_EMAIL=roleplayserver007@gmail.com
+WEB_ADMIN_PASSWORD=<tu contraseña admin>
+WEB_SESSION_SECRET=<cadena larga y aleatoria>
+UPSTASH_REDIS_REST_URL=<tu URL>
+UPSTASH_REDIS_REST_TOKEN=<tu token>
+TEL_REDIS_PREFIX=tel:web:v1:
+
+Después haz un Redeploy sin caché.

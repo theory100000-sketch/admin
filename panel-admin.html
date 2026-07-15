@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Panel de administración · Thunder Elite League</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{
+  --bg:#020711;--bg2:#050b19;--panel:#071022;--panel2:#091329;
+  --line:rgba(189,86,255,.34);--soft-line:rgba(255,255,255,.10);
+  --text:#f7f8ff;--muted:#aeb6c9;--purple:#a33cff;--purple2:#6422d3;
+  --green:#31dc79;--blue:#4595ff;--yellow:#ffc52c;--red:#ff526d;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;min-height:100vh;color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif;background:
+ radial-gradient(circle at 80% 0%,rgba(84,33,185,.22),transparent 31%),
+ radial-gradient(circle at 13% 12%,rgba(29,92,214,.10),transparent 26%),
+ linear-gradient(135deg,#020711,#050b18 58%,#060917)}
+a{color:inherit}
+button,input,select{font:inherit}
+.admin-shell{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:25px 16px 19px;background:linear-gradient(180deg,#050b17,#02060e);border-right:1px solid rgba(255,255,255,.09);z-index:5}
+.brand{display:flex;align-items:center;gap:13px;padding:0 5px 25px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand-shield{width:61px;height:65px;position:relative;display:grid;place-items:center;flex:0 0 auto;filter:drop-shadow(0 0 14px rgba(155,53,255,.35))}
+.brand-shield:before{content:"";position:absolute;inset:0;background:linear-gradient(145deg,#b243ff,#5a20dc);clip-path:polygon(50% 0,93% 15%,86% 73%,50% 100%,14% 73%,7% 15%)}
+.brand-shield:after{content:"🏆";position:absolute;inset:5px;display:grid;place-items:center;font-size:22px;background:#061021;clip-path:polygon(50% 0,93% 15%,86% 73%,50% 100%,14% 73%,7% 15%)}
+.brand-title{font-weight:1000;font-size:22px;line-height:1.03;text-transform:uppercase;letter-spacing:-.02em}.brand-title span{display:block;color:#c148ff;font-size:15px;margin-top:4px;letter-spacing:.02em}
+.side-kicker{margin:29px 9px 14px;color:#bd4dff;font-size:12px;font-weight:1000;text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:5px}
+.nav-divider{height:1px;background:rgba(255,255,255,.08);margin:8px 2px}
+.nav a{display:flex;align-items:center;gap:13px;min-height:47px;padding:11px 13px;border-radius:9px;color:#dfe4ee;text-decoration:none;font-size:14px;font-weight:800;transition:.16s}
+.nav a .ico{width:27px;text-align:center;font-size:20px;color:#eef2fb}
+.nav a:hover,.nav a.active{color:#fff;background:linear-gradient(90deg,rgba(126,39,240,.38),rgba(126,39,240,.11));box-shadow:inset 2px 0 #aa3cff,0 0 22px rgba(96,26,191,.10)}
+.nav a.active .ico{color:#c65fff}
+.admin-user{margin-top:auto;display:grid;grid-template-columns:42px minmax(0,1fr) 20px;gap:10px;align-items:center;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:13px;background:rgba(255,255,255,.025)}
+.user-avatar{width:42px;height:42px;display:grid;place-items:center;border-radius:11px;background:linear-gradient(145deg,#7a29df,#37137d);font-size:21px}.admin-user b{display:block;font-size:13px}.admin-user small{color:var(--muted);font-size:11px}.admin-user .chev{color:#d7deeb;text-align:center}
+.main{padding:29px 31px 35px;min-width:0;overflow:auto}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:22px;margin-bottom:28px}.top h1{margin:0 0 7px;font-size:34px;line-height:1;font-weight:1000;letter-spacing:-.025em}.top p{margin:0;color:#aab2c2;font-size:15px}.sync{height:43px;display:flex;align-items:center;gap:9px;padding:0 16px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:#070d1b;color:#f4f6fb;font-weight:800;cursor:pointer}.sync .spin{color:#a63cff;font-size:22px}.sync.loading .spin{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.hero-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:17px;margin-bottom:18px}
+.hero-card{min-height:298px;display:flex;flex-direction:column;padding:18px 17px 15px;border:1px solid rgba(183,73,255,.48);border-radius:15px;background:linear-gradient(145deg,rgba(8,17,36,.98),rgba(5,10,23,.98));box-shadow:0 22px 60px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.025);overflow:hidden}
+.hero-main{display:grid;grid-template-columns:126px minmax(0,1fr);gap:15px;align-items:start;min-height:176px}
+.hero-art{position:relative;height:155px;display:grid;place-items:center}
+.hero-art:before{content:"";position:absolute;width:112px;height:40px;bottom:7px;border:1px solid rgba(166,59,255,.48);border-radius:50%;box-shadow:0 0 28px rgba(121,36,255,.34),inset 0 0 23px rgba(125,37,241,.15)}
+.hero-icon{position:relative;z-index:1;font-size:82px;line-height:1;filter:drop-shadow(0 0 13px rgba(173,63,255,.72)) saturate(1.2)}
+.hero-card h2{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 8px;font-size:20px}.badge{padding:5px 9px;border:1px solid rgba(142,48,255,.24);border-radius:6px;background:rgba(99,28,204,.18);color:#c268ff;font-size:11px;font-weight:900;white-space:nowrap}.hero-card p{margin:0 0 13px;color:#afb7c8;font-size:14px;line-height:1.45}
+.feature-list{display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,.08)}.feature{display:flex;align-items:center;gap:9px;padding:8px 0;color:#e2e5ed;font-size:13px}.feature .bullet{width:20px;color:#d69bff;text-align:center}
+.hero-link{margin-top:auto;min-height:42px;display:flex;align-items:center;justify-content:center;gap:14px;border:1px solid rgba(166,60,255,.60);border-radius:7px;background:linear-gradient(90deg,#3b1284,#6015bb);color:#fff;text-decoration:none;font-size:14px;font-weight:1000;box-shadow:inset 0 1px rgba(255,255,255,.05)}.hero-link .arrow{margin-left:auto;padding-right:13px;font-size:21px}.hero-link:hover{filter:brightness(1.12)}
+.summary-card{margin-bottom:17px;padding:13px 16px 15px;border:1px solid rgba(185,76,255,.48);border-radius:15px;background:linear-gradient(145deg,rgba(8,17,36,.98),rgba(5,10,23,.98));box-shadow:0 20px 55px rgba(0,0,0,.20)}
+.summary-head{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:0 2px 10px}.summary-head h2{margin:0;font-size:18px}.date-box{height:36px;display:flex;align-items:center;gap:9px;padding:0 13px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#070d1b;color:#dce2ed;font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid rgba(255,255,255,.08)}
+.stat{min-height:100px;display:grid;grid-template-columns:72px minmax(0,1fr);align-items:center;gap:10px;padding:14px 19px;border-right:1px solid rgba(255,255,255,.08)}.stat:last-child{border-right:0}.stat-icon{width:58px;height:58px;display:grid;place-items:center;position:relative;font-size:28px;background:linear-gradient(145deg,#9e3cff,#4b18aa);clip-path:polygon(50% 0,91% 23%,91% 74%,50% 100%,9% 74%,9% 23%);filter:drop-shadow(0 0 12px rgba(147,53,255,.38))}.stat-icon:after{content:"";position:absolute;inset:4px;background:#071226;clip-path:inherit;z-index:-1}.stat-label{color:#b4bdce;font-size:12px}.stat-value{display:flex;align-items:flex-end;gap:8px;margin-top:3px}.stat-value b{font-size:34px;line-height:1}.trend{padding-bottom:4px;color:var(--green);font-size:11px;font-weight:900}.trend.warn{color:var(--yellow)}.stat small{display:block;color:#778398;font-size:9px;margin-top:2px}
+.quick-card{border:1px solid rgba(255,255,255,.12);border-radius:15px;background:linear-gradient(145deg,rgba(8,17,36,.98),rgba(5,10,23,.98));overflow:hidden;box-shadow:0 20px 55px rgba(0,0,0,.20)}
+.quick-title{display:flex;align-items:center;gap:10px;padding:15px 18px;font-size:18px;font-weight:1000}.quick-title span{color:#b347ff;font-size:22px}.table-wrap{overflow:auto}.quick-table{width:100%;min-width:900px;border-collapse:collapse}.quick-table th{padding:10px 13px;color:#b4bdcc;font-size:10px;text-align:left;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}.quick-table td{padding:10px 13px;border-bottom:1px solid rgba(255,255,255,.065);font-size:11px}.quick-name{display:flex;align-items:center;gap:11px;font-size:12px;font-weight:1000}.quick-name .qico{width:24px;text-align:center;font-size:20px}.type-pill{display:inline-flex;padding:5px 9px;border-radius:5px;background:rgba(119,36,224,.20);border:1px solid rgba(151,60,255,.35);color:#c986ff;font-size:10px;font-weight:900}.type-pill.liga{background:rgba(34,110,255,.15);border-color:rgba(57,132,255,.35);color:#83b7ff}.status{display:inline-flex;align-items:center;gap:7px}.dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(49,220,121,.4)}.row-actions{display:flex;align-items:center;gap:8px}.row-actions a{min-width:84px;padding:7px 10px;border-radius:5px;text-align:center;text-decoration:none;font-size:10px;font-weight:900}.manage{border:1px solid rgba(159,59,255,.50);background:rgba(103,31,204,.20);color:#c988ff}.edit{border:1px solid rgba(65,144,255,.48);background:rgba(35,100,207,.16);color:#82b7ff}.open{border:1px solid rgba(43,200,101,.32);background:rgba(12,135,61,.18);color:#87efa9}.row-actions a:hover{filter:brightness(1.18)}
+.quick-footer{text-align:center;padding:10px;color:#b946ff;font-size:12px;font-weight:900}.empty{padding:30px;text-align:center;color:#9ca8bb}.toast{position:fixed;right:22px;bottom:22px;display:none;padding:12px 16px;border-radius:9px;background:#10233a;border:1px solid rgba(255,255,255,.15);box-shadow:0 15px 45px rgba(0,0,0,.35);font-size:13px}.toast.show{display:block}.toast.bad{border-color:rgba(255,82,109,.5);color:#ff9cad}
+@media(max-width:1250px){.hero-main{grid-template-columns:100px minmax(0,1fr)}.hero-icon{font-size:68px}.stat{grid-template-columns:58px 1fr;padding:12px}.stat-icon{width:50px;height:50px}.admin-shell{grid-template-columns:230px minmax(0,1fr)}}
+@media(max-width:1050px){.hero-cards{grid-template-columns:1fr}.hero-card{min-height:auto}.hero-main{grid-template-columns:130px 1fr}.stats{grid-template-columns:1fr 1fr}.stat:nth-child(2){border-right:0}.stat:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.08)}}
+@media(max-width:760px){.admin-shell{display:block}.sidebar{position:relative;height:auto}.main{padding:21px 13px}.top{flex-direction:column}.top h1{font-size:29px}.hero-main{grid-template-columns:90px 1fr}.hero-art{height:125px}.hero-icon{font-size:58px}.stats{grid-template-columns:1fr}.stat{border-right:0;border-bottom:1px solid rgba(255,255,255,.08)}.summary-head{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-shield"></div><div class="brand-title">Thunder<span>Elite League</span></div></div>
+    <div class="side-kicker">Admin</div>
+    <nav class="nav">
+      <a class="active" href="/panel-admin.html"><span class="ico">⌂</span>Panel principal</a>
+      <a href="/panel-copas.html"><span class="ico">♜</span>Copas</a>
+      <a href="/panel-competiciones.html"><span class="ico">＋</span>Crear competiciones</a>
+      <a href="/panel-resultados.html"><span class="ico">☷</span>Resultados</a>
+      <a href="/panel-noticias.html"><span class="ico">▤</span>Noticias</a>
+      <div class="nav-divider"></div>
+      <a href="/"><span class="ico">↩</span>Volver a la web</a>
+    </nav>
+    <div class="admin-user"><div class="user-avatar">🛡</div><div><b>Admin TEL</b><small>Administrador</small></div><div class="chev">⌄</div></div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div><h1>Panel de administración</h1><p>Desde aquí puedes gestionar copas, competiciones y resultados de Thunder Elite League.</p></div>
+      <button class="sync" id="syncBtn"><span class="spin">⟳</span>Sincronizar</button>
+    </header>
+
+    <section class="hero-cards">
+      <article class="hero-card">
+        <div class="hero-main"><div class="hero-art"><div class="hero-icon">🏆</div></div><div><h2>Copas <span class="badge" id="cupBadge">0 activas</span></h2><p>Gestiona las copas activas, consulta el cuadro, las fases y los partidos.</p><div class="feature-list"><div class="feature"><span class="bullet">⊕</span>Ver cuadro de la copa</div><div class="feature"><span class="bullet">◉</span>Gestionar fases</div><div class="feature"><span class="bullet">▣</span>Ver partidos de copa</div></div></div></div>
+        <a class="hero-link" href="/panel-copas.html">Acceder a Copas <span class="arrow">→</span></a>
+      </article>
+
+      <article class="hero-card">
+        <div class="hero-main"><div class="hero-art"><div class="hero-icon">✚</div></div><div><h2>Crear competiciones <span class="badge" id="competitionBadge">0 activas</span></h2><p>Crea y configura ligas, copas o formatos mixtos personalizados.</p><div class="feature-list"><div class="feature"><span class="bullet">♜</span>Crear liga</div><div class="feature"><span class="bullet">🏆</span>Crear copa</div><div class="feature"><span class="bullet">◇</span>Crear formato mixto</div></div></div></div>
+        <a class="hero-link" href="/panel-competiciones.html">Crear nueva competición <span class="arrow">→</span></a>
+      </article>
+
+      <article class="hero-card">
+        <div class="hero-main"><div class="hero-art"><div class="hero-icon">📋</div></div><div><h2>Resultados <span class="badge" id="pendingBadge">0 pendientes</span></h2><p>Introduce, edita y guarda los resultados de los partidos.</p><div class="feature-list"><div class="feature"><span class="bullet">◷</span>Resultados pendientes</div><div class="feature"><span class="bullet">⌕</span>Buscar partido o equipo</div><div class="feature"><span class="bullet">▤</span>Historial de resultados</div></div></div></div>
+        <a class="hero-link" href="/panel-resultados.html">Gestionar resultados <span class="arrow">→</span></a>
+      </article>
+
+      <article class="hero-card">
+        <div class="hero-main"><div class="hero-art"><div class="hero-icon">📰</div></div><div><h2>Noticias <span class="badge" id="newsBadge">0 publicadas</span></h2><p>Crea las noticias que aparecen en la portada y en la sección de noticias.</p><div class="feature-list"><div class="feature"><span class="bullet">＋</span>Publicar noticias</div><div class="feature"><span class="bullet">✎</span>Editar contenido</div><div class="feature"><span class="bullet">◉</span>Actualizar la web al instante</div></div></div></div>
+        <a class="hero-link" href="/panel-noticias.html">Gestionar noticias <span class="arrow">→</span></a>
+      </article>
+    </section>
+
+    <section class="summary-card">
+      <div class="summary-head"><h2>Resumen general</h2><div class="date-box">▣ <span id="dateRange">Temporada actual</span>⌄</div></div>
+      <div class="stats">
+        <div class="stat"><div class="stat-icon">🛡</div><div><div class="stat-label">Competiciones activas</div><div class="stat-value"><b id="statCompetitions">0</b><span class="trend">↑ actualizado</span></div><small>Datos en tiempo real</small></div></div>
+        <div class="stat"><div class="stat-icon">🏆</div><div><div class="stat-label">Copas activas</div><div class="stat-value"><b id="statCups">0</b><span class="trend">↑ actualizado</span></div><small>Datos en tiempo real</small></div></div>
+        <div class="stat"><div class="stat-icon">▤</div><div><div class="stat-label">Resultados pendientes</div><div class="stat-value"><b id="statPending">0</b><span class="trend warn">↑ revisar</span></div><small>Partidos sin marcador</small></div></div>
+        <div class="stat"><div class="stat-icon">♙</div><div><div class="stat-label">Equipos inscritos</div><div class="stat-value"><b id="statTeams">0</b><span class="trend">↑ total</span></div><small>Clubes registrados</small></div></div>
+      </div>
+    </section>
+
+    <section class="quick-card">
+      <div class="quick-title"><span>ϟ</span>Accesos rápidos</div>
+      <div class="table-wrap"><table class="quick-table"><thead><tr><th>Nombre</th><th>Tipo</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Última actualización</th><th>Acciones</th></tr></thead><tbody id="quickRows"><tr><td colspan="7"><div class="empty">Cargando competiciones…</div></td></tr></tbody></table></div>
+      <div class="quick-footer"><a href="/panel-competiciones.html">Ver todo⌄</a></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+async function fetchJson(url,opts){try{const r=await fetch(url,Object.assign({cache:'no-store'},opts||{}));const j=await r.json();return Object.assign({status:r.status},j)}catch(e){return {ok:false,message:e.message}}}
+async function loginSilently(){const me=await fetchJson('/api/auth/me');if(!me?.admin){location.href='/?admin_login=1#login';throw new Error('admin_required');}return me;}
+function toast(text,bad=false){const el=$('toast');el.textContent=text;el.className='toast show'+(bad?' bad':'');setTimeout(()=>el.className='toast',2600)}
+function typeLabel(v){return v==='copa'?'Copa':v==='grupos'?'Grupos + Playoffs':'Liga'}
+function iconFor(v){return v==='copa'?'🏆':v==='grupos'?'◇':'🛡'}
+function niceDate(v){if(!v)return '—';const p=String(v).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:v}
+function statusLabel(v){return v==='borrador'?'Borrador':v==='finalizada'?'Finalizada':'Activa'}
+function currentStamp(){const d=new Date();return d.toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+function renderRows(comps){
+  const rows=(comps||[]).slice(0,5);
+  $('quickRows').innerHTML=rows.length?rows.map(c=>{
+    const isCup=c.tipo==='copa';
+    const manage=isCup?'/panel-copas.html':'/panel-resultados.html';
+    return `<tr><td><div class="quick-name"><span class="qico">${iconFor(c.tipo)}</span>${esc(c.nombre)}</div></td><td><span class="type-pill ${c.tipo==='liga'?'liga':''}">${esc(typeLabel(c.tipo))}</span></td><td><span class="status"><span class="dot"></span>${esc(statusLabel(c.estado))}</span></td><td>${esc(niceDate(c.fechaInicio))}</td><td>${esc(niceDate(c.fechaFin))}</td><td>${esc(currentStamp())}</td><td><div class="row-actions"><a class="manage" href="${manage}">⚙ Gestionar</a><a class="edit" href="/panel-competiciones.html">✎ Editar</a><a class="open" href="/#clasificacion">Abrir ↗</a></div></td></tr>`;
+  }).join(''):`<tr><td colspan="7"><div class="empty">Todavía no hay competiciones creadas.</div></td></tr>`;
+}
+async function loadDashboard(){
+  $('syncBtn').classList.add('loading');
+  await loginSilently();
+  const [manager,matches,data,newsRes]=await Promise.all([
+    fetchJson('/api/admin/competitions-manager'),
+    fetchJson('/api/tel-panel/matches'),
+    fetchJson('/api/data'),
+    fetchJson('/api/noticias')
+  ]);
+  $('syncBtn').classList.remove('loading');
+  if(!manager.ok){toast(manager.message||'No se pudo cargar el panel.',true);return}
+  const comps=manager.competitions||[];
+  const active=comps.filter(c=>c.estado==='activa').length;
+  const cups=comps.filter(c=>c.tipo==='copa'&&c.estado==='activa').length;
+  const pending=matches.ok?(matches.matches||[]).filter(m=>!m.finalizado).length:comps.reduce((n,c)=>n+Math.max(0,Number(c.partidos||0)-Number(c.resultados||0)),0);
+  const teams=Array.isArray(manager.clubs)?manager.clubs.length:(Array.isArray(data?.clubes)?data.clubes.length:0);
+  $('competitionBadge').textContent=`${active} activas`;
+  $('cupBadge').textContent=`${cups} activas`;
+  $('pendingBadge').textContent=`${pending} pendientes`;
+  $('newsBadge').textContent=`${(newsRes.noticias||[]).length} publicadas`;
+  $('statCompetitions').textContent=active;
+  $('statCups').textContent=cups;
+  $('statPending').textContent=pending;
+  $('statTeams').textContent=teams;
+  const dates=comps.flatMap(c=>[c.fechaInicio,c.fechaFin]).filter(Boolean).sort();
+  $('dateRange').textContent=dates.length?`${niceDate(dates[0])} - ${niceDate(dates[dates.length-1])}`:'Temporada actual';
+  renderRows(comps);
+}
+window.telRefreshCurrent = loadDashboard;
+$('syncBtn').onclick=()=>loadDashboard().then(()=>toast('Panel sincronizado.'));
+document.addEventListener('DOMContentLoaded',loadDashboard);
+</script>
+</body>
+</html>
+
+<script src="/tel-live-sync.js?v=20260714-global2"></script>

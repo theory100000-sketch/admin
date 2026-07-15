@@ -1,0 +1,13 @@
+CORRECCIÓN DEL PANEL ADMIN PARA VERCEL
+
+Problema corregido:
+Vercel no incluía los archivos panel-*.html privados en el bundle de Express.
+El servidor intentaba abrirlos con res.sendFile() y respondía Not Found.
+
+Solución aplicada:
+- Los cinco paneles se incluyen en admin-pages.js.
+- Siguen protegidos por la cookie/sesión de administrador.
+- No se han movido a public/, por lo que no quedan expuestos directamente.
+- Se añadió /api/tel-health para comprobar el despliegue.
+
+Después de subir el contenido a GitHub, haz Redeploy sin usar la caché anterior.

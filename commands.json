@@ -1,0 +1,106 @@
+[
+  {
+    "name": "crear-club",
+    "description": "Crea un club de la liga"
+  },
+  {
+    "name": "borrar-club",
+    "description": "Borra un club de la liga"
+  },
+  {
+    "name": "editar-club",
+    "description": "Edita el nombre, color o escudo de un club"
+  },
+  {
+    "name": "cambiar-presidente",
+    "description": "Cambia el presidente de un club"
+  },
+  {
+    "name": "añadir-vicepresidente",
+    "description": "Añade un vicepresidente a un club"
+  },
+  {
+    "name": "quitar-vicepresidente",
+    "description": "Quita un vicepresidente de un club"
+  },
+  {
+    "name": "ficha-club",
+    "description": "Muestra la ficha de un club"
+  },
+  {
+    "name": "plantilla",
+    "description": "Muestra la plantilla de un club"
+  },
+  {
+    "name": "lista-clubes",
+    "description": "Muestra todos los clubes registrados"
+  },
+  {
+    "name": "logs-clubes",
+    "description": "Configura el canal de logs de clubes"
+  },
+  {
+    "name": "economia-club",
+    "description": "Muestra la economía de un club"
+  },
+  {
+    "name": "asignar-presupuesto",
+    "description": "Asigna el presupuesto actual de un club"
+  },
+  {
+    "name": "añadir-dinero",
+    "description": "Añade dinero a un club"
+  },
+  {
+    "name": "sancionar-club",
+    "description": "Sanciona económicamente a un club"
+  },
+  {
+    "name": "warn",
+    "description": "Sanciona o advierte a un usuario"
+  },
+  {
+    "name": "historial-sanciones",
+    "description": "Muestra el historial de sanciones de un usuario"
+  },
+  {
+    "name": "quitar-dinero",
+    "description": "Quita dinero a un club"
+  },
+  {
+    "name": "historial-economia",
+    "description": "Muestra el historial económico de un club"
+  },
+  {
+    "name": "bienvenidas",
+    "description": "Configura el canal de bienvenidas"
+  },
+  {
+    "name": "panel-tickets",
+    "description": "Envía el panel de tickets en este canal"
+  },
+  {
+    "name": "probar-bienvenida",
+    "description": "Prueba el mensaje de bienvenida contigo"
+  },
+  {
+    "name": "ranking-economia",
+    "description": "Muestra el ranking económico de los clubes"
+  },
+  {
+    "name": "fichar",
+    "description": "Realiza o envía una oferta de fichaje"
+  },
+  {
+    "name": "ofertas-fichajes",
+    "description": "Muestra las ofertas de fichajes pendientes"
+  },
+  {
+    "name": "añadir-jugador",
+    "description": "Añade un jugador a un club"
+  },
+  {
+    "name": "quitar-jugador",
+    "description": "Quita un jugador de su club"
+  }
+]

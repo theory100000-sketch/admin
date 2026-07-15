@@ -1,0 +1,8 @@
+.env
+node_modules/
+data.backup.json
+npm-debug.log*
+.DS_Store
+.vercel/
+web_accounts.json
+contact_messages.json
