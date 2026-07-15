@@ -1,0 +1,3917 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Partidos · Thunder Elite League</title>
+  <style>
+    :root{
+      --bg:#05080d;
+      --panel:#0a0f17e8;
+      --panel2:#0d131ceb;
+      --stroke:rgba(255,255,255,.08);
+      --stroke2:rgba(151,69,255,.38);
+      --text:#f8f9ff;
+      --muted:#9ba6b8;
+      --purple:#9633ff;
+      --purple2:#6e1ddc;
+      --lime:#b8ff14;
+      --soft:#151c29;
+      --shadow:0 22px 70px rgba(0,0,0,.52);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      min-height:100vh;
+      color:var(--text);
+      font-family:Inter,Montserrat,Arial,sans-serif;
+      background:
+        radial-gradient(circle at 61% 0%, rgba(122,34,255,.22), transparent 32rem),
+        radial-gradient(circle at 16% 18%, rgba(93,26,190,.14), transparent 24rem),
+        radial-gradient(circle at 87% 92%, rgba(118,36,245,.16), transparent 25rem),
+        linear-gradient(145deg,#030509 0%,#07111a 47%,#030509 100%);
+      overflow-x:hidden;
+    }
+    body:before{
+      content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.023) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size:58px 58px;
+      mask-image:linear-gradient(to bottom,rgba(0,0,0,.7),rgba(0,0,0,.22));
+    }
+    a{color:inherit;text-decoration:none}
+    button{font:inherit;color:inherit;background:transparent;border:0;cursor:pointer}
+    svg{display:block}
+
+    .topbar{
+      position:fixed;top:0;left:0;right:0;height:72px;z-index:30;
+      display:flex;align-items:center;gap:34px;padding:0 34px;
+      background:rgba(3,6,10,.9);border-bottom:1px solid rgba(255,255,255,.075);backdrop-filter:blur(16px);
+    }
+    .brand{display:flex;align-items:center;gap:12px;width:300px;min-width:265px}
+    .brand svg{width:58px;height:58px;filter:drop-shadow(0 0 18px rgba(150,51,255,.52))}
+    .brand strong{display:block;font-size:27px;line-height:.88;font-style:italic;font-weight:1000;letter-spacing:.2px}
+    .brand span span{display:block;color:#c98dff;letter-spacing:7px;font-size:12px;font-weight:950;margin-top:6px}
+    .main-nav{height:100%;display:flex;align-items:center;gap:36px;flex:1}
+    .main-nav a{position:relative;height:100%;display:flex;align-items:center;text-transform:uppercase;font-size:12px;font-weight:1000;opacity:.96}
+    .main-nav a.active{color:#c989ff}
+    .main-nav a.active:after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,transparent,var(--purple),transparent);box-shadow:0 0 18px var(--purple)}
+    .top-actions{display:flex;align-items:center;gap:14px}
+    .top-square{width:42px;height:42px;border-radius:7px;display:grid;place-items:center;background:#080d14;border:1px solid rgba(255,255,255,.07)}
+    .top-square svg{width:20px;height:20px;stroke:#fff;stroke-width:2;fill:none}
+    .discord{height:42px;display:flex;align-items:center;gap:10px;border-radius:7px;padding:0 21px;font-size:12px;font-weight:1000;text-transform:uppercase;background:linear-gradient(135deg,#7922e9,#9b2eff);box-shadow:0 0 24px rgba(150,51,255,.34)}
+    .discord svg{width:18px;height:18px;fill:#fff}
+    .user{height:42px;display:flex;align-items:center;gap:10px;border-radius:7px;padding:0 14px;background:#070b11;border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:900}
+    .avatar{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(140deg,#51355c,#d4a27d);border:1px solid rgba(255,255,255,.35);font-size:14px}
+
+    .sidebar{
+      position:fixed;z-index:24;top:92px;left:12px;bottom:26px;width:198px;
+      border:1px solid var(--stroke);border-radius:8px;background:linear-gradient(180deg,rgba(11,16,24,.94),rgba(4,7,11,.92));
+      box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;
+    }
+    .side-head{height:145px;display:grid;place-items:center;background:radial-gradient(circle at 52% 30%,rgba(150,51,255,.24),transparent 60%)}
+    .shield{width:70px;height:78px;position:relative;display:grid;place-items:center;filter:drop-shadow(0 0 20px rgba(150,51,255,.55))}
+    .shield:before{content:"";position:absolute;inset:0;clip-path:polygon(50% 0,88% 12%,83% 68%,50% 100%,17% 68%,12% 12%);background:linear-gradient(155deg,#171e2d,#6d20e5 58%,#19102b);border:1px solid rgba(255,255,255,.25)}
+    .shield svg{position:relative;width:42px;height:42px;fill:#fff}.side-head b{display:block;text-align:center;color:#9f45ff;font-size:28px;letter-spacing:5px;margin-top:4px;font-style:italic}
+    .side-nav{padding:8px 0;display:flex;flex-direction:column}
+    .side-nav a{position:relative;height:55px;display:flex;align-items:center;gap:16px;padding:0 27px;text-transform:uppercase;font-size:12px;font-weight:950;color:#fff;opacity:.93}
+    .side-nav a svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2.15}.side-nav a .fill{fill:currentColor;stroke:0}
+    .side-nav a.active{background:linear-gradient(90deg,rgba(150,51,255,.34),rgba(255,255,255,.02));color:#fff}
+    .side-nav a.active:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--purple);box-shadow:0 0 18px var(--purple)}
+    .promo{margin:auto 15px 22px;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:#0b111a}
+    .promo-img{height:135px;background:radial-gradient(circle at 70% 16%,rgba(255,255,255,.9),transparent 8%),radial-gradient(circle at 45% 30%,rgba(255,255,255,.36),transparent 20%),linear-gradient(135deg,#141b27,#2c1352 53%,#090d13);position:relative;overflow:hidden}
+    .promo-img:after{content:"26";position:absolute;right:26px;bottom:3px;font-size:55px;font-weight:1000;color:rgba(191,159,255,.82);transform:skew(-7deg)}
+    .promo h3{font-size:16px;line-height:1.08;text-transform:uppercase;margin:14px 14px 8px;font-weight:1000}.promo p{margin:0 14px 15px;color:#cfd5df;font-size:12px;line-height:1.38}.promo a{height:48px;margin:0 13px 16px;border-radius:6px;background:linear-gradient(135deg,#7e20e8,#a32fff);display:flex;align-items:center;justify-content:center;text-transform:uppercase;font-size:13px;font-weight:1000}
+    .side-social{display:flex;justify-content:center;gap:16px;padding:0 0 20px;color:#fff;opacity:.92;font-size:18px}
+.side-social a,.side-social span{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;color:#fff;text-decoration:none;transition:transform .18s ease,opacity .18s ease,filter .18s ease;}
+.side-social a:hover,.side-social span:hover{transform:translateY(-1px) scale(1.08);opacity:1;filter:drop-shadow(0 0 8px rgba(173,91,255,.45));}
+.side-social svg{width:18px;height:18px;display:block;fill:currentColor}
+
+    .page{position:relative;z-index:1;margin-left:240px;padding:92px 34px 38px 24px;min-height:100vh}
+    .matches-layout{display:grid;grid-template-columns:minmax(650px,1fr) 470px;gap:30px;max-width:1620px;margin:0 auto}
+    .hero-card{height:240px;border:1px solid var(--stroke);border-radius:9px;overflow:hidden;position:relative;background:#080d14;box-shadow:0 16px 50px rgba(0,0,0,.32)}
+    .hero-card:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 83% 0%,rgba(255,255,255,.72),transparent 9%),radial-gradient(circle at 57% 11%,rgba(255,255,255,.4),transparent 9%),linear-gradient(90deg,rgba(5,8,13,.92),rgba(17,11,36,.68) 54%,rgba(7,10,15,.88)),linear-gradient(130deg,transparent 0 32%,rgba(151,51,255,.35) 33%,transparent 45%);}
+    .hero-card:after{content:"";position:absolute;right:18px;top:10px;width:325px;height:230px;background:linear-gradient(135deg,rgba(107,33,220,.7),rgba(7,11,18,.15));clip-path:polygon(19% 10%,91% 0,83% 100%,0 88%);filter:drop-shadow(0 0 24px rgba(150,51,255,.38));opacity:.95}
+    .flag-bolt{position:absolute;right:120px;top:78px;width:120px;height:120px;z-index:2;fill:#fff;filter:drop-shadow(0 0 10px rgba(255,255,255,.2))}
+    .hero-copy{position:relative;z-index:3;padding:38px 55px}
+    .hero-copy h1{font-size:58px;line-height:.95;text-transform:uppercase;margin:0;font-weight:1000;letter-spacing:.5px}.hero-copy h2{font-size:18px;text-transform:uppercase;letter-spacing:8px;margin:11px 0 20px;font-weight:900}.hero-copy h2 em{font-style:italic;color:#a744ff}.hero-copy p{max-width:515px;color:#dfe4ee;font-size:14px;line-height:1.55;margin:0}
+    .tabs-filter{margin-top:14px;height:65px;display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid var(--stroke);border-radius:8px;background:linear-gradient(180deg,rgba(11,16,24,.88),rgba(6,10,16,.94));padding:0 21px}
+    .tabs{display:flex;height:100%;align-items:center;gap:48px}.tabs a{height:100%;display:flex;align-items:center;position:relative;font-size:12px;font-weight:1000;text-transform:uppercase;color:#fff}.tabs a.active{color:#b15cff}.tabs a.active:after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--purple);box-shadow:0 0 14px var(--purple)}
+    .filters{display:flex;gap:14px}.filter-btn{height:43px;min-width:225px;border:1px solid rgba(255,255,255,.08);border-radius:6px;background:#080d14;display:flex;align-items:center;justify-content:center;gap:12px;text-transform:uppercase;font-size:12px;font-weight:950}.filter-btn svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2}
+    .match-board{margin-top:12px;border:1px solid var(--stroke);border-radius:9px;background:linear-gradient(180deg,rgba(12,18,27,.9),rgba(6,10,15,.95));padding:22px 21px 20px;box-shadow:0 24px 72px rgba(0,0,0,.36)}
+    .round-title{color:#9d45ff;text-transform:uppercase;font-size:13px;font-weight:1000;margin-bottom:13px}
+    .game{min-height:113px;border:1px solid rgba(255,255,255,.055);border-radius:8px;margin:12px 0;padding:18px 22px;display:grid;grid-template-columns:110px 1fr 70px 1fr 165px;align-items:center;gap:19px;background:linear-gradient(90deg,rgba(13,19,29,.95),rgba(8,12,18,.84));box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+    .datebox small{display:block;color:#b0bac8;text-transform:uppercase;font-size:11px;margin-bottom:6px}.datebox b{font-size:28px;line-height:1;font-weight:1000}.team-cell{display:flex;align-items:center;gap:20px}.team-cell.right{justify-content:flex-start}.team-name{text-transform:uppercase;font-size:16px;font-weight:1000;white-space:nowrap}.versus{font-size:31px;color:#9035ff;font-weight:1000;text-align:center}.stadium{grid-column:3 / span 1;align-self:end;margin-top:6px;color:#8793a3;font-size:11px;white-space:nowrap;text-align:center}.preview{height:42px;border:1px solid rgba(150,51,255,.72);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#b760ff;text-transform:uppercase;font-size:13px;font-weight:1000;background:rgba(119,31,231,.08)}
+    .crest{width:62px;height:62px;display:grid;place-items:center;flex:0 0 62px;position:relative}.crest svg{width:62px;height:62px}.crest.round{border-radius:50%;border:2px solid rgba(255,255,255,.75);background:#0c121a}.crest.icon{font-size:58px;font-weight:1000}.crest.orange{color:#e93e0c}.crest.gold{color:#dca51d}.crest.blue{color:#18a4e0}.crest.green{color:#5cdb58}
+    .more-matches{height:52px;margin-top:28px;border:1px solid rgba(150,51,255,.46);border-radius:6px;color:#a846ff;display:flex;align-items:center;justify-content:center;gap:22px;text-transform:uppercase;font-size:14px;font-weight:1000;background:rgba(110,29,220,.06)}
+
+    .rail{display:flex;flex-direction:column;gap:12px}.rail-card{border:1px solid var(--stroke);border-radius:9px;background:linear-gradient(180deg,rgba(11,17,25,.92),rgba(5,9,14,.94));box-shadow:0 18px 52px rgba(0,0,0,.3);padding:25px}.rail-title{display:flex;align-items:center;justify-content:space-between;color:#a246ff;text-transform:uppercase;font-size:16px;font-weight:1000;margin:0 0 22px}.rail-link{font-size:10px;color:#b862ff}.journey{height:224px}.journey h3{margin:0 0 18px;color:#a246ff;text-transform:uppercase;font-size:16px}.journey-num{font-size:38px;font-weight:1000;margin-bottom:18px}.journey-num span{font-size:24px;color:#b5becb}.progress{height:11px;border-radius:99px;background:#202733;margin-bottom:27px;overflow:hidden}.progress i{display:block;width:47%;height:100%;background:linear-gradient(90deg,#8027e9,#b343ff);border-radius:99px}.season-line{display:flex;align-items:center;gap:12px;color:#e6eaf1;font-size:14px}.season-line svg{width:17px;height:17px;stroke:#a849ff;fill:none;stroke-width:2}
+    .quick-list{display:flex;flex-direction:column;gap:14px}.quick-row{display:grid;grid-template-columns:24px 40px 1fr 60px;align-items:center;gap:13px;border-bottom:1px solid rgba(255,255,255,.055);padding-bottom:12px;font-size:14px}.quick-row:last-child{border-bottom:0;padding-bottom:0}.quick-row .pos{font-weight:1000}.quick-row .name{font-weight:800}.quick-row:first-child .name,.quick-row:first-child .pts{color:#b762ff}.pts{text-align:right;font-weight:1000}.tiny{width:34px;height:34px;display:grid;place-items:center;font-size:20px}.scorer{display:grid;grid-template-columns:24px 47px 1fr 40px;align-items:center;gap:13px;margin:15px 0}.face{width:44px;height:44px;border-radius:50%;background:linear-gradient(145deg,#4a2f2b,#d39970);display:grid;place-items:center;border:1px solid rgba(255,255,255,.1)}.scorer b{font-size:14px}.scorer small{display:block;color:#929dad;margin-top:3px}.goals{text-align:right;font-weight:1000}.goals-head{font-size:10px;text-transform:uppercase;color:#8994a5;text-align:right;margin-top:-10px}.calendar-card{padding-bottom:19px}.month{display:flex;align-items:center;justify-content:space-between;margin:7px 0 18px;font-size:14px;font-weight:1000;text-transform:uppercase}.chev{font-size:32px;color:#b15cff}.days{display:grid;grid-template-columns:repeat(7,1fr);gap:16px 14px;text-align:center;font-size:13px}.days b{font-size:11px;text-transform:uppercase;color:#d5d9e0}.days span{color:#fff}.days .muted{color:#788292}.days .active{width:39px;height:39px;margin:-10px auto -11px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#7f24e8,#b140ff);box-shadow:0 0 22px rgba(150,51,255,.45)}
+
+    @media(max-width:1500px){.matches-layout{grid-template-columns:1fr 380px}.game{grid-template-columns:94px 1fr 54px 1fr 142px}.team-name{font-size:14px}.filters .filter-btn{min-width:185px}.brand{width:245px;min-width:230px}.main-nav{gap:22px}.page{margin-left:220px}.sidebar{width:190px}.hero-copy h1{font-size:50px}}
+    @media(max-width:1180px){.topbar{height:66px}.main-nav{display:none}.sidebar{display:none}.page{margin-left:0;padding:82px 18px 28px}.matches-layout{grid-template-columns:1fr}.rail{grid-template-columns:repeat(2,1fr);display:grid}.hero-card{height:auto}.tabs-filter{height:auto;align-items:flex-start;flex-direction:column;padding:0 16px 16px}.tabs{height:58px}.filters{width:100%;flex-wrap:wrap}.filter-btn{flex:1}.game{grid-template-columns:82px 1fr 48px 1fr;}.preview{grid-column:1/-1}.stadium{display:none}.brand strong{font-size:22px}.brand span span{letter-spacing:5px}}
+    @media(max-width:720px){.topbar{padding:0 12px}.brand{width:auto;min-width:0}.brand svg{width:46px}.brand span span{font-size:9px}.top-square,.user{display:none}.discord{padding:0 14px}.hero-copy{padding:30px 24px}.hero-copy h1{font-size:42px}.hero-copy h2{font-size:14px;letter-spacing:5px}.flag-bolt{opacity:.22;right:35px}.tabs{gap:22px;overflow:auto;width:100%}.game{grid-template-columns:1fr;justify-items:center;text-align:center}.team-cell,.team-cell.right{justify-content:center}.datebox{text-align:center}.versus{font-size:25px}.rail{display:flex}.days{gap:14px 6px}.matches-layout{gap:18px}}
+  
+/* MI CUENTA VISIBLE - FIX */
+.user-menu-wrap{
+  position:relative!important;
+  display:inline-flex!important;
+  z-index:999999!important;
+}
+#userButton{
+  cursor:pointer!important;
+}
+.user-chevron{
+  margin-left:4px;
+}
+.user-menu{
+  position:absolute!important;
+  top:calc(100% + 10px)!important;
+  right:0!important;
+  min-width:220px!important;
+  padding:10px 12px!important;
+  border-radius:10px!important;
+  border:1px solid rgba(160,70,255,.55)!important;
+  background:linear-gradient(180deg,rgba(10,15,23,.99),rgba(4,7,12,.99))!important;
+  box-shadow:0 20px 60px rgba(0,0,0,.7),0 0 24px rgba(150,51,255,.28)!important;
+  display:none!important;
+  z-index:999999!important;
+}
+.user-menu.open{
+  display:block!important;
+}
+.user-menu a,
+.user-menu button{
+  width:100%!important;
+  min-height:42px!important;
+  border:0!important;
+  border-radius:8px!important;
+  background:transparent!important;
+  color:#fff!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:10px!important;
+  padding:0 12px!important;
+  font-weight:900!important;
+  text-decoration:none!important;
+  cursor:pointer!important;
+  box-sizing:border-box!important;
+  font-family:inherit!important;
+  font-size:14px!important;
+}
+.user-menu a:hover,
+.user-menu button:hover{
+  background:rgba(150,51,255,.18)!important;
+}
+.user-menu .logout-option{
+  color:#ff5d78!important;
+}
+.user-menu .menu-sep{
+  height:1px!important;
+  background:rgba(255,255,255,.08)!important;
+  margin:6px 4px!important;
+}
+body.auth-locked .user-menu-wrap{
+  display:none!important;
+}
+
+
+/* DROPDOWN PERFIL FINAL - visible al click */
+.top-actions,
+.header-actions,
+.nav-actions,
+header,
+.site-header,
+.topbar{
+  overflow:visible!important;
+}
+.user-menu-wrap{
+  position:relative!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  z-index:2147483000!important;
+}
+#userButton{
+  cursor:pointer!important;
+  position:relative!important;
+  z-index:2147483001!important;
+}
+.user-menu{
+  position:absolute!important;
+  top:calc(100% + 12px)!important;
+  right:0!important;
+  width:230px!important;
+  min-width:230px!important;
+  padding:10px!important;
+  border-radius:12px!important;
+  border:1px solid rgba(164,73,255,.75)!important;
+  background:linear-gradient(180deg,rgba(9,12,20,.99),rgba(4,6,12,.99))!important;
+  box-shadow:0 22px 70px rgba(0,0,0,.75),0 0 24px rgba(155,60,255,.35)!important;
+  display:none!important;
+  z-index:2147483647!important;
+  pointer-events:auto!important;
+}
+.user-menu.open{
+  display:block!important;
+}
+.user-menu a,
+.user-menu button{
+  width:100%!important;
+  min-height:44px!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:12px!important;
+  border:0!important;
+  border-radius:9px!important;
+  padding:0 14px!important;
+  background:transparent!important;
+  color:#fff!important;
+  font-size:16px!important;
+  font-weight:900!important;
+  line-height:1!important;
+  text-decoration:none!important;
+  text-align:left!important;
+  cursor:pointer!important;
+  box-sizing:border-box!important;
+  font-family:inherit!important;
+}
+.user-menu a:hover,
+.user-menu button:hover{
+  background:rgba(155,60,255,.16)!important;
+}
+.user-menu .logout-option{
+  color:#ff5c82!important;
+}
+.user-menu .menu-sep{
+  height:1px!important;
+  background:rgba(255,255,255,.10)!important;
+  margin:8px 4px!important;
+}
+body.auth-locked .user-menu-wrap{
+  display:none!important;
+}
+
+
+/* CUENTA REAL: email, fecha, editar perfil, preferencias y actividad real */
+.profile-avatar,
+#topUserAvatar{
+  background-size:cover!important;
+  background-position:center!important;
+}
+.profile-avatar.has-image,
+.avatar.has-image{
+  background-size:cover!important;
+  background-position:center!important;
+  color:transparent!important;
+}
+.edit-profile-modal{
+  position:fixed;
+  inset:0;
+  display:none;
+  place-items:center;
+  background:rgba(0,0,0,.68);
+  z-index:2147483647;
+  padding:20px;
+}
+.edit-profile-modal.open{
+  display:grid;
+}
+.edit-profile-box{
+  width:min(480px,100%);
+  border:1px solid rgba(160,70,255,.55);
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(10,15,23,.99),rgba(4,7,12,.99));
+  box-shadow:0 28px 80px rgba(0,0,0,.75),0 0 32px rgba(150,51,255,.25);
+  padding:24px;
+}
+.edit-profile-box h3{
+  margin:0 0 18px;
+  text-transform:uppercase;
+}
+.edit-profile-box label{
+  display:block;
+  margin:14px 0 8px;
+  color:#cbd3df;
+  font-weight:900;
+}
+.edit-profile-box input[type="text"],
+.edit-profile-box input[type="file"]{
+  width:100%;
+  min-height:44px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.035);
+  color:#fff;
+  padding:10px 12px;
+  box-sizing:border-box;
+}
+.edit-profile-actions{
+  display:flex;
+  gap:12px;
+  justify-content:flex-end;
+  margin-top:20px;
+}
+.edit-profile-actions button{
+  min-height:42px;
+  padding:0 18px;
+  border-radius:8px;
+  border:1px solid rgba(160,70,255,.6);
+  background:transparent;
+  color:#fff;
+  font-weight:900;
+  cursor:pointer;
+}
+.edit-profile-actions .save-profile{
+  background:linear-gradient(135deg,#7517ea,#9b2fff);
+  border:0;
+}
+.pref-row{
+  cursor:pointer;
+}
+.pref-row .toggle{
+  transition:.2s ease;
+}
+.pref-row .toggle:after{
+  transition:.2s ease;
+}
+.preference-status{
+  display:block;
+  margin-top:4px;
+  font-size:12px;
+  color:#9faabb;
+}
+.preference-status.on{
+  color:#77e843;
+}
+.preference-status.off{
+  color:#ff6b8a;
+}
+.activity-empty{
+  color:#9faabb;
+  padding:14px 0;
+}
+
+
+/* FIX CUENTA: email completo, foto visible y toggles clicables */
+.profile-avatar,
+#topUserAvatar,
+.avatar{
+  background-size:cover!important;
+  background-position:center!important;
+  background-repeat:no-repeat!important;
+}
+.profile-avatar.has-image,
+#topUserAvatar.has-image,
+.avatar.has-image{
+  background-color:transparent!important;
+}
+.info-row{
+  grid-template-columns:minmax(160px,.8fr) minmax(0,1.2fr)!important;
+}
+.info-row b,
+.account-email{
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+  word-break:break-word!important;
+  text-align:right!important;
+}
+.profile-meta .account-email{
+  display:inline!important;
+  max-width:100%!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+}
+.pref-row{
+  cursor:pointer!important;
+  user-select:none!important;
+  position:relative!important;
+}
+.pref-row .toggle{
+  pointer-events:none!important;
+}
+.pref-row *{
+  pointer-events:none!important;
+}
+.edit-profile-modal input[type="file"]{
+  cursor:pointer;
+}
+@media(max-width:820px){
+  .info-row b,
+  .account-email{
+    text-align:left!important;
+  }
+}
+
+
+/* REGISTRO AUTO CUENTA - datos reales */
+.account-email,
+.profile-meta .account-email,
+.info-row b.account-email{
+  overflow-wrap:anywhere!important;
+  word-break:break-word!important;
+  white-space:normal!important;
+}
+.register-only{
+  display:none;
+}
+.login-card.auth-register .register-only{
+  display:block!important;
+}
+
+
+/* SEGURIDAD Y EQUIPO DINÁMICO */
+.code-modal{
+  position:fixed;
+  inset:0;
+  display:none;
+  place-items:center;
+  background:rgba(0,0,0,.68);
+  z-index:2147483647;
+  padding:20px;
+}
+.code-modal.open{
+  display:grid;
+}
+.code-box{
+  width:min(520px,100%);
+  border:1px solid rgba(160,70,255,.55);
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(10,15,23,.99),rgba(4,7,12,.99));
+  box-shadow:0 28px 80px rgba(0,0,0,.75),0 0 32px rgba(150,51,255,.25);
+  padding:24px;
+}
+.code-box h3{
+  margin:0 0 10px;
+  text-transform:uppercase;
+}
+.code-box p{
+  color:#cbd3df;
+  line-height:1.45;
+  margin:0 0 14px;
+}
+.code-box label{
+  display:block;
+  margin:14px 0 8px;
+  color:#cbd3df;
+  font-weight:900;
+}
+.code-box input{
+  width:100%;
+  min-height:44px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.035);
+  color:#fff;
+  padding:10px 12px;
+  box-sizing:border-box;
+}
+.code-actions{
+  display:flex;
+  gap:12px;
+  justify-content:flex-end;
+  margin-top:20px;
+}
+.code-actions button{
+  min-height:42px;
+  padding:0 18px;
+  border-radius:8px;
+  border:1px solid rgba(160,70,255,.6);
+  background:transparent;
+  color:#fff;
+  font-weight:900;
+  cursor:pointer;
+}
+.code-actions .primary{
+  background:linear-gradient(135deg,#7517ea,#9b2fff);
+  border:0;
+}
+.code-hint{
+  min-height:18px;
+  color:#ffb36b;
+  margin-top:10px!important;
+}
+.security-row[data-security-action]{
+  cursor:pointer;
+}
+.security-row[data-security-action]:hover{
+  background:rgba(150,51,255,.06);
+}
+.team-status-text{
+  color:#fff!important;
+  font-weight:1000!important;
+}
+.team-status-muted{
+  color:#b9c3d2!important;
+}
+
+
+/* FIX FINAL SECCIONES RESULTADOS / CLASIFICACIÓN */
+.view.force-active{
+  display:block!important;
+}
+
+
+/* ACTIVO MORADO MENU IZQUIERDO - RESULTADOS / CLASIFICACIÓN */
+.side-link.active,
+.side-results-link.active,
+.side-classification-link.active,
+.side-menu a.active{
+  background:linear-gradient(90deg,rgba(150,51,255,.45),rgba(150,51,255,.12),rgba(150,51,255,.04))!important;
+  border-left:5px solid #a943ff!important;
+  color:#fff!important;
+  box-shadow:inset 0 0 24px rgba(150,51,255,.12)!important;
+}
+.side-link.active b,
+.side-results-link.active b,
+.side-classification-link.active b,
+.side-menu a.active b{
+  color:#fff!important;
+}
+.side-link.active span,
+.side-results-link.active span,
+.side-classification-link.active span,
+.side-menu a.active span{
+  color:#fff!important;
+}
+.main-nav a.active,
+.nav a.active{
+  color:#c05cff!important;
+}
+.main-nav a.active::after,
+.nav a.active::after{
+  opacity:1!important;
+  transform:scaleX(1)!important;
+}
+
+
+/* FORCE MORADO MENU IZQUIERDO DEFINITIVO */
+aside .side-link.is-purple-active,
+.sidebar .side-link.is-purple-active,
+.side-link.is-purple-active,
+.side-menu a.is-purple-active{
+  position:relative!important;
+  background:linear-gradient(90deg,rgba(144,35,255,.62) 0%,rgba(144,35,255,.28) 45%,rgba(144,35,255,.08) 100%)!important;
+  color:#ffffff!important;
+  border-left:0!important;
+  box-shadow:inset 5px 0 0 #b13cff, inset 0 0 34px rgba(177,60,255,.28)!important;
+}
+aside .side-link.is-purple-active::before,
+.sidebar .side-link.is-purple-active::before,
+.side-link.is-purple-active::before,
+.side-menu a.is-purple-active::before{
+  content:""!important;
+  position:absolute!important;
+  left:0!important;
+  top:0!important;
+  bottom:0!important;
+  width:5px!important;
+  background:#b13cff!important;
+  box-shadow:0 0 18px rgba(177,60,255,.9)!important;
+}
+aside .side-link.is-purple-active b,
+aside .side-link.is-purple-active span,
+.sidebar .side-link.is-purple-active b,
+.sidebar .side-link.is-purple-active span,
+.side-link.is-purple-active b,
+.side-link.is-purple-active span,
+.side-menu a.is-purple-active b,
+.side-menu a.is-purple-active span{
+  color:#ffffff!important;
+  opacity:1!important;
+}
+
+
+/* MENU IZQUIERDO ACTIVO FINAL REAL */
+.side-link.tel-current-page,
+.side-menu a.tel-current-page{
+  position:relative!important;
+  background:linear-gradient(90deg,rgba(157,52,255,.58),rgba(157,52,255,.22),rgba(157,52,255,.06))!important;
+  box-shadow:inset 5px 0 0 #b842ff, inset 0 0 32px rgba(184,66,255,.24)!important;
+  border-left:0!important;
+  color:#ffffff!important;
+}
+.side-link.tel-current-page::before,
+.side-menu a.tel-current-page::before{
+  content:""!important;
+  position:absolute!important;
+  left:0!important;
+  top:0!important;
+  bottom:0!important;
+  width:5px!important;
+  background:#b842ff!important;
+  box-shadow:0 0 18px rgba(184,66,255,.95)!important;
+}
+.side-link.tel-current-page b,
+.side-link.tel-current-page span,
+.side-menu a.tel-current-page b,
+.side-menu a.tel-current-page span{
+  color:#ffffff!important;
+  opacity:1!important;
+}
+.side-link.tel-not-current,
+.side-menu a.tel-not-current{
+  background:transparent!important;
+  box-shadow:none!important;
+  border-left:0!important;
+}
+
+
+/* ROUTER LIMPIO FINAL - SOLO UNA SECCIÓN VISIBLE */
+section.view{display:none!important;}
+section.view.active{display:block!important;}
+section.view.tel-visible{display:block!important;}
+
+/* CLASIFICACIÓN LIMPIA */
+.clean-classification-page{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;max-width:1500px;margin:0 auto}
+.clean-class-main{min-width:0}
+.clean-class-hero{min-height:170px;border:1px solid rgba(255,255,255,.08);border-radius:9px;overflow:hidden;background:radial-gradient(circle at 72% 35%,rgba(255,255,255,.20),transparent 12%),radial-gradient(circle at 66% 44%,rgba(155,60,255,.35),transparent 32%),linear-gradient(90deg,rgba(6,9,15,.98),rgba(26,10,55,.75),rgba(5,8,13,.96));box-shadow:0 20px 70px rgba(0,0,0,.36);display:flex;align-items:center;justify-content:space-between;padding:26px 38px}
+.clean-class-hero h1{margin:0;font-size:60px;line-height:.92;color:#fff;text-transform:uppercase;letter-spacing:.02em}
+.clean-class-hero h2{margin:12px 0 16px;color:#fff;text-transform:uppercase;letter-spacing:.38em;font-size:16px}
+.clean-class-hero h2 em{color:#b14fff;font-style:italic}
+.clean-class-hero p{margin:0;color:#dfe5f0;max-width:560px;line-height:1.35}
+.clean-class-art{display:flex;align-items:center;gap:18px;padding-right:10px}
+.clean-class-art span{width:58px;height:78px;border:1px solid rgba(170,75,255,.45);border-radius:12px;display:grid;place-items:center;background:rgba(120,45,210,.18);box-shadow:inset 0 0 24px rgba(160,70,255,.1),0 0 24px rgba(160,70,255,.16);font-size:24px}
+.clean-class-art strong{font-size:70px;filter:drop-shadow(0 0 28px rgba(160,60,255,.55));opacity:.75}
+.clean-class-tabs{margin-top:14px;min-height:58px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:rgba(7,12,19,.91);display:flex;align-items:center;gap:30px;padding:0 18px}
+.clean-class-tabs button{border:0;background:transparent;color:#fff;font-weight:1000;text-transform:uppercase;font-size:13px;padding:20px 0;border-bottom:3px solid transparent;cursor:pointer}
+.clean-class-tabs button.active{color:#b752ff;border-bottom-color:#a94eff}
+.clean-class-filters{margin-left:auto;display:flex;gap:10px}
+.clean-class-filters button{border:1px solid rgba(255,255,255,.10);border-radius:7px;padding:11px 18px}
+.clean-class-panel{display:none}
+.clean-class-panel.active{display:block}
+.clean-table-card{margin-top:12px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:linear-gradient(180deg,rgba(9,14,22,.92),rgba(5,8,13,.98));box-shadow:0 20px 70px rgba(0,0,0,.35);padding:14px}
+.clean-table-head,.clean-row{display:grid;grid-template-columns:70px minmax(230px,1fr) 60px 60px 60px 60px 70px 70px;align-items:center;gap:10px}
+.clean-table-head{padding:10px 14px;color:#aeb8c8;font-size:11px;text-transform:uppercase}
+.clean-row{min-height:50px;padding:0 14px;border:1px solid rgba(255,255,255,.055);border-radius:7px;margin:6px 0;color:#eef2f7}
+.clean-row.leader{background:linear-gradient(90deg,rgba(140,55,245,.40),rgba(140,55,245,.11));border-color:rgba(166,74,255,.8);box-shadow:0 0 18px rgba(160,60,255,.16)}
+.clean-row b{display:flex;align-items:center;gap:12px}
+.clean-row b i{width:28px;height:28px;border-radius:50%;display:inline-grid;place-items:center;background:#151c26;border:1px solid rgba(255,255,255,.10);font-style:normal}
+.clean-row strong{font-size:20px;color:#fff}.clean-row .up{color:#65ff62}.clean-row .down{color:#ff425f}
+.clean-class-right{display:grid;gap:14px}
+.clean-right-card{border:1px solid rgba(255,255,255,.08);border-radius:9px;background:linear-gradient(180deg,rgba(9,14,22,.92),rgba(5,8,13,.98));box-shadow:0 20px 70px rgba(0,0,0,.35);padding:18px}
+.clean-right-card h3{margin:0;color:#b852ff;text-transform:uppercase;font-size:14px}
+.clean-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.clean-card-head a{color:#b852ff;font-size:11px;font-weight:1000;text-decoration:none}
+.clean-big{margin-top:14px;font-size:54px;font-weight:1000;color:#fff}.clean-big span{font-size:24px;color:#cbd2df}
+.clean-bar{height:10px;border-radius:999px;background:rgba(255,255,255,.11);overflow:hidden;margin:12px 0 16px}.clean-bar i{display:block;width:48%;height:100%;background:linear-gradient(90deg,#7a1ff0,#b43cff)}
+.clean-zone{display:grid;grid-template-columns:42px 1fr repeat(4,22px);gap:8px;align-items:center;padding:12px;margin:10px 0;border-radius:8px;background:rgba(255,255,255,.025);border-left:4px solid #a94eff}
+.clean-zone.gold{border-left-color:#ffb02e}.clean-zone.red{border-left-color:#ff3d58}.clean-zone b{display:block;color:#fff;font-size:12px;text-transform:uppercase}.clean-zone span{color:#b9c2d0;font-size:11px}.clean-zone small{width:20px;height:20px;border-radius:5px;background:rgba(255,255,255,.055);display:grid;place-items:center;color:#aeb8c8;font-size:10px;font-weight:1000}.clean-zone i{width:34px;height:34px;border:1px solid rgba(255,255,255,.1);border-radius:8px;display:grid;place-items:center;color:#fff;font-style:normal}
+.clean-scorer{display:grid;grid-template-columns:24px 42px 1fr 38px;align-items:center;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.06)}.clean-scorer:first-of-type{border-top:0}.clean-scorer i{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#4b2a63,#ddad7f);font-style:normal}.clean-scorer b{display:block;color:#fff}.clean-scorer small{display:block;color:#b8c1cf;font-size:11px}.clean-scorer strong{color:#fff;font-size:30px;text-align:right}
+.clean-latest{display:grid;grid-template-columns:1fr 70px 1fr;gap:10px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.06)}.clean-latest:first-of-type{border-top:0}.clean-latest small{display:block;color:#8994a6;font-size:10px}.clean-latest strong{text-align:center;color:#fff;font-size:18px}.clean-latest em{color:#b852ff;font-style:normal}
+.clean-form-line{display:flex;align-items:center;justify-content:space-between;padding:14px;border-top:1px solid rgba(255,255,255,.06)}.clean-form-line:first-of-type{border-top:0}.clean-form-line span{display:flex;gap:8px}.clean-form-line i{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgba(160,60,255,.22);font-style:normal;font-weight:1000}
+.clean-stats{margin-top:12px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.clean-stats div{border:1px solid rgba(255,255,255,.08);border-radius:9px;background:linear-gradient(180deg,rgba(9,14,22,.92),rgba(5,8,13,.98));padding:20px}.clean-stats b{display:block;font-size:34px}.clean-stats span{display:block;color:#b852ff;font-weight:1000}.clean-stats small{color:#b8c1cf}
+
+/* menú izquierdo activo real */
+.side-link.tel-page-active,.side-menu a.tel-page-active{position:relative!important;background:linear-gradient(90deg,rgba(157,52,255,.58),rgba(157,52,255,.22),rgba(157,52,255,.06))!important;box-shadow:inset 5px 0 0 #b842ff,inset 0 0 32px rgba(184,66,255,.24)!important;border-left:0!important;color:#fff!important}
+.side-link.tel-page-active::before,.side-menu a.tel-page-active::before{content:""!important;position:absolute!important;left:0!important;top:0!important;bottom:0!important;width:5px!important;background:#b842ff!important;box-shadow:0 0 18px rgba(184,66,255,.95)!important}
+.side-link.tel-page-active b,.side-link.tel-page-active span,.side-menu a.tel-page-active b,.side-menu a.tel-page-active span{color:#fff!important;opacity:1!important}
+.side-link.tel-page-inactive,.side-menu a.tel-page-inactive{background:transparent!important;box-shadow:none!important;border-left:0!important}
+
+@media(max-width:1320px){.clean-classification-page{grid-template-columns:1fr}}
+@media(max-width:900px){.clean-class-hero{padding:26px}.clean-class-hero h1{font-size:42px}.clean-class-art{display:none}.clean-class-tabs{display:block;padding:12px}.clean-class-filters{margin-left:0}.clean-table-head{display:none}.clean-row{grid-template-columns:1fr 1fr;gap:8px;padding:14px}.clean-stats{grid-template-columns:1fr}}
+
+
+/* LEFT MENU ACTIVE REAL FIX */
+.sidebar a.left-menu-active,
+.sidebar .side-link.left-menu-active,
+.side-panel a.left-menu-active,
+.side-panel .side-link.left-menu-active,
+.side-menu a.left-menu-active,
+.side-link.left-menu-active,
+a.left-menu-active{
+  position:relative!important;
+  background:linear-gradient(90deg,rgba(149,43,255,.72),rgba(149,43,255,.30),rgba(149,43,255,.08))!important;
+  box-shadow:inset 5px 0 0 #b83cff, inset 0 0 34px rgba(184,60,255,.28)!important;
+  border-left:0!important;
+  color:#fff!important;
+}
+.sidebar a.left-menu-active::before,
+.sidebar .side-link.left-menu-active::before,
+.side-panel a.left-menu-active::before,
+.side-panel .side-link.left-menu-active::before,
+.side-menu a.left-menu-active::before,
+.side-link.left-menu-active::before,
+a.left-menu-active::before{
+  content:""!important;
+  position:absolute!important;
+  left:0!important;
+  top:0!important;
+  bottom:0!important;
+  width:5px!important;
+  background:#b83cff!important;
+  box-shadow:0 0 18px rgba(184,60,255,.95)!important;
+}
+.sidebar a.left-menu-active b,
+.sidebar a.left-menu-active span,
+.sidebar .side-link.left-menu-active b,
+.sidebar .side-link.left-menu-active span,
+.side-menu a.left-menu-active b,
+.side-menu a.left-menu-active span,
+.side-link.left-menu-active b,
+.side-link.left-menu-active span,
+a.left-menu-active b,
+a.left-menu-active span{
+  color:#fff!important;
+  opacity:1!important;
+}
+.sidebar a.left-menu-muted,
+.sidebar .side-link.left-menu-muted,
+.side-menu a.left-menu-muted,
+.side-link.left-menu-muted{
+  background:transparent!important;
+  box-shadow:none!important;
+  border-left:0!important;
+}
+
+
+/* LEFT MENU AUTO ACTIVE */
+.side-link.auto-left-active,
+.side-menu a.auto-left-active,
+.sidebar a.auto-left-active,
+aside a.auto-left-active{
+  position:relative!important;
+  background:linear-gradient(90deg,rgba(149,43,255,.72),rgba(149,43,255,.30),rgba(149,43,255,.08))!important;
+  box-shadow:inset 5px 0 0 #b83cff, inset 0 0 34px rgba(184,60,255,.28)!important;
+  border-left:0!important;
+  color:#fff!important;
+}
+.side-link.auto-left-active::before,
+.side-menu a.auto-left-active::before,
+.sidebar a.auto-left-active::before,
+aside a.auto-left-active::before{
+  content:""!important;
+  position:absolute!important;
+  left:0!important;
+  top:0!important;
+  bottom:0!important;
+  width:5px!important;
+  background:#b83cff!important;
+  box-shadow:0 0 18px rgba(184,60,255,.95)!important;
+}
+.side-link.auto-left-active b,
+.side-link.auto-left-active span,
+.side-menu a.auto-left-active b,
+.side-menu a.auto-left-active span,
+.sidebar a.auto-left-active b,
+.sidebar a.auto-left-active span,
+aside a.auto-left-active b,
+aside a.auto-left-active span{
+  color:#fff!important;
+  opacity:1!important;
+}
+.side-link.auto-left-muted,
+.side-menu a.auto-left-muted{
+  background:transparent!important;
+  box-shadow:none!important;
+  border-left:0!important;
+}
+
+
+/* JORNADA 1 PROGRESS FIX */
+.journey .progress i,
+.journey .bar i,
+.clean-bar i,
+.class-progress i,
+.progress i{
+  width:3.33%!important;
+}
+
+
+/* LOGOS REALES DATA.JSON */
+.real-logo-img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  display:block!important;
+}
+.real-logo-box{
+  overflow:hidden!important;
+  background:rgba(255,255,255,.035)!important;
+}
+.real-logo-fallback{
+  display:grid!important;
+  place-items:center!important;
+  font-size:inherit!important;
+  width:100%!important;
+  height:100%!important;
+}
+.team-name-cell .real-logo-inline,
+.real-logo-inline{
+  width:32px!important;
+  height:32px!important;
+  border-radius:999px!important;
+  object-fit:contain!important;
+  background:rgba(255,255,255,.06)!important;
+  vertical-align:middle!important;
+}
+
+
+/* SELECTOR DINÁMICO DE LIGAS */
+.league-select{position:relative;display:inline-flex}
+.league-select-menu{
+  position:absolute;
+  top:calc(100% + 8px);
+  left:0;
+  min-width:260px;
+  display:none;
+  z-index:9999;
+  border:1px solid rgba(169,67,255,.42);
+  border-radius:12px;
+  background:rgba(5,8,13,.98);
+  box-shadow:0 22px 60px rgba(0,0,0,.55),0 0 30px rgba(169,67,255,.18);
+  padding:8px;
+}
+.league-select.open .league-select-menu{display:block}
+.league-option{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  border:0;
+  background:transparent;
+  color:#fff;
+  padding:11px 12px;
+  border-radius:9px;
+  text-align:left;
+  cursor:pointer;
+  font-weight:900;
+}
+.league-option:hover,.league-option.active{
+  background:linear-gradient(90deg,rgba(149,43,255,.42),rgba(149,43,255,.08));
+  color:#c765ff;
+}
+.league-option small{
+  margin-left:auto;
+  color:#aeb7c8;
+  font-size:11px;
+}
+
+
+/* LOGOS DEFINITIVOS */
+.logo-img-real,.real-logo-img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  display:block!important;
+}
+.logo-box-real,.real-logo-box,.dynamic-card-crest,.dynamic-feature-crest,.dynamic-team-chip{
+  overflow:hidden!important;
+}
+.logo-inline-real{
+  width:32px!important;
+  height:32px!important;
+  object-fit:contain!important;
+  border-radius:50%!important;
+  background:rgba(255,255,255,.06)!important;
+}
+
+
+/* FIX FINAL LOGOS Y ESTADOS VACÍOS */
+.tel-club-logo{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
+.tel-logo-wrap{
+  overflow:hidden;
+  display:grid;
+  place-items:center;
+}
+.tel-logo-inline{
+  width:34px!important;
+  height:34px!important;
+  min-width:34px!important;
+  border-radius:999px!important;
+  object-fit:contain!important;
+  background:rgba(255,255,255,.06)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  padding:2px!important;
+}
+.dynamic-feature-panel.has-teams .dynamic-empty-state{
+  display:none!important;
+}
+.clean-row b img.tel-logo-inline,
+.team-name-cell img.tel-logo-inline{
+  margin-right:10px!important;
+}
+
+
+/* LOGOS LOCALES EN TABLAS */
+.tel-logo-inline,
+.logo-inline-real,
+.real-logo-inline{
+  width:38px!important;
+  height:38px!important;
+  min-width:38px!important;
+  object-fit:contain!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.06)!important;
+  padding:2px!important;
+}
+.clean-row b,
+.team-name-cell{
+  display:flex!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+.tel-club-logo,.logo-img-real,.real-logo-img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  display:block!important;
+}
+
+/* TEL ESCUDOS LOCALES DEFINITIVO */
+.tel-logo-inline{
+  width:38px!important;
+  height:38px!important;
+  min-width:38px!important;
+  object-fit:contain!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.06)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  padding:2px!important;
+  display:inline-grid!important;
+  place-items:center!important;
+}
+.tel-club-logo{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  display:block!important;
+}
+.tel-logo-wrap{
+  overflow:hidden!important;
+  display:grid!important;
+  place-items:center!important;
+}
+.clean-row b,
+.team-name-cell{
+  display:flex!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+.dynamic-card-crest,
+.dynamic-feature-crest,
+.dynamic-team-chip{
+  background:rgba(255,255,255,.04)!important;
+}
+
+/* SIN PARPADEO / SIN REINICIO VISUAL */
+.dynamic-team-card,
+.dynamic-feature-real,
+.dynamic-side-team,
+.clean-row,
+.team-name-cell,
+.tel-logo-inline,
+.tel-club-logo,
+.dynamic-card-crest,
+.dynamic-feature-crest,
+.dynamic-team-chip{
+  animation:none!important;
+}
+.tel-logo-inline,
+.tel-club-logo{
+  transition:none!important;
+}
+
+
+/* TEL LOGOS LOCALES SIN MENÚ FALSO */
+.dropdown-pop{display:none!important;visibility:hidden!important;pointer-events:none!important;}
+.tel-logo-inline{
+  width:38px!important;height:38px!important;min-width:38px!important;object-fit:contain!important;
+  border-radius:999px!important;background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.08)!important;
+  padding:2px!important;display:inline-grid!important;place-items:center!important;vertical-align:middle!important;
+}
+.tel-club-logo{width:100%!important;height:100%!important;object-fit:contain!important;display:block!important;}
+.tel-logo-wrap{overflow:hidden!important;display:grid!important;place-items:center!important;}
+.dynamic-feature-crest .tel-club-logo,.dynamic-card-crest .tel-club-logo,.dynamic-team-chip .tel-club-logo{object-fit:contain!important;}
+.clean-row b,.team-name-cell{display:flex!important;align-items:center!important;gap:10px!important;}
+.dynamic-feature-crest,.dynamic-card-crest,.dynamic-team-chip{background:rgba(255,255,255,.04)!important;}
+
+
+/* MENU FALSO QUITADO - SOLO DROPDOWN ANTIGUO */
+.dropdown-pop{display:none!important;visibility:hidden!important;pointer-events:none!important;}
+
+
+/* MENU DINAMICO DE LIGAS DESDE DATA.JSON */
+.tel-league-filter{
+  position:relative!important;
+  display:inline-flex!important;
+  align-items:center!important;
+}
+.tel-league-filter-btn{
+  min-width:250px;
+  height:52px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:0 18px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.25);
+  background:rgba(7,12,22,.92);
+  color:#fff;
+  font-weight:1000;
+  letter-spacing:.2px;
+  cursor:pointer;
+}
+.tel-league-filter-btn span:first-child{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.tel-league-filter-btn:hover,
+.tel-league-filter.open .tel-league-filter-btn{
+  border-color:#fff;
+  box-shadow:0 0 28px rgba(160,60,255,.15);
+}
+.tel-league-dropdown{
+  position:absolute;
+  top:calc(100% + 8px);
+  left:0;
+  width:330px;
+  max-height:520px;
+  overflow:auto;
+  padding:10px;
+  border-radius:14px;
+  border:1px solid rgba(179,63,255,.65);
+  background:rgba(6,10,18,.98);
+  box-shadow:0 18px 60px rgba(0,0,0,.45), 0 0 30px rgba(150,50,255,.15);
+  z-index:99999;
+  display:none;
+}
+.tel-league-filter.open .tel-league-dropdown{
+  display:block;
+}
+.tel-league-option{
+  width:100%;
+  border:0;
+  background:transparent;
+  color:#fff;
+  text-align:left;
+  padding:12px 12px;
+  border-radius:10px;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
+  font-weight:1000;
+  font-size:16px;
+}
+.tel-league-option:hover,
+.tel-league-option.active{
+  background:linear-gradient(90deg, rgba(132,42,217,.65), rgba(90,26,150,.28));
+  color:#e4b6ff;
+}
+.tel-league-option small{
+  color:#bfc6d8;
+  font-size:12px;
+  font-weight:900;
+}
+.tel-league-option .tel-count{
+  color:#d8dce8;
+  font-size:13px;
+  font-weight:1000;
+}
+.tel-league-teams{
+  display:none;
+  grid-column:1 / -1;
+  margin:6px 0 0 28px;
+  padding:6px 0 0;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+.tel-league-option.active .tel-league-teams{
+  display:block;
+}
+.tel-league-team{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:5px 0;
+  color:#cbd1df;
+  font-size:12px;
+  font-weight:800;
+}
+.tel-league-team img{
+  width:20px;
+  height:20px;
+  object-fit:contain;
+  border-radius:50%;
+}
+.tel-team-hidden-by-league{
+  display:none!important;
+}
+
+
+/* TEL SIN REINICIO/PARPADEO DE EQUIPOS */
+.dynamic-team-card,
+.team-card,
+.club-card,
+.dynamic-side-team,
+.clean-row,
+.team-name-cell,
+.real-crest,
+.real-crest img,
+.tel-logo-inline,
+.tel-club-logo,
+.dynamic-card-crest,
+.dynamic-feature-crest,
+.dynamic-team-chip{
+  animation:none!important;
+  transition:none!important;
+}
+
+
+/* SIN REINICIO REAL DE EQUIPOS */
+.dynamic-team-card,
+.team-card,
+.club-card,
+.dynamic-side-team,
+.clean-row,
+.team-name-cell,
+.real-crest,
+.real-crest img,
+.tel-logo-inline,
+.tel-club-logo,
+.dynamic-card-crest,
+.dynamic-feature-crest,
+.dynamic-team-chip{
+  animation:none!important;
+  transition:none!important;
+}
+
+
+/* JUGADORES OCULTO */
+#jugadores,
+a[href="#jugadores"],
+[data-view="jugadores"]{
+  display:none!important;
+}
+
+
+/* ATLAS CREATIVE WATERMARK */
+.atlas-creative-watermark{
+  position:fixed;
+  right:18px;
+  bottom:16px;
+  z-index:9998;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:9px 13px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(4,7,12,.58);
+  backdrop-filter:blur(10px);
+  box-shadow:0 0 26px rgba(0,0,0,.28), 0 0 22px rgba(0,188,255,.08);
+  color:#dfe9ff;
+  text-decoration:none;
+  opacity:.72;
+  transition:opacity .2s ease, transform .2s ease, background .2s ease;
+  pointer-events:auto;
+}
+.atlas-creative-watermark:hover{
+  opacity:1;
+  transform:translateY(-2px);
+  background:rgba(4,7,12,.82);
+}
+.atlas-creative-watermark img{
+  width:34px;
+  height:34px;
+  object-fit:contain;
+  display:block;
+}
+.atlas-creative-watermark span{
+  display:flex;
+  flex-direction:column;
+  line-height:1.05;
+  font-size:10px;
+  letter-spacing:.7px;
+  text-transform:uppercase;
+  color:#9fb1c7;
+  font-weight:800;
+}
+.atlas-creative-watermark b{
+  color:#fff;
+  font-size:12px;
+  letter-spacing:1.1px;
+  font-weight:1000;
+}
+@media(max-width:760px){
+  .atlas-creative-watermark{
+    right:10px;
+    bottom:10px;
+    padding:7px 9px;
+    opacity:.62;
+  }
+  .atlas-creative-watermark img{
+    width:28px;
+    height:28px;
+  }
+  .atlas-creative-watermark span{
+    display:none;
+  }
+}
+
+
+/* ATLAS CREATIVE WATERMARK VISIBLE */
+.atlas-creative-watermark{
+  position:fixed!important;
+  right:22px!important;
+  bottom:18px!important;
+  z-index:2147482000!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:14px!important;
+  padding:12px 18px!important;
+  border-radius:16px!important;
+  border:1px solid rgba(255,255,255,.16)!important;
+  background:rgba(3,7,13,.82)!important;
+  backdrop-filter:blur(10px)!important;
+  box-shadow:0 0 30px rgba(0,0,0,.42), 0 0 24px rgba(0,188,255,.14)!important;
+  color:#dfe9ff!important;
+  text-decoration:none!important;
+  opacity:.92!important;
+  pointer-events:auto!important;
+}
+.atlas-creative-watermark img{
+  width:64px!important;
+  height:64px!important;
+  object-fit:contain!important;
+  display:block!important;
+}
+.atlas-creative-watermark span{
+  display:flex!important;
+  flex-direction:column!important;
+  line-height:1.05!important;
+  font-size:12px!important;
+  letter-spacing:.7px!important;
+  text-transform:uppercase!important;
+  color:#9fb1c7!important;
+  font-weight:800!important;
+}
+.atlas-creative-watermark b{
+  color:#fff!important;
+  font-size:20px!important;
+  letter-spacing:1.1px!important;
+  font-weight:1000!important;
+}
+@media(max-width:760px){
+  .atlas-creative-watermark{
+    right:10px!important;
+    bottom:10px!important;
+    padding:10px 12px!important;
+  }
+  .atlas-creative-watermark img{
+    width:42px!important;
+    height:42px!important;
+  }
+  .atlas-creative-watermark span{
+    display:none!important;
+  }
+}
+
+
+/* ATLAS CREATIVE EN TARJETA LATERAL */
+.promo.atlas-promo-card{
+  margin:auto 15px 22px!important;
+  border-radius:10px!important;
+  overflow:hidden!important;
+  border:1px solid rgba(255,255,255,.10)!important;
+  background:
+    radial-gradient(circle at 70% 18%, rgba(255,255,255,.18), transparent 18%),
+    linear-gradient(145deg, rgba(6,11,18,.96), rgba(16,27,42,.92))!important;
+  min-height:150px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:14px!important;
+  box-shadow:0 0 28px rgba(0,188,255,.08)!important;
+}
+.promo.atlas-promo-card .atlas-promo-inner{
+  width:100%!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+}
+.promo.atlas-promo-card img{
+  width:92px!important;
+  height:auto!important;
+  object-fit:contain!important;
+  display:block!important;
+  margin:0 auto 8px!important;
+}
+.promo.atlas-promo-card p{
+  margin:0 0 3px!important;
+  color:#aeb9ca!important;
+  font-size:10px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  text-transform:uppercase!important;
+  letter-spacing:1.1px!important;
+}
+.promo.atlas-promo-card h3{
+  margin:0!important;
+  color:#fff!important;
+  font-size:18px!important;
+  line-height:1!important;
+  font-weight:1000!important;
+  text-transform:uppercase!important;
+  letter-spacing:1px!important;
+}
+.promo.atlas-promo-card .promo-img,
+.promo.atlas-promo-card a:not(.atlas-creative-watermark){
+  display:none!important;
+}
+
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html" aria-label="Thunder Elite League">
+      <svg viewBox="0 0 70 82" aria-hidden="true"><defs><linearGradient id="lg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#a986ff"/></linearGradient></defs><path fill="url(#lg)" d="M10 10 54 0 44 30h16L22 82l9-37H9z"/><path fill="#9633ff" d="m30 15 21-5-14 26h14L25 65l8-27H20z" opacity=".2"/></svg>
+      <span><strong>THUNDER</strong><span>ELITE LEAGUE</span></span>
+    </a>
+    <nav class="main-nav" aria-label="Principal">
+      <a href="index.html">Inicio</a>
+      <a class="active" href="partidos.html">Partidos</a>
+      <a href="#clasificacion">Clasificación</a>
+      <a href="#equipos">Equipos</a>
+      <!-- enlace jugadores eliminado -->
+      <a href="#reglamento">Reglamento</a>
+      <a href="#noticias">Noticias</a>
+      <a href="#tienda">Tienda</a>
+    </nav>
+    <div class="top-actions">
+      <button class="top-square" aria-label="Buscar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
+      <button class="top-square" aria-label="Notificaciones"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
+      <a class="discord" href="#"><svg viewBox="0 0 24 24"><path d="M20 5.5A16 16 0 0 0 16 4l-.4.8a14 14 0 0 1 3.6 1.8A11.6 11.6 0 0 0 5 6.6a14 14 0 0 1 3.6-1.8L8.2 4a16 16 0 0 0-4 1.5C1.7 9.2 1 12.8 1.3 16.4A16 16 0 0 0 6.2 19l1-1.4a9 9 0 0 1-1.6-.8l.4-.3a11.4 11.4 0 0 0 12 0l.4.3a9 9 0 0 1-1.6.8l1 1.4a16 16 0 0 0 4.9-2.6c.4-4.2-.6-7.8-2.7-10.9ZM8.4 14.2c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8S10 11.4 10 12.4s-.7 1.8-1.6 1.8Zm7.2 0c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8 1.6.8 1.6 1.8-.7 1.8-1.6 1.8Z"/></svg>Discord</a>
+      <a class="user" href="#"><span class="avatar">👤</span>ThunderUser⌄</a>
+    </div>
+  </header>
+
+  <aside class="sidebar">
+    <div class="side-head">
+      <div>
+        <div class="shield"><svg viewBox="0 0 24 24"><path d="M13 2 4 13h6l-1 9 11-14h-7z"/></svg></div>
+        <b>TEL</b>
+      </div>
+    </div>
+    <nav class="side-nav" aria-label="Lateral">
+      <a href="index.html"><svg class="fill" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg>Inicio</a>
+      <a class="active" href="partidos.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><circle cx="12" cy="15" r="2"/></svg>Partidos</a>
+      <a href="#clasificacion"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-8M22 19H2"/></svg>Clasificación</a>
+      <a href="#equipos"><svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 21c1-4 3-6 6-6s5 2 6 6M10 21c1-3 3-5 6-5 2.5 0 4.5 1.6 6 5"/></svg>Equipos</a>
+      <!-- enlace jugadores eliminado -->
+      <a href="#reglamento"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Reglamento</a>
+      <a href="#noticias"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Noticias</a>
+      <a href="#tienda"><svg viewBox="0 0 24 24"><path d="M6 8h12l1 13H5z"/><path d="M9 8a3 3 0 1 1 6 0"/></svg>Tienda</a>
+      <a href="#contacto"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 7 9-7"/></svg>Contacto</a>
+    </nav>
+    
+<div class="promo atlas-promo-card">
+  <div class="atlas-promo-inner">
+    <img loading="lazy" decoding="async" src="assets/atlas-creative-watermark.png" alt="Atlas Creative">
+    <p>Desarrollado por</p>
+    <h3>Atlas Creative</h3>
+  </div>
+</div>
+
+    <div class="side-social external-social"><a href="https://discord.gg/sJ5WDKMp84" target="_blank" rel="noopener" title="Discord" aria-label="Discord"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4.8a16.3 16.3 0 0 0-4.1-1.3l-.2.5-.3.8a15.2 15.2 0 0 1 3.7 1.9 11.9 11.9 0 0 0-14.2 0 15.2 15.2 0 0 1 3.7-1.9L8 3.5A16.3 16.3 0 0 0 4 4.8C1.4 8.6.8 12.3 1 15.9A16.6 16.6 0 0 0 6 18.5l1-1.4c-.6-.2-1.1-.5-1.6-.8l.4-.3a11.6 11.6 0 0 0 12.4 0l.4.3c-.5.3-1 .6-1.6.8l1 1.4a16.6 16.6 0 0 0 5-2.6c.3-4.2-.7-7.9-2.9-11.1ZM8.8 14.3c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8 1.6.8 1.6 1.8-.7 1.8-1.6 1.8Zm6.4 0c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8 1.6.8 1.6 1.8-.7 1.8-1.6 1.8Z"/></svg></a><a href="https://www.tiktok.com/@thunder.elite.league" target="_blank" rel="noopener" title="TikTok" aria-label="TikTok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3c.2 1.7 1.2 3.1 2.7 3.9.9.5 1.9.8 3 .8v3.1c-1.9 0-3.8-.6-5.3-1.7v6.1a5.2 5.2 0 1 1-5.2-5.1c.3 0 .6 0 .8.1v3.1a2.1 2.1 0 1 0 1.3 2V3H14z"/></svg></a><a href="https://x.com/enziyoioo" target="_blank" rel="noopener" title="X" aria-label="X"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.9 3H22l-6.8 7.8L23 21h-6.2l-4.9-6.4L6.3 21H3.1l7.3-8.3L1 3h6.3l4.4 5.8L18.9 3Zm-1.1 16h1.7L6.4 4.9H4.6L17.8 19Z"/></svg></a><a href="#noticias" title="YouTube / Noticias" aria-label="YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 12.1s0-3-0.4-4.5a3.2 3.2 0 0 0-2.2-2.2C18.9 5 12 5 12 5s-6.9 0-8.4.4A3.2 3.2 0 0 0 1.4 7.6C1 9.1 1 12.1 1 12.1s0 3 .4 4.5a3.2 3.2 0 0 0 2.2 2.2C5.1 19.2 12 19.2 12 19.2s6.9 0 8.4-.4a3.2 3.2 0 0 0 2.2-2.2c.4-1.5.4-4.5.4-4.5ZM9.8 15.5V8.7l5.9 3.4-5.9 3.4Z"/></svg></a></div>
+  </aside>
+
+  <main class="page">
+    <div class="matches-layout">
+      <section class="left-col">
+        <article class="hero-card">
+          <svg class="flag-bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 13h6l-1 9 11-14h-7z"/></svg>
+          <div class="hero-copy">
+            <h1>Partidos</h1>
+            <h2>Thunder <em>Elite League</em></h2>
+            <p>Consulta todos los encuentros, resultados y próximos partidos de la liga más competitiva de EA FC 26.</p>
+          </div>
+        </article>
+
+        <div class="tabs-filter">
+          <nav class="tabs" aria-label="Filtros de partidos">
+            <a class="active" href="#">Próximos partidos</a>
+            <a href="#">Resultados</a>
+            <a href="#">Calendario</a>
+          </nav>
+          <div class="filters">
+            <button class="filter-btn"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>Todas las jornadas⌄</button>
+            <button class="filter-btn"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 7v5l-4 2v-7z"/></svg>Todos los equipos⌄</button>
+          </div>
+        </div>
+
+        <section class="match-board">
+          <div class="round-title">Jornada 1</div>
+
+          <article class="game">
+            <div class="datebox"><small>Sáb 07 Jun</small><b>21:00</b></div>
+            <div class="team-cell"><span class="crest"><svg viewBox="0 0 70 70"><path d="M35 3 62 13l-5 36L35 67 13 49 8 13z" fill="#161c29" stroke="#8c37ff" stroke-width="3"/><path d="M28 19c10-9 25-1 24 12-1 12-10 20-22 22-13-7-15-19-9-28 3 5 7 7 13 5-5-2-7-6-6-11Z" fill="#fff"/><path d="M31 28h9l-5 7h7L28 51l4-11h-7z" fill="#9b38ff"/></svg></span><span class="team-name">Thunder Wolves</span></div>
+            <div class="versus">VS</div>
+            <div class="team-cell right"><span class="crest icon">👑</span><span class="team-name">Royal FC</span></div>
+            <a class="preview" href="#">Ver previa</a><div class="stadium">▣ Thunder Arena</div>
+          </article>
+
+          <article class="game">
+            <div class="datebox"><small>Sáb 07 Jun</small><b>22:30</b></div>
+            <div class="team-cell"><span class="crest icon">△</span><span class="team-name">Delta United</span></div>
+            <div class="versus">VS</div>
+            <div class="team-cell right"><span class="crest"><svg viewBox="0 0 70 70"><path d="M35 4 61 14v30L35 66 9 44V14z" fill="#0b0e13" stroke="#c77828" stroke-width="3"/><path d="M31 15h8v31h16v8H23v-8h8z" fill="#fff"/></svg></span><span class="team-name">Legends FC</span></div>
+            <a class="preview" href="#">Ver previa</a><div class="stadium">▣ Delta Stadium</div>
+          </article>
+
+          <article class="game">
+            <div class="datebox"><small>Dom 08 Jun</small><b>20:00</b></div>
+            <div class="team-cell"><span class="crest icon">∞</span><span class="team-name">Infinity Esports</span></div>
+            <div class="versus">VS</div>
+            <div class="team-cell right"><span class="crest"><svg viewBox="0 0 70 70"><path d="M35 5c19 0 29 11 29 28 0 19-14 29-29 32C20 62 6 52 6 33 6 16 16 5 35 5Z" fill="#070b10" stroke="#e9e9e9" stroke-width="2"/><path d="M44 18c-12-5-24 5-22 17 8-7 18-5 21 2-4-2-11-2-18 4 4 8 14 12 24 5 10-8 8-23-5-28Z" fill="#f7f7f7"/></svg></span><span class="team-name">Black Dragons</span></div>
+            <a class="preview" href="#">Ver previa</a><div class="stadium">▣ Infinity Center</div>
+          </article>
+
+          <article class="game">
+            <div class="datebox"><small>Dom 08 Jun</small><b>21:30</b></div>
+            <div class="team-cell"><span class="crest orange"><svg viewBox="0 0 70 70"><path d="M35 5 59 18l-5 33-19 14-19-14-5-33z" fill="#160a08" stroke="#e33b0b" stroke-width="2"/><path d="M35 16c3 10 16 11 9 25 5-3 7-7 8-13 8 18-3 29-17 32-14-3-25-14-17-32 1 6 3 10 8 13-7-14 6-15 9-25Z" fill="#e84612"/></svg></span><span class="team-name">Phoenix Club</span></div>
+            <div class="versus">VS</div>
+            <div class="team-cell right"><span class="crest gold"><svg viewBox="0 0 70 70"><path d="M35 5 59 17l-4 35-20 13-20-13-4-35z" fill="#100b08" stroke="#d7a21f" stroke-width="2"/><path d="M18 27 28 40l7-24 7 24 10-13-2 25H20z" fill="#d7a21f"/></svg></span><span class="team-name">Empire Gaming</span></div>
+            <a class="preview" href="#">Ver previa</a><div class="stadium">▣ Phoenix Arena</div>
+          </article>
+
+          <article class="game">
+            <div class="datebox"><small>Lun 09 Jun</small><b>22:00</b></div>
+            <div class="team-cell"><span class="crest blue"><svg viewBox="0 0 70 70"><path d="M35 4 42 27l23 8-23 8-7 23-8-23-22-8 22-8z" fill="#153352" stroke="#f7c34a" stroke-width="2"/><path d="M35 14v42M14 35h42" stroke="#fff" stroke-width="2"/></svg></span><span class="team-name">North Stars</span></div>
+            <div class="versus">VS</div>
+            <div class="team-cell right"><span class="crest green"><svg viewBox="0 0 70 70"><path d="M35 5 61 15l-6 36-20 14-20-14-6-36z" fill="#11151b" stroke="#67d854" stroke-width="2"/><path d="M24 18h25l-6 9H31l-2 8h12l-6 17-17-24z" fill="#63dc58"/></svg></span><span class="team-name">Elevate FC</span></div>
+            <a class="preview" href="#">Ver previa</a><div class="stadium">▣ North Stadium</div>
+          </article>
+
+          <a class="more-matches" href="#">Ver todos los partidos <span>→</span></a>
+        </section>
+      </section>
+
+      <aside class="rail">
+        <section class="rail-card journey">
+          <h3>Jornada actual</h3>
+          <div class="journey-num">1 <span>/ 30</span></div>
+          <div class="progress"><i></i></div>
+          <div class="season-line"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>Temporada 1 - EA FC 26</div>
+        </section>
+
+        <section class="rail-card" id="clasificacion">
+          <h3 class="rail-title">Clasificación rápida <a class="rail-link" href="#">Ver clasificación completa</a></h3>
+          <div class="quick-list">
+            <div class="quick-row"><span class="pos">1</span><span class="tiny">🐺</span><span class="name">Thunder Wolves</span><span class="pts">25 pts</span></div>
+            <div class="quick-row"><span class="pos">2</span><span class="tiny">△</span><span class="name">Delta United</span><span class="pts">22 pts</span></div>
+            <div class="quick-row"><span class="pos">3</span><span class="tiny">🛡</span><span class="name">Legends FC</span><span class="pts">19 pts</span></div>
+            <div class="quick-row"><span class="pos">4</span><span class="tiny">👑</span><span class="name">Royal FC</span><span class="pts">17 pts</span></div>
+            <div class="quick-row"><span class="pos">5</span><span class="tiny">∞</span><span class="name">Infinity Esports</span><span class="pts">16 pts</span></div>
+          </div>
+          <div style="text-align:center;margin-top:18px"><a class="rail-link" href="#">Ver clasificación completa →</a></div>
+        </section>
+
+        <!-- sección jugadores eliminada -->
+
+        <section class="rail-card calendar-card">
+          <h3 class="rail-title">Calendario <a class="rail-link" href="#">Ver calendario</a></h3>
+          <div class="month"><span class="chev">‹</span><span>Junio 2025</span><span class="chev">›</span></div>
+          <div class="days">
+            <b>Lun</b><b>Mar</b><b>Mié</b><b>Jue</b><b>Vie</b><b>Sáb</b><b>Dom</b>
+            <span class="muted">26</span><span class="muted">27</span><span class="muted">28</span><span class="muted">29</span><span class="muted">30</span><span class="muted">31</span><span>1</span>
+            <span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span class="active">7</span><span>8</span>
+            <span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+<script>
+/* LOGOS REALES DATA.JSON */
+(function(){
+  function escapeHtml(str){
+    return String(str ?? "").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  function logoProxy(url){
+    if(!url) return "";
+    return "/api/logo?url=" + encodeURIComponent(url);
+  }
+
+  window.telLogoProxy = logoProxy;
+
+  window.telLogoHtml = function(club, className){
+    const emoji = club?.emoji || "⚡";
+    const name = escapeHtml(club?.nombreVisual || club?.nombre || "Club");
+    const url = club?.escudoUrl || "";
+    const bg = club?.colorHex ? ` style="border-color:${escapeHtml(club.colorHex)}"` : "";
+    if(url){
+      return `<div class="${className} real-logo-box"${bg}>
+        <img class="real-logo-img" src="${logoProxy(url)}" alt="${name}" loading="lazy"
+             onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'real-logo-fallback',textContent:'${escapeHtml(emoji)}'}))">
+      </div>`;
+    }
+    return `<div class="${className} real-logo-box"${bg}><span class="real-logo-fallback">${escapeHtml(emoji)}</span></div>`;
+  };
+
+  window.telLogoInline = function(club){
+    const emoji = club?.emoji || "⚡";
+    const name = escapeHtml(club?.nombreVisual || club?.nombre || "Club");
+    const url = club?.escudoUrl || "";
+    if(url){
+      return `<img class="real-logo-inline" src="${logoProxy(url)}" alt="${name}" loading="lazy"
+              onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(emoji)}'}))">`;
+    }
+    return `<span>${escapeHtml(emoji)}</span>`;
+  };
+
+  async function reloadRealLogos(){
+    try{
+      const res = await fetch("/api/clubes", {cache:"no-store"});
+      if(!res.ok) return;
+      const clubes = await res.json();
+      if(!Array.isArray(clubes)) return;
+
+      const byName = new Map();
+      clubes.forEach(c=>{
+        byName.set(String(c.nombre || "").toLowerCase(), c);
+        byName.set(String(c.nombreVisual || "").replace(/^[^\wÀ-ÿ]+/,'').trim().toLowerCase(), c);
+      });
+
+      document.querySelectorAll("[data-club-logo]").forEach(box=>{
+        const key = String(box.getAttribute("data-club-logo") || "").toLowerCase();
+        const club = byName.get(key);
+        if(!club) return;
+        box.innerHTML = window.telLogoHtml(club, box.className || "real-logo-box");
+      });
+    }catch(e){}
+  }
+
+  document.addEventListener("DOMContentLoaded", reloadRealLogos);
+  // /* refresco automático desactivado para evitar reinicio visual */
+})();
+</script>
+
+
+<script>
+/* LIGAS Y EQUIPOS DESDE DATA.JSON */
+(function(){
+  window.__selectedLeagueId = "all";
+  window.__leaguesCache = [];
+
+  async function fetchJson(url){
+    try{
+      const res = await fetch(url, {cache:"no-store"});
+      if(res.ok) return await res.json();
+    }catch(e){}
+    return null;
+  }
+
+  function normalize(s){
+    return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
+  }
+
+  function localLeaguesFromData(data){
+    const raw = data.competiciones || data.ligas || data.leagues || data.competitions || data.torneos || [];
+    return raw.map((liga, i)=>({
+      id:String(liga.id || liga._id || liga.nombre || liga.name || `liga-${i+1}`),
+      nombre:String(liga.nombre || liga.name || liga.titulo || liga.title || `Liga ${i+1}`),
+      emoji:liga.emoji || "🏆",
+      equipos:liga.equipos || liga.clubIds || liga.clubes || liga.teams || liga.participantes || []
+    }));
+  }
+
+  function clubInLeague(club, liga){
+    if(!liga || liga.id === "all") return true;
+    const leagueIds = [liga.id, liga.nombre].map(normalize);
+    const clubLeague = [club.ligaId, club.liga, club.competicionId, club.competicion, club.conferencia, club.division, club.torneo].filter(Boolean).map(normalize);
+    if(clubLeague.some(v => leagueIds.includes(v))) return true;
+
+    const clubVals = [club.id, club._id, club.nombre, club.name, club.nombreVisual].filter(Boolean).map(normalize);
+    const members = Array.isArray(liga.equipos) ? liga.equipos : [];
+    return members.some(m=>{
+      if(typeof m === "string") return clubVals.includes(normalize(m));
+      if(m && typeof m === "object"){
+        return [m.id,m._id,m.nombre,m.name,m.club,m.equipo].filter(Boolean).some(v=>clubVals.includes(normalize(v)));
+      }
+      return false;
+    });
+  }
+
+  async function loadLeagues(){
+    let ligas = await fetchJson("/api/ligas");
+    if(!Array.isArray(ligas)){
+      const data = await fetchJson("data.json");
+      ligas = data ? localLeaguesFromData(data) : [];
+    }
+    window.__leaguesCache = ligas || [];
+    renderLeagueSelector();
+  }
+
+  function renderLeagueSelector(){
+    const menu = document.getElementById("leagueSelectMenu");
+    const label = document.getElementById("leagueSelectLabel");
+    const wrap = document.getElementById("leagueSelect");
+    const btn = document.getElementById("leagueSelectBtn");
+    if(!menu || !label || !wrap || !btn) return;
+
+    const current = window.__leaguesCache.find(l=>String(l.id) === String(window.__selectedLeagueId));
+    label.textContent = current ? current.nombre : "Todas las ligas";
+
+    const options = [{id:"all",nombre:"Todas las ligas",emoji:"🌐",equipos:[]}].concat(window.__leaguesCache);
+    menu.innerHTML = options.map(l=>{
+      const count = Array.isArray(l.equipos) ? l.equipos.length : "";
+      return `<button class="league-option ${String(l.id)===String(window.__selectedLeagueId) ? "active" : ""}" type="button" data-league-id="${String(l.id).replace(/"/g,"&quot;")}"><span>${l.emoji || "🏆"}</span>${l.nombre}<small>${count || ""}</small></button>`;
+    }).join("");
+
+    btn.onclick = (e)=>{
+      e.preventDefault();
+      wrap.classList.toggle("open");
+    };
+
+    menu.querySelectorAll(".league-option").forEach(opt=>{
+      opt.onclick = async (e)=>{
+        e.preventDefault();
+        window.__selectedLeagueId = opt.dataset.leagueId || "all";
+        wrap.classList.remove("open");
+        renderLeagueSelector();
+        await refreshFilteredTeams();
+      };
+    });
+
+    document.addEventListener("click", function closeLeagueSelect(e){
+      if(!wrap.contains(e.target)) wrap.classList.remove("open");
+    }, {once:true});
+  }
+
+  async function refreshFilteredTeams(){
+    // Si la versión dinámica tiene getClubes/renderTeams globales, las usamos.
+    let clubes = await fetchJson(`/api/clubes?liga=${encodeURIComponent(window.__selectedLeagueId)}`);
+    if(!Array.isArray(clubes)){
+      const data = await fetchJson("data.json");
+      if(!data) return;
+      const liga = window.__leaguesCache.find(l=>String(l.id)===String(window.__selectedLeagueId));
+      const rawClubes = data.clubes || data.equipos || data.teams || [];
+      clubes = rawClubes.filter(c=>clubInLeague(c, liga));
+    }
+
+    if(typeof renderTeams === "function"){
+      const signature = JSON.stringify({liga:window.__selectedLeagueId, clubes});
+      if(window.__lastTeamsSignature === signature) return;
+      window.__lastTeamsSignature = signature;
+      renderTeams(clubes);
+      return;
+    }
+
+    if(typeof window.renderTeams === "function"){
+      const signature = JSON.stringify({liga:window.__selectedLeagueId, clubes});
+      if(window.__lastTeamsSignature === signature) return;
+      window.__lastTeamsSignature = signature;
+      window.renderTeams(clubes);
+      return;
+    }
+
+    // Fallback mínimo
+    const grid = document.getElementById("dynamicTeamsGrid");
+    if(grid){
+      grid.innerHTML = clubes.map(c=>`<article class="dynamic-team-card"><h4>${c.nombreVisual || c.nombre}</h4><p>${c.presidenteTag || ""}</p></article>`).join("");
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", async ()=>{
+    await loadLeagues();
+    await refreshFilteredTeams();
+  });
+
+  window.refreshFilteredTeamsByLeague = refreshFilteredTeams;
+})();
+</script>
+
+
+<script>
+/* LOGOS DEFINITIVOS */
+(function(){
+  function esc(str){
+    return String(str ?? "").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  function pickLogo(club){
+    if(!club) return "";
+    const keys = ["escudoUrl","logoUrl","logo","escudo","imagen","imagenUrl","image","imageUrl","avatar","avatarUrl","icon","iconUrl","attachmentUrl","archivoUrl","url"];
+    for(const k of keys){
+      const v = club[k];
+      if(typeof v === "string" && /^https?:\/\//i.test(v.trim())) return v.trim();
+    }
+    for(const v of Object.values(club)){
+      if(typeof v === "string" && /^https?:\/\//i.test(v.trim()) && /(\.png|\.jpg|\.jpeg|\.webp|\.gif|cdn\.discord|media\.discord|attachments)/i.test(v)){
+        return v.trim();
+      }
+    }
+    return "";
+  }
+
+  function prox(url){
+    if(!url) return "";
+    if(location.protocol === "file:") return url;
+    return "/api/logo?url=" + encodeURIComponent(url);
+  }
+
+  window.telPickLogo = pickLogo;
+  window.telLogoProxy = prox;
+  window.telLogoHtml = function(club, className){
+    const url = pickLogo(club);
+    const emoji = club?.emoji || "⚡";
+    const name = esc(club?.nombreVisual || club?.nombre || club?.name || "Club");
+    if(url){
+      return `<div class="${className} logo-box-real">
+        <img class="logo-img-real real-logo-img" src="${prox(url)}" alt="${name}" loading="lazy"
+             onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'real-logo-fallback',textContent:'${esc(emoji)}'}))">
+      </div>`;
+    }
+    return `<div class="${className} logo-box-real"><span class="real-logo-fallback">${esc(emoji)}</span></div>`;
+  };
+
+  window.telLogoInline = function(club){
+    const url = pickLogo(club);
+    const emoji = club?.emoji || "⚡";
+    const name = esc(club?.nombreVisual || club?.nombre || club?.name || "Club");
+    if(url){
+      return `<img class="logo-inline-real" src="${prox(url)}" alt="${name}" loading="lazy"
+              onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${esc(emoji)}'}))">`;
+    }
+    return `<span>${esc(emoji)}</span>`;
+  };
+})();
+</script>
+
+
+<script>
+/* FIX FINAL LOGOS DATA.JSON EN EQUIPOS Y CLASIFICACIÓN */
+(function(){
+  function esc(str){
+    return String(str ?? "").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  function logoUrl(club){
+    if(!club) return "";
+    const keys = ["escudoUrl","logoUrl","logo","escudo","imagenUrl","imagen","imageUrl","image","avatarUrl","avatar","iconUrl","icon"];
+    for(const k of keys){
+      const v = club[k];
+      if(typeof v === "string" && /^https?:\/\//i.test(v.trim())) return v.trim();
+    }
+    for(const v of Object.values(club || {})){
+      if(typeof v === "string" && /^https?:\/\//i.test(v.trim()) && /(cdn\.discord|media\.discord|attachments|\.png|\.jpg|\.jpeg|\.webp|\.gif)/i.test(v)){
+        return v.trim();
+      }
+    }
+    return "";
+  }
+
+  function proxy(url){
+    if(!url) return "";
+    return location.protocol === "file:" ? url : "/api/logo?url=" + encodeURIComponent(url);
+  }
+
+  function logoBox(club, className){
+    const url = logoUrl(club);
+    const emoji = club?.emoji || "⚡";
+    const name = esc(club?.nombreVisual || club?.nombre || club?.name || "Club");
+    if(url){
+      return `<div class="${className} tel-logo-wrap">
+        <img class="tel-club-logo" src="${proxy(url)}" alt="${name}" loading="lazy"
+             onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${esc(emoji)}'}))">
+      </div>`;
+    }
+    return `<div class="${className} tel-logo-wrap"><span>${esc(emoji)}</span></div>`;
+  }
+
+  function logoInline(club){
+    const url = logoUrl(club);
+    const emoji = club?.emoji || "⚡";
+    const name = esc(club?.nombreVisual || club?.nombre || club?.name || "Club");
+    if(url){
+      return `<img class="tel-logo-inline" src="${proxy(url)}" alt="${name}" loading="lazy"
+              onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${esc(emoji)}'}))">`;
+    }
+    return `<span class="tel-logo-inline" style="display:inline-grid;place-items:center">${esc(emoji)}</span>`;
+  }
+
+  window.telLogoHtml = logoBox;
+  window.telLogoInline = logoInline;
+  window.telLogoProxy = proxy;
+  window.telPickLogo = logoUrl;
+
+  async function fetchJson(url){
+    try{
+      const res = await fetch(url, {cache:"no-store"});
+      if(res.ok) return await res.json();
+    }catch(e){}
+    return null;
+  }
+
+  function normalizeClub(c){
+    return {
+      ...c,
+      nombre: c.nombre || c.name || "Club sin nombre",
+      nombreVisual: c.nombreVisual || c.displayName || `${c.emoji || ""} ${c.nombre || c.name || "Club sin nombre"}`.trim(),
+      emoji: c.emoji || "⚡",
+      escudoUrl: logoUrl(c),
+      presupuesto: Number(c.presupuesto || c.budget || 0),
+      presidenteTag: c.presidenteTag || c.presidente || "",
+      jugadores: Number(c.jugadores || 0),
+      conferencia: c.conferencia || c.liga || c.competicion || "TEL"
+    };
+  }
+
+  async function getClubsForCurrentLeague(){
+    const liga = window.__selectedLeagueId && window.__selectedLeagueId !== "all"
+      ? "?liga=" + encodeURIComponent(window.__selectedLeagueId)
+      : "";
+
+    let clubes = await fetchJson("/api/clubes" + liga);
+    if(Array.isArray(clubes) && clubes.length) return clubes.map(normalizeClub);
+
+    const raw = await fetchJson("data.json");
+    if(raw){
+      const base = raw.clubes || raw.equipos || raw.teams || [];
+      return base.map(normalizeClub);
+    }
+
+    return [];
+  }
+
+  function money(n){
+    return (Number(n)||0).toLocaleString("es-ES") + "€";
+  }
+
+  function renderTeamsFixed(clubesRaw){
+    const clubes = (clubesRaw || []).map(normalizeClub);
+
+    const totalCount = document.getElementById("teamsTotalCount");
+    const playersCount = document.getElementById("teamsPlayersCount");
+    const budgetTotal = document.getElementById("teamsBudgetTotal");
+    const statsTeams = document.getElementById("statsTeamsCount");
+    const statsPlayers = document.getElementById("statsPlayersCount");
+    const statsBudgetAverage = document.getElementById("statsBudgetAverage");
+    const statsLastTeam = document.getElementById("statsLastTeam");
+    const grid = document.getElementById("dynamicTeamsGrid");
+    const feature = document.getElementById("dynamicFeaturedTeam");
+    const featureOnly = document.getElementById("dynamicFeaturedOnly");
+    const ranking = document.getElementById("dynamicTeamsRanking");
+    const side = document.getElementById("dynamicTeamsSideList");
+    const art = document.getElementById("dynamicTeamsArt");
+
+    const totalBudget = clubes.reduce((sum,c)=>sum + Number(c.presupuesto || 0), 0);
+    const totalPlayers = clubes.reduce((sum,c)=>sum + Number(c.jugadores || 0), 0);
+
+    if(totalCount) totalCount.textContent = clubes.length;
+    if(playersCount) playersCount.textContent = totalPlayers;
+    if(budgetTotal) budgetTotal.textContent = money(totalBudget);
+    if(statsTeams) statsTeams.textContent = clubes.length;
+    if(statsPlayers) statsPlayers.textContent = totalPlayers;
+    if(statsBudgetAverage) statsBudgetAverage.textContent = clubes.length ? money(Math.round(totalBudget / clubes.length)) : "0€";
+    if(statsLastTeam) statsLastTeam.textContent = clubes.length ? clubes[clubes.length - 1].nombre : "—";
+
+    if(art){
+      art.innerHTML = clubes.length
+        ? clubes.slice(0,8).map(c => logoBox(c, "dynamic-team-chip")).join("")
+        : `<div class="dynamic-empty-shield">⚡</div>`;
+    }
+
+    if(!clubes.length){
+      const empty = `
+        <div class="dynamic-empty-state">
+          <div class="dynamic-empty-icon">⚡</div>
+          <h3>No hay equipos registrados todavía</h3>
+          <p>Usa el comando <b>/crear-club</b> en Discord. Cuando el bot lo guarde en <b>data.json</b>, aparecerá aquí automáticamente.</p>
+        </div>`;
+      if(feature){ feature.classList.remove("has-teams"); feature.innerHTML = empty; }
+      if(featureOnly){ featureOnly.classList.remove("has-teams"); featureOnly.innerHTML = empty; }
+      if(grid) grid.innerHTML = "";
+      if(ranking) ranking.innerHTML = `<tr><td colspan="5" class="dynamic-empty-table">No hay equipos registrados todavía.</td></tr>`;
+      if(side) side.innerHTML = `<div class="dynamic-side-empty">Aún no hay clubes creados.</div>`;
+      return;
+    }
+
+    const first = clubes[0];
+
+    const featureHtml = `
+      <div class="dynamic-feature-real">
+        ${logoBox(first, "dynamic-feature-crest")}
+        <div class="dynamic-feature-info">
+          <h3>${esc(first.nombreVisual)}</h3>
+          <p>Club registrado oficialmente en Thunder Elite League.</p>
+          <span class="dynamic-badge">Equipo registrado</span>
+          <div class="team-stats" style="margin-top:14px">
+            <div class="stat-col"><small>Jugadores</small><b>${first.jugadores}</b></div>
+            <div class="stat-col"><small>Presupuesto</small><b>${money(first.presupuesto)}</b></div>
+            <div class="stat-col"><small>Presidente</small><b>${esc(first.presidenteTag || "Sin presidente")}</b></div>
+          </div>
+        </div>
+        <a class="btn" href="#equipos">Ver equipo</a>
+      </div>`;
+
+    if(feature){ feature.classList.add("has-teams"); feature.innerHTML = featureHtml; }
+    if(featureOnly){ featureOnly.classList.add("has-teams"); featureOnly.innerHTML = featureHtml; }
+
+    if(grid){
+      grid.innerHTML = clubes.map(club => `
+        <article class="dynamic-team-card">
+          <div class="dynamic-team-top">
+            ${logoBox(club, "dynamic-card-crest")}
+            <div>
+              <h4>${esc(club.nombreVisual)}</h4>
+              <p>${esc(club.presidenteTag || "Sin presidente")}</p>
+            </div>
+          </div>
+          <div class="dynamic-team-meta">
+            <span>Jugadores<b>${club.jugadores}</b></span>
+            <span>Presupuesto<b>${money(club.presupuesto)}</b></span>
+            <span>Liga<b>${esc(club.conferencia || "TEL")}</b></span>
+          </div>
+          <a class="btn" href="#equipos">Ver equipo</a>
+        </article>
+      `).join("");
+    }
+
+    if(ranking){
+      ranking.innerHTML = clubes.map((club,index)=>`
+        <tr>
+          <td>${index+1}</td>
+          <td class="team-name-cell">${logoInline(club)} ${esc(club.nombreVisual)}</td>
+          <td>${club.jugadores}</td>
+          <td>${esc(club.presidenteTag || "Sin presidente")}</td>
+          <td class="purple-num">${money(club.presupuesto)}</td>
+        </tr>
+      `).join("");
+    }
+
+    if(side){
+      side.innerHTML = clubes.slice(0,8).map((club,index)=>`
+        <div class="dynamic-side-team">
+          <i>${logoUrl(club) ? `<img class="tel-club-logo" src="${proxy(logoUrl(club))}" alt="${esc(club.nombre)}" loading="lazy">` : esc(club.emoji)}</i>
+          <div><b>${esc(club.nombreVisual)}</b><small>${esc(club.presidenteTag || "Sin presidente")}</small></div>
+          <span>#${index+1}</span>
+        </div>
+      `).join("");
+    }
+  }
+
+  window.renderTeams = renderTeamsFixed;
+
+  async function renderClassificationFixed(){
+    const section = document.querySelector("#clasificacion");
+    if(!section) return;
+
+    const clubes = await getClubsForCurrentLeague();
+    if(!clubes.length) return;
+
+    const rows = section.querySelectorAll(".clean-row");
+    if(rows.length){
+      rows.forEach((row, index)=>{
+        const club = clubes[index];
+        if(!club) return;
+        const b = row.querySelector("b");
+        if(b){
+          b.innerHTML = `${logoInline(club)} ${esc(club.nombreVisual)}`;
+        }
+        const strong = row.querySelector("strong");
+        if(strong && Number(strong.textContent.trim()) > 0 === false){
+          strong.textContent = "0";
+        }
+      });
+    }
+
+    const cleanTable = section.querySelector(".clean-table-card");
+    if(cleanTable && !rows.length){
+      // Fallback por si la clasificación está renderizada de otra manera
+      cleanTable.innerHTML = `
+        <div class="clean-table-head">
+          <span>POS</span><span>EQUIPO</span><span>PJ</span><span>V</span><span>E</span><span>D</span><span>DG</span><span>PTS</span>
+        </div>
+        ${clubes.slice(0,18).map((club,index)=>`
+          <div class="clean-row ${index===0 ? "leader" : ""}">
+            <span>${index+1}</span><b>${logoInline(club)} ${esc(club.nombreVisual)}</b>
+            <span>0</span><span>0</span><span>0</span><span>0</span><span>0</span><strong>0</strong>
+          </div>
+        `).join("")}`;
+    }
+  }
+
+  async function refreshEverythingFixed(){
+    const clubes = await getClubsForCurrentLeague();
+    const sig = JSON.stringify({liga:window.__selectedLeagueId || "all", clubes});
+    if(window.__lastLogoClubSignature !== sig){
+      window.__lastLogoClubSignature = sig;
+      renderTeamsFixed(clubes);
+      await renderClassificationFixed();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", refreshEverythingFixed);
+  window.addEventListener("hashchange", refreshEverythingFixed);
+  /* click global desactivado para evitar reinicio visual */
+  /* refresco automático desactivado para evitar reinicio visual */
+  setTimeout(refreshEverythingFixed, 300);
+  setTimeout(refreshEverythingFixed, 1200);
+})();
+</script>
+
+
+<script>
+/* OVERRIDE LOGOS LOCALES DATA.JSON */
+(function(){
+  function esc(str){
+    return String(str ?? "").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  function logoUrl(club){
+    if(!club) return "";
+    const keys = ["escudoUrl","logoUrl","logo","escudo","imagenUrl","imagen","imageUrl","image","avatarUrl","avatar","iconUrl","icon","escudoPath","escudoFilename"];
+    for(const k of keys){
+      let v = club[k];
+      if(typeof v !== "string" || !v.trim()) continue;
+      v = v.trim().replaceAll("\\\\","/");
+      if(v.startsWith("/escudos/")) return v;
+      if(v.startsWith("escudos/")) return "/" + v;
+      if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return "/escudos/" + v;
+      if(/^https?:\/\//i.test(v)) return v;
+    }
+    return "";
+  }
+
+  function srcFor(url){
+    if(!url) return "";
+    if(url.startsWith("/escudos/") || url.startsWith("escudos/")) return url.startsWith("/") ? url : "/" + url;
+    return "/api/logo?url=" + encodeURIComponent(url);
+  }
+
+  function inlineLogo(club){
+    const url = logoUrl(club);
+    const emoji = club?.emoji || "⚡";
+    const name = esc((club?.nombreVisual || club?.nombre || club?.clubNombre || "Club").replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+/u,""));
+    if(url){
+      return `<img class="tel-logo-inline" src="${srcFor(url)}" alt="${name}" loading="lazy" onerror="this.outerHTML='<span class=&quot;tel-logo-inline&quot; style=&quot;display:inline-grid;place-items:center&quot;>${esc(emoji)}</span>'">`;
+    }
+    return `<span class="tel-logo-inline" style="display:inline-grid;place-items:center">${esc(emoji)}</span>`;
+  }
+
+  function boxLogo(club, cls){
+    const url = logoUrl(club);
+    const emoji = club?.emoji || "⚡";
+    const name = esc(club?.nombreVisual || club?.nombre || club?.clubNombre || "Club");
+    if(url){
+      return `<div class="${cls} tel-logo-wrap"><img class="tel-club-logo" src="${srcFor(url)}" alt="${name}" loading="lazy" onerror="this.outerHTML='<span>${esc(emoji)}</span>'"></div>`;
+    }
+    return `<div class="${cls} tel-logo-wrap"><span>${esc(emoji)}</span></div>`;
+  }
+
+  window.telLogoInline = inlineLogo;
+  window.telLogoHtml = boxLogo;
+  window.telPickLogo = logoUrl;
+
+  async function getData(){
+    try{
+      const res = await fetch("/data.json", {cache:"no-store"});
+      if(res.ok) return await res.json();
+    }catch(e){}
+    try{
+      const res = await fetch("data.json", {cache:"no-store"});
+      if(res.ok) return await res.json();
+    }catch(e){}
+    return null;
+  }
+
+  function norm(s){
+    return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w]+/g," ").trim();
+  }
+
+  async function applyLocalLogos(){
+    const data = await getData();
+    if(!data) return;
+
+    const clubes = data.clubes || [];
+    const comp = (data.competiciones || [])[0];
+    const compTeams = comp?.equipos || [];
+
+    const byName = new Map();
+    clubes.forEach(c => byName.set(norm(c.nombre), c));
+    compTeams.forEach(t => {
+      const base = byName.get(norm(t.clubNombre || t.nombre)) || {};
+      byName.set(norm(t.clubNombre || t.nombre), {...base, ...t, nombre: base.nombre || t.clubNombre || t.nombre});
+    });
+
+    document.querySelectorAll(".clean-row").forEach((row, i) => {
+      const b = row.querySelector("b");
+      if(!b) return;
+      const text = norm(b.textContent);
+      let club = byName.get(text);
+      if(!club){
+        const clubList = Array.from(byName.values());
+        club = clubList[i];
+      }
+      if(!club) return;
+      const displayName = (club.nombre || club.clubNombre || club.nombreVisual || b.textContent).replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+/u,"");
+      b.innerHTML = `${inlineLogo(club)} ${esc(displayName)}`;
+    });
+
+    document.querySelectorAll(".team-name-cell").forEach((cell, i) => {
+      const text = norm(cell.textContent);
+      let club = byName.get(text) || Array.from(byName.values())[i];
+      if(!club) return;
+      const displayName = (club.nombre || club.clubNombre || club.nombreVisual || cell.textContent).replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+/u,"");
+      cell.innerHTML = `${inlineLogo(club)} ${esc(displayName)}`;
+    });
+
+    // Equipos cards: si ya están renderizadas con emoji, sustituir por logo.
+    document.querySelectorAll(".dynamic-team-card").forEach((card) => {
+      const title = card.querySelector("h4");
+      if(!title) return;
+      const club = byName.get(norm(title.textContent));
+      if(!club) return;
+      const crest = card.querySelector(".dynamic-card-crest, .real-logo-box, .logo-box-real");
+      if(crest) crest.outerHTML = boxLogo(club, "dynamic-card-crest");
+    });
+
+    document.querySelectorAll(".dynamic-team-chip").forEach((chip, i) => {
+      const club = Array.from(byName.values())[i];
+      if(!club) return;
+      chip.outerHTML = boxLogo(club, "dynamic-team-chip");
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", applyLocalLogos);
+  window.addEventListener("hashchange", () => setTimeout(applyLocalLogos, 100));
+  /* click global desactivado para evitar reinicio visual */
+  setTimeout(applyLocalLogos, 400);
+  setTimeout(applyLocalLogos, 1200);
+  /* intervalo desactivado */
+})();
+</script>
+
+<script>
+/* TEL FIX ESCUDOS LOCALES DEFINITIVO */
+(function(){
+  function esc(str){
+    return String(str ?? "").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  function normalize(s){
+    return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w]+/g," ").trim();
+  }
+
+  function logoUrl(club){
+    if(!club) return "";
+    const keys = ["escudoUrl","escudoPath","escudoFilename","logoUrl","logo","escudo","imagenUrl","imagen","imageUrl","image","avatarUrl","avatar","iconUrl","icon"];
+    for(const k of keys){
+      let v = club[k];
+      if(typeof v !== "string" || !v.trim()) continue;
+      v = v.trim().replaceAll("\\\\","/");
+      if(v.startsWith("/escudos/")) return v;
+      if(v.startsWith("escudos/")) return "/" + v;
+      if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return "/escudos/" + v;
+      if(/^https?:\/\//i.test(v)) return v;
+    }
+    return "";
+  }
+
+  function logoSrc(url){
+    if(!url) return "";
+    if(url.startsWith("/escudos/") || url.startsWith("escudos/")) return url.startsWith("/") ? url : "/" + url;
+    return "/api/logo?url=" + encodeURIComponent(url);
+  }
+
+  function cleanName(name){
+    return String(name || "Club").replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+/u,"").trim();
+  }
+
+  function inlineLogo(club){
+    const url = logoUrl(club);
+    const emoji = club?.emoji || "⚡";
+    const name = esc(cleanName(club?.nombre || club?.clubNombre || club?.nombreVisual || "Club"));
+    if(url){
+      return `<img class="tel-logo-inline" src="${logoSrc(url)}" alt="${name}" loading="lazy" onerror="this.outerHTML='<span class=&quot;tel-logo-inline tel-logo-fallback&quot;>${esc(emoji)}</span>'">`;
+    }
+    return `<span class="tel-logo-inline tel-logo-fallback">${esc(emoji)}</span>`;
+  }
+
+  function boxLogo(club, cls){
+    const url = logoUrl(club);
+    const emoji = club?.emoji || "⚡";
+    const name = esc(cleanName(club?.nombre || club?.clubNombre || club?.nombreVisual || "Club"));
+    if(url){
+      return `<div class="${cls} tel-logo-wrap"><img class="tel-club-logo" src="${logoSrc(url)}" alt="${name}" loading="lazy" onerror="this.outerHTML='<span class=&quot;tel-logo-fallback&quot;>${esc(emoji)}</span>'"></div>`;
+    }
+    return `<div class="${cls} tel-logo-wrap"><span class="tel-logo-fallback">${esc(emoji)}</span></div>`;
+  }
+
+  window.telLogoProxy = logoSrc;
+  window.telLogoInline = inlineLogo;
+  window.telLogoHtml = boxLogo;
+  window.telPickLogo = logoUrl;
+
+  async function getData(){
+    try{
+      const res = await fetch("/data.json?ts=" + Date.now(), {cache:"no-store"});
+      if(res.ok) return await res.json();
+    }catch(e){}
+    return null;
+  }
+
+  function buildClubMaps(data){
+    const byName = new Map();
+    const clubes = data?.clubes || [];
+    clubes.forEach(c => byName.set(normalize(c.nombre || c.clubNombre || c.nombreVisual), c));
+
+    (data?.competiciones || []).forEach(comp => {
+      (comp.equipos || []).forEach(eq => {
+        const key = normalize(eq.clubNombre || eq.nombre || eq.nombreVisual);
+        const base = byName.get(key) || {};
+        byName.set(key, {...base, ...eq, nombre: base.nombre || eq.clubNombre || eq.nombre || eq.nombreVisual});
+      });
+    });
+
+    return byName;
+  }
+
+  async function applyEscudosLocales(){
+    const data = await getData();
+    if(!data) return;
+    const byName = buildClubMaps(data);
+    const clubsList = Array.from(byName.values());
+
+    document.querySelectorAll(".clean-row").forEach((row, i) => {
+      const b = row.querySelector("b");
+      if(!b) return;
+      const text = normalize(b.textContent);
+      let club = byName.get(text) || clubsList[i];
+      if(!club) return;
+      const name = cleanName(club.nombre || club.clubNombre || club.nombreVisual || b.textContent);
+      b.innerHTML = `${inlineLogo(club)} ${esc(name)}`;
+    });
+
+    document.querySelectorAll(".team-name-cell").forEach((cell, i) => {
+      const text = normalize(cell.textContent);
+      let club = byName.get(text) || clubsList[i];
+      if(!club) return;
+      const name = cleanName(club.nombre || club.clubNombre || club.nombreVisual || cell.textContent);
+      cell.innerHTML = `${inlineLogo(club)} ${esc(name)}`;
+    });
+
+    document.querySelectorAll(".dynamic-team-card").forEach(card => {
+      const title = card.querySelector("h4");
+      if(!title) return;
+      const club = byName.get(normalize(title.textContent));
+      if(!club) return;
+      const crest = card.querySelector(".dynamic-card-crest, .real-logo-box, .logo-box-real, .tel-logo-wrap");
+      if(crest) crest.outerHTML = boxLogo(club, "dynamic-card-crest");
+    });
+
+    const featuredTitle = document.querySelector("#dynamicFeaturedTeam h3, #dynamicFeaturedOnly h3");
+    if(featuredTitle){
+      const club = byName.get(normalize(featuredTitle.textContent)) || clubsList[0];
+      document.querySelectorAll("#dynamicFeaturedTeam .dynamic-feature-crest, #dynamicFeaturedOnly .dynamic-feature-crest").forEach(el => {
+        el.outerHTML = boxLogo(club, "dynamic-feature-crest");
+      });
+    }
+
+    document.querySelectorAll(".dynamic-team-chip").forEach((chip, i) => {
+      const club = clubsList[i];
+      if(club) chip.outerHTML = boxLogo(club, "dynamic-team-chip");
+    });
+
+    document.querySelectorAll(".dynamic-side-team").forEach(side => {
+      const nameEl = side.querySelector("b");
+      const icon = side.querySelector("i");
+      if(!nameEl || !icon) return;
+      const club = byName.get(normalize(nameEl.textContent));
+      if(club) icon.innerHTML = logoUrl(club) ? `<img loading="lazy" decoding="async" class="tel-club-logo" src="${logoSrc(logoUrl(club))}" alt="${esc(cleanName(club.nombre || club.clubNombre))}">` : esc(club.emoji || "⚡");
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", applyEscudosLocales);
+  window.addEventListener("hashchange", () => setTimeout(applyEscudosLocales, 150));
+  /* click global desactivado para evitar reinicio visual */
+  setTimeout(applyEscudosLocales, 300);
+  setTimeout(applyEscudosLocales, 1000);
+  /* refresco automático desactivado para evitar reinicio visual */
+})();
+</script>
+
+<script>
+/* TEL SIN REINICIO VISUAL DE EQUIPOS */
+(function(){
+  window.__telStableRenderSignatures = window.__telStableRenderSignatures || {};
+
+  window.telStableSignature = function(key, value){
+    const signature = JSON.stringify(value || {});
+    if(window.__telStableRenderSignatures[key] === signature) return false;
+    window.__telStableRenderSignatures[key] = signature;
+    return true;
+  };
+
+  // Carga única de escudos tras pintar la página, sin intervalos automáticos.
+  document.addEventListener("DOMContentLoaded", function(){
+    setTimeout(function(){
+      if(typeof applyEscudosLocales === "function") applyEscudosLocales();
+      if(typeof applyLocalLogos === "function") applyLocalLogos();
+      if(typeof refreshEverythingFixed === "function") refreshEverythingFixed();
+    }, 350);
+  });
+
+  window.addEventListener("hashchange", function(){
+    setTimeout(function(){
+      if(typeof applyEscudosLocales === "function") applyEscudosLocales();
+      if(typeof refreshEverythingFixed === "function") refreshEverythingFixed();
+    }, 250);
+  });
+})();
+</script>
+
+
+<script>
+/* TEL LOGOS LOCALES SIN MENÚ FALSO */
+(function(){
+  const STATE = { applying:false, data:null, byName:null, observer:null };
+
+  function esc(str){
+    return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  }
+  function normalize(s){
+    return String(s || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/[🚜🎯🐹🚀🫂⬆️🎱🍆⚡🔥🛡️👑🧞‍♂️👿🔰]/g,'')
+      .replace(/[^a-z0-9]+/g,' ')
+      .trim();
+  }
+  function cleanName(name){
+    return String(name || 'Club')
+      .replace(/[🚜🎯🐹🚀🫂⬆️🎱🍆⚡🔥🛡️👑🧞‍♂️👿🔰]/g,'')
+      .trim();
+  }
+  function logoUrl(club){
+    if(!club) return '';
+    const keys = ['escudoUrl','escudoPath','escudoFilename','logoUrl','logo','escudo','imagenUrl','imagen','imageUrl','image','avatarUrl','avatar','iconUrl','icon'];
+    for(const k of keys){
+      let v = club[k];
+      if(typeof v !== 'string' || !v.trim()) continue;
+      v = v.trim().replaceAll('\\','/');
+      if(v.startsWith('/escudos/')) return v;
+      if(v.startsWith('escudos/')) return '/' + v;
+      if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return '/escudos/' + v;
+      if(/^https?:\/\//i.test(v)) return '/api/logo?url=' + encodeURIComponent(v);
+    }
+    return '';
+  }
+  function logoInline(club){
+    const src = logoUrl(club);
+    const emoji = club?.emoji || '⚡';
+    const name = esc(cleanName(club?.nombre || club?.clubNombre || club?.nombreVisual || 'Club'));
+    if(src){
+      return `<img class="tel-logo-inline" src="${src}" alt="${name}" loading="eager" onerror="this.outerHTML='<span class=&quot;tel-logo-inline tel-logo-fallback&quot;>${esc(emoji)}</span>'">`;
+    }
+    return `<span class="tel-logo-inline tel-logo-fallback">${esc(emoji)}</span>`;
+  }
+  function logoBox(club, cls){
+    const src = logoUrl(club);
+    const emoji = club?.emoji || '⚡';
+    const name = esc(cleanName(club?.nombre || club?.clubNombre || club?.nombreVisual || 'Club'));
+    if(src){
+      return `<div class="${cls} tel-logo-wrap"><img class="tel-club-logo" src="${src}" alt="${name}" loading="eager" onerror="this.outerHTML='<span class=&quot;tel-logo-fallback&quot;>${esc(emoji)}</span>'"></div>`;
+    }
+    return `<div class="${cls} tel-logo-wrap"><span class="tel-logo-fallback">${esc(emoji)}</span></div>`;
+  }
+  window.telPickLogo = logoUrl;
+  window.telLogoInline = logoInline;
+  window.telLogoHtml = logoBox;
+  window.telLogoProxy = function(url){
+    if(!url) return '';
+    url = String(url).replaceAll('\\','/');
+    if(url.startsWith('/escudos/')) return url;
+    if(url.startsWith('escudos/')) return '/' + url;
+    return url;
+  };
+
+  async function loadData(){
+    if(STATE.data) return STATE.data;
+    const res = await fetch('/data.json?logos=' + Date.now(), {cache:'no-store'});
+    STATE.data = await res.json();
+    const byName = new Map();
+    (STATE.data.clubes || []).forEach(c => {
+      const key = normalize(c.nombre || c.clubNombre || c.nombreVisual);
+      if(key) byName.set(key, c);
+    });
+    (STATE.data.competiciones || []).forEach(comp => {
+      (comp.equipos || []).forEach(eq => {
+        const key = normalize(eq.clubNombre || eq.nombre || eq.nombreVisual);
+        const base = byName.get(key) || {};
+        if(key) byName.set(key, {...base, ...eq, nombre: base.nombre || eq.clubNombre || eq.nombre || eq.nombreVisual});
+      });
+    });
+    STATE.byName = byName;
+    return STATE.data;
+  }
+  function findClub(text, index){
+    const byName = STATE.byName;
+    if(!byName) return null;
+    const key = normalize(text);
+    if(byName.has(key)) return byName.get(key);
+    for(const [k,c] of byName.entries()){
+      if(key.includes(k) || k.includes(key)) return c;
+    }
+    return Array.from(byName.values())[index] || null;
+  }
+  function replaceFeature(){
+    document.querySelectorAll('#dynamicFeaturedTeam, #dynamicFeaturedOnly').forEach(panel => {
+      const title = panel.querySelector('h3');
+      const crest = panel.querySelector('.dynamic-feature-crest, .tel-logo-wrap');
+      if(!title || !crest) return;
+      const club = findClub(title.textContent, 0);
+      if(!club) return;
+      const name = cleanName(club.nombre || club.clubNombre || club.nombreVisual || title.textContent);
+      title.innerHTML = esc(name);
+      crest.outerHTML = logoBox(club, 'dynamic-feature-crest');
+    });
+  }
+  function replaceCards(){
+    document.querySelectorAll('.dynamic-team-card').forEach((card, i) => {
+      const title = card.querySelector('h4');
+      const crest = card.querySelector('.dynamic-card-crest, .tel-logo-wrap');
+      if(!title || !crest) return;
+      const club = findClub(title.textContent, i);
+      if(!club) return;
+      title.innerHTML = esc(cleanName(club.nombre || club.clubNombre || club.nombreVisual || title.textContent));
+      crest.outerHTML = logoBox(club, 'dynamic-card-crest');
+    });
+  }
+  function replaceRows(){
+    document.querySelectorAll('.clean-row b, .team-name-cell').forEach((el, i) => {
+      if(el.dataset.telLogoOk === '1') return;
+      const club = findClub(el.textContent, i);
+      if(!club) return;
+      el.innerHTML = `${logoInline(club)} ${esc(cleanName(club.nombre || club.clubNombre || club.nombreVisual || el.textContent))}`;
+      el.dataset.telLogoOk = '1';
+    });
+  }
+  function replaceSideAndChips(){
+    const clubs = STATE.byName ? Array.from(STATE.byName.values()) : [];
+    document.querySelectorAll('.dynamic-team-chip').forEach((chip,i)=>{
+      const club = clubs[i];
+      if(club) chip.outerHTML = logoBox(club, 'dynamic-team-chip');
+    });
+    document.querySelectorAll('.dynamic-side-team').forEach((item,i)=>{
+      const nameEl = item.querySelector('b');
+      const icon = item.querySelector('i');
+      if(!icon) return;
+      const club = findClub(nameEl?.textContent || '', i);
+      if(!club) return;
+      icon.innerHTML = logoUrl(club) ? `<img loading="lazy" decoding="async" class="tel-club-logo" src="${logoUrl(club)}" alt="${esc(cleanName(club.nombre || club.clubNombre || 'Club'))}">` : esc(club.emoji || '⚡');
+      if(nameEl) nameEl.innerHTML = esc(cleanName(club.nombre || club.clubNombre || nameEl.textContent));
+    });
+  }
+  async function apply(){
+    if(STATE.applying) return;
+    STATE.applying = true;
+    try{
+      await loadData();
+      replaceFeature();
+      replaceCards();
+      replaceRows();
+      replaceSideAndChips();
+    }catch(e){ console.warn('TEL logos locales:', e); }
+    STATE.applying = false;
+  }
+  window.applyEscudosLocalesFinal = apply;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    apply();
+    setTimeout(apply, 300);
+    setTimeout(apply, 900);
+    if(STATE.observer) STATE.observer.disconnect();
+    let timer = null;
+    STATE.observer = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(apply, 120);
+    });
+    STATE.observer.observe(document.body, {childList:true, subtree:true});
+  });
+  window.addEventListener('hashchange', () => setTimeout(apply, 150));
+
+  // Anular el menú falso de filtros antiguos.
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('.filter-btn,.selector,.news-filter,.stand-filter,.rule-select');
+    if(!btn) return;
+    document.querySelectorAll('.dropdown-pop').forEach(p => p.remove());
+  }, true);
+})();
+</script>
+
+
+<script>
+/* MENU FALSO QUITADO SEGURO */
+(function(){
+  function clean(){ document.querySelectorAll('.dropdown-pop').forEach(p=>p.remove()); }
+  document.addEventListener('DOMContentLoaded', clean);
+  document.addEventListener('click', function(e){
+    if(e.target.closest('#leagueSelect,#leagueSelectMenu,#leagueSelectBtn')) return;
+    setTimeout(clean, 30);
+  }, true);
+})();
+</script>
+
+
+<script>
+/* MENU DINAMICO DE LIGAS DESDE DATA.JSON */
+(function(){
+  function esc(str){
+    return String(str ?? "").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  function norm(str){
+    return String(str || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"")
+      .replace(/[^\w]+/g," ")
+      .trim();
+  }
+
+  function logoUrl(club){
+    if(!club) return "";
+    let v = club.escudoUrl || club.escudoPath || club.escudoFilename || club.logoUrl || club.logo || club.escudo || "";
+    if(!v) return "";
+    v = String(v).replaceAll("\\\\","/");
+    if(v.startsWith("/escudos/")) return v;
+    if(v.startsWith("escudos/")) return "/" + v;
+    if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return "/escudos/" + v;
+    return v;
+  }
+
+  async function loadTelData(){
+    const res = await fetch("/data.json?ts=" + Date.now(), {cache:"no-store"});
+    if(!res.ok) throw new Error("No se pudo cargar data.json");
+    return await res.json();
+  }
+
+  function findLeagueButton(){
+    const candidates = Array.from(document.querySelectorAll("button, .filter-btn, .selector, .dropdown-toggle, [role='button'], div, a"));
+    return candidates.find(el => {
+      const txt = (el.textContent || "").trim().toLowerCase();
+      return txt.includes("todas las ligas") || txt.includes("todas las conferencias");
+    });
+  }
+
+  function buildMaps(data){
+    const clubMap = new Map();
+    (data.clubes || []).forEach(c => {
+      clubMap.set(norm(c.nombre || c.clubNombre || c.nombreVisual), c);
+    });
+
+    const ligas = (data.competiciones || []).map((comp, idx) => {
+      const nombre = comp.nombre || comp.name || comp.titulo || `Liga ${idx + 1}`;
+      const equipos = (comp.equipos || []).map(eq => {
+        const key = norm(eq.clubNombre || eq.nombre || eq.nombreVisual);
+        const base = clubMap.get(key) || {};
+        return {...base, ...eq, nombre: base.nombre || eq.clubNombre || eq.nombre || eq.nombreVisual};
+      }).filter(eq => eq.nombre || eq.clubNombre || eq.nombreVisual);
+
+      return {id: String(comp.id || comp.slug || norm(nombre) || idx), nombre, equipos};
+    });
+
+    return {clubMap, ligas};
+  }
+
+  function optionHtml(league, activeId){
+    const teams = league.equipos || [];
+    const active = activeId === league.id ? " active" : "";
+    const teamList = teams.slice(0, 12).map(t => {
+      const name = t.nombre || t.clubNombre || t.nombreVisual || "Equipo";
+      const logo = logoUrl(t);
+      const img = logo ? `<img loading="lazy" decoding="async" src="${esc(logo)}" alt="${esc(name)}">` : `<span>⚡</span>`;
+      return `<div class="tel-league-team">${img}<span>${esc(name)}</span></div>`;
+    }).join("");
+
+    return `
+      <button type="button" class="tel-league-option${active}" data-league-id="${esc(league.id)}">
+        <span>🏆</span>
+        <span>
+          ${esc(league.nombre)}
+          <div class="tel-league-teams">${teamList || '<div class="tel-league-team">Sin equipos inscritos</div>'}</div>
+        </span>
+        <span class="tel-count">${teams.length}</span>
+      </button>
+    `;
+  }
+
+  function allOptionHtml(activeId, total){
+    const active = activeId === "all" ? " active" : "";
+    return `
+      <button type="button" class="tel-league-option${active}" data-league-id="all">
+        <span>🌐</span>
+        <span>Todas las ligas</span>
+        <span class="tel-count">${total}</span>
+      </button>
+    `;
+  }
+
+  function getTeamNameFromCard(card){
+    const h = card.querySelector("h4,h3,b,.team-name,.club-name");
+    return norm(h ? h.textContent : card.textContent);
+  }
+
+  function applyTeamFilter(data, selectedLeagueId){
+    const {ligas} = buildMaps(data);
+    const selected = ligas.find(l => l.id === selectedLeagueId);
+
+    const allowed = new Set(
+      selectedLeagueId === "all" || !selected
+        ? []
+        : selected.equipos.map(t => norm(t.nombre || t.clubNombre || t.nombreVisual))
+    );
+
+    const cards = document.querySelectorAll(".dynamic-team-card, .team-card, .club-card");
+    cards.forEach(card => {
+      if(selectedLeagueId === "all"){
+        card.classList.remove("tel-team-hidden-by-league");
+        return;
+      }
+
+      const name = getTeamNameFromCard(card);
+      card.classList.toggle("tel-team-hidden-by-league", !allowed.has(name));
+    });
+
+    // También filtra filas de clasificación si están visibles.
+    document.querySelectorAll(".clean-row, tr").forEach(row => {
+      if(selectedLeagueId === "all"){
+        row.classList.remove("tel-team-hidden-by-league");
+        return;
+      }
+      const b = row.querySelector("b,.team-name-cell,td:nth-child(2)");
+      if(!b) return;
+      const name = norm(b.textContent);
+      if(name) row.classList.toggle("tel-team-hidden-by-league", !allowed.has(name));
+    });
+  }
+
+  function renderMenu(wrapper, data, selectedLeagueId){
+    const {ligas} = buildMaps(data);
+    const total = ligas.reduce((n,l) => n + (l.equipos?.length || 0), 0);
+    const selected = ligas.find(l => l.id === selectedLeagueId);
+    const label = selected ? selected.nombre : "Todas las ligas";
+
+    wrapper.innerHTML = `
+      <button type="button" class="tel-league-filter-btn" id="telLeagueBtn">
+        <span><span>🌐</span><strong>${esc(label)}</strong></span>
+        <span>⌄</span>
+      </button>
+      <div class="tel-league-dropdown" id="telLeagueDropdown">
+        ${allOptionHtml(selectedLeagueId, total)}
+        ${ligas.map(l => optionHtml(l, selectedLeagueId)).join("")}
+      </div>
+    `;
+
+    wrapper.querySelector("#telLeagueBtn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      wrapper.classList.toggle("open");
+    });
+
+    wrapper.querySelectorAll(".tel-league-option").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.leagueId || "all";
+        window.__telSelectedLeagueId = id;
+        renderMenu(wrapper, data, id);
+        applyTeamFilter(data, id);
+        wrapper.classList.remove("open");
+      });
+    });
+  }
+
+  function removeOldFakeMenus(){
+    const badTerms = ["Todas las jornadas","Jornada 1","Jornada 2","Todos los equipos","Thunder Wolves","Royal FC","Delta United","Más recientes"];
+    document.querySelectorAll("div, ul, nav").forEach(el => {
+      if(el.closest(".tel-league-filter")) return;
+      const text = el.textContent || "";
+      const hits = badTerms.filter(t => text.includes(t)).length;
+      const rect = el.getBoundingClientRect();
+      if(hits >= 4 && rect.height > 120 && rect.width > 250){
+        el.remove();
+      }
+    });
+  }
+
+  async function initLeagueMenu(){
+    let data;
+    try{
+      data = await loadTelData();
+    }catch(e){
+      console.warn("[TEL] No se pudo cargar data.json para el menú de ligas", e);
+      return;
+    }
+
+    const oldButton = findLeagueButton();
+    if(!oldButton) return;
+
+    let host = oldButton.closest(".tel-league-filter");
+    if(!host){
+      host = document.createElement("div");
+      host.className = "tel-league-filter";
+      oldButton.replaceWith(host);
+    }
+
+    renderMenu(host, data, window.__telSelectedLeagueId || "all");
+    applyTeamFilter(data, window.__telSelectedLeagueId || "all");
+    removeOldFakeMenus();
+
+    document.addEventListener("click", (e) => {
+      if(!host.contains(e.target)) host.classList.remove("open");
+      setTimeout(removeOldFakeMenus, 80);
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(initLeagueMenu, 300);
+    setTimeout(removeOldFakeMenus, 700);
+  });
+  window.addEventListener("hashchange", () => setTimeout(initLeagueMenu, 300));
+})();
+</script>
+
+
+<script>
+/* TEL CARGA ESTABLE SIN REFRESCOS AUTOMATICOS */
+(function(){
+  let lastRun = 0;
+
+  function stableRun(){
+    const now = Date.now();
+    if(now - lastRun < 400) return;
+    lastRun = now;
+
+    setTimeout(function(){
+      if(typeof window.renderTelClassificationByLeagueAndJornada === "function"){
+        window.renderTelClassificationByLeagueAndJornada();
+      }
+      if(typeof window.initLeagueMenu === "function"){
+        window.initLeagueMenu();
+      }
+    }, 120);
+  }
+
+  document.addEventListener("DOMContentLoaded", stableRun);
+  window.addEventListener("hashchange", stableRun);
+})();
+</script>
+
+
+<!-- ATLAS CREATIVE WATERMARK HTML -->
+
+<style id="atlas-watermark-promo-style">
+/* ATLAS WATERMARK MOVIDA AL BLOQUE PROMO */
+.promo .atlas-creative-watermark{
+  position:static !important;
+  right:auto !important;
+  bottom:auto !important;
+  z-index:auto !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:12px !important;
+  width:calc(100% - 26px) !important;
+  margin:0 13px 14px !important;
+  padding:10px 12px !important;
+  border-radius:12px !important;
+  border:1px solid rgba(255,255,255,.10) !important;
+  background:rgba(255,255,255,.04) !important;
+  box-shadow:none !important;
+  backdrop-filter:blur(6px) !important;
+  opacity:1 !important;
+  text-decoration:none !important;
+  transform:none !important;
+}
+.promo .atlas-creative-watermark:hover{
+  transform:none !important;
+  background:rgba(255,255,255,.06) !important;
+}
+.promo .atlas-creative-watermark img{
+  width:52px !important;
+  height:52px !important;
+  object-fit:contain !important;
+  display:block !important;
+  flex:0 0 auto !important;
+}
+.promo .atlas-creative-watermark span{
+  display:flex !important;
+  flex-direction:column !important;
+  line-height:1.05 !important;
+  font-size:10px !important;
+  letter-spacing:.7px !important;
+  text-transform:uppercase !important;
+  color:#aeb9ca !important;
+  font-weight:800 !important;
+}
+.promo .atlas-creative-watermark b{
+  color:#fff !important;
+  font-size:18px !important;
+  letter-spacing:1px !important;
+  font-weight:1000 !important;
+}
+@media(max-width:760px){
+  .promo .atlas-creative-watermark{width:calc(100% - 24px) !important;margin:0 12px 12px !important;padding:9px 10px !important;}
+  .promo .atlas-creative-watermark img{width:44px !important;height:44px !important;}
+  .promo .atlas-creative-watermark b{font-size:15px !important;}
+}
+</style>
+
+
+
+
+
+
+
+
+
+<style id="tel-all-matches-overlay-style">
+#telAllMatchesOverlay{position:fixed;inset:0;z-index:99997;background:rgba(4,7,14,.94);backdrop-filter:blur(10px);display:none;overflow:auto}
+#telAllMatchesOverlay.tel-am-open{display:block}
+body.tel-all-matches-open{overflow:hidden!important}
+#telAllMatchesOverlay *{box-sizing:border-box}
+#telAllMatchesOverlay .tel-am-shell{min-height:100%;padding:24px 18px 30px;background:radial-gradient(circle at top center,rgba(135,52,255,.16),transparent 28%),linear-gradient(180deg,#09111e,#070c14 58%,#08111d)}
+#telAllMatchesOverlay .tel-am-layout{max-width:1600px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px}
+#telAllMatchesOverlay .tel-am-main,#telAllMatchesOverlay .tel-am-side-card{border:1px solid rgba(255,255,255,.08);background:rgba(8,13,23,.9);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+#telAllMatchesOverlay .tel-am-main{padding:18px}
+#telAllMatchesOverlay .tel-am-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:4px 4px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+#telAllMatchesOverlay .tel-am-hero h1{margin:0;color:#fff;font-size:clamp(30px,4vw,52px);line-height:1.02;font-weight:1000;text-transform:uppercase}
+#telAllMatchesOverlay .tel-am-hero p{margin:8px 0 0;color:#c7ced9;font-size:16px}
+#telAllMatchesOverlay .tel-am-back{display:inline-flex;align-items:center;gap:8px;color:#fff;text-decoration:none;font-weight:900;font-size:14px;opacity:.86;cursor:pointer}
+#telAllMatchesOverlay .tel-am-hero-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+#telAllMatchesOverlay .tel-am-live{padding:10px 16px;border-radius:12px;border:1px solid rgba(170,79,255,.35);background:rgba(135,52,255,.14);color:#d68bff;font-weight:1000;text-transform:uppercase;font-size:13px;letter-spacing:.04em}
+#telAllMatchesOverlay .tel-am-tabs{display:flex;gap:8px;flex-wrap:wrap;padding:16px 0 10px}
+#telAllMatchesOverlay .tel-am-tab{appearance:none;border:0;background:transparent;color:#fff;opacity:.72;padding:12px 16px;border-bottom:3px solid transparent;font-weight:1000;text-transform:uppercase;font-size:14px;cursor:pointer}
+#telAllMatchesOverlay .tel-am-tab.active{opacity:1;color:#cb6dff;border-color:#a63cff}
+#telAllMatchesOverlay .tel-am-toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:10px 0 18px}
+#telAllMatchesOverlay .tel-am-filter{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:0 14px;min-height:52px}
+#telAllMatchesOverlay .tel-am-filter i{font-style:normal;opacity:.9}
+#telAllMatchesOverlay .tel-am-filter input,#telAllMatchesOverlay .tel-am-filter select{width:100%;min-width:0;background:transparent;border:0;outline:none;color:#fff;font-size:14px;font-weight:800}
+#telAllMatchesOverlay .tel-am-filter option{background:#0a1019;color:#fff}
+#telAllMatchesOverlay .tel-am-board{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.018);border-radius:16px;padding:14px}
+#telAllMatchesOverlay .tel-am-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 4px 12px}
+#telAllMatchesOverlay .tel-am-section-title h2{margin:0;color:#b543ff;font-size:16px;text-transform:uppercase;letter-spacing:.02em}
+#telAllMatchesOverlay .tel-am-section-title span{color:#97a5b6;font-size:13px;font-weight:800}
+#telAllMatchesOverlay .tel-am-round{border:1px solid rgba(255,255,255,.08);border-radius:16px;background:rgba(8,12,21,.78);overflow:hidden;margin-bottom:16px}
+#telAllMatchesOverlay .tel-am-round-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+#telAllMatchesOverlay .tel-am-round-head h3{margin:0;color:#b845ff;font-size:15px;text-transform:uppercase}
+#telAllMatchesOverlay .tel-am-round-head span{color:#95a1b3;font-size:12px;font-weight:900;text-transform:uppercase}
+#telAllMatchesOverlay .tel-am-row{display:grid;grid-template-columns:160px minmax(0,1fr) 118px;gap:16px;align-items:center;padding:14px 16px;border-top:1px solid rgba(255,255,255,.06)}
+#telAllMatchesOverlay .tel-am-row:first-child{border-top:0}
+#telAllMatchesOverlay .tel-am-date{display:flex;align-items:center;gap:12px;color:#c9d1dd}
+#telAllMatchesOverlay .tel-am-date i{font-style:normal;font-size:20px;opacity:.92}
+#telAllMatchesOverlay .tel-am-date b{display:block;color:#fff;font-size:14px;line-height:1.2;text-transform:uppercase}
+#telAllMatchesOverlay .tel-am-date small{display:block;color:#96a3b3;font-size:12px;line-height:1.25;margin-top:3px}
+#telAllMatchesOverlay .tel-am-teams{display:grid;grid-template-columns:minmax(0,1fr) 62px minmax(0,1fr);align-items:center;gap:14px}
+#telAllMatchesOverlay .tel-am-team{display:flex;align-items:center;gap:14px;min-width:0;color:#fff;font-size:18px;font-weight:1000;text-transform:uppercase}
+#telAllMatchesOverlay .tel-am-team.away{justify-content:flex-start}
+#telAllMatchesOverlay .tel-am-team span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#telAllMatchesOverlay .tel-am-vs{font-size:28px;font-weight:1000;color:#9635ff;text-align:center}
+#telAllMatchesOverlay .tel-am-crest{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;overflow:hidden;background:rgba(147,51,255,.14);border:1px solid rgba(255,255,255,.08);flex:none}
+#telAllMatchesOverlay .tel-am-crest img{width:100%;height:100%;object-fit:cover}
+#telAllMatchesOverlay .tel-am-preview{display:flex;align-items:center;justify-content:center;height:46px;border-radius:12px;border:1px solid rgba(154,55,255,.7);background:rgba(119,31,231,.08);color:#c15bff;text-decoration:none;font-weight:1000;text-transform:uppercase;font-size:14px}
+#telAllMatchesOverlay .tel-am-empty{padding:32px 18px;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:14px;color:#b9c2cf;background:rgba(255,255,255,.018)}
+#telAllMatchesOverlay .tel-am-side{display:flex;flex-direction:column;gap:16px}
+#telAllMatchesOverlay .tel-am-side-card{padding:16px}
+#telAllMatchesOverlay .tel-am-side-card h3{margin:0 0 14px;color:#b646ff;text-transform:uppercase;font-size:15px}
+#telAllMatchesOverlay .tel-am-side-big{display:flex;align-items:center;gap:14px;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;background:rgba(255,255,255,.02)}
+#telAllMatchesOverlay .tel-am-side-big .num{font-size:54px;font-weight:1000;color:#fff;line-height:1}
+#telAllMatchesOverlay .tel-am-side-big small{display:block;color:#92a0b2;font-size:12px;text-transform:uppercase;margin-top:4px}
+#telAllMatchesOverlay .tel-am-quick-row{display:grid;grid-template-columns:28px 36px minmax(0,1fr) 38px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.06)}
+#telAllMatchesOverlay .tel-am-quick-rank,#telAllMatchesOverlay .tel-am-quick-pts{display:block;color:#fff;font-size:13px;font-weight:1000;line-height:1;text-align:center}
+#telAllMatchesOverlay .tel-am-quick-rank{opacity:.95}
+#telAllMatchesOverlay .tel-am-quick-pts{font-size:14px}
+#telAllMatchesOverlay .tel-am-quick-logo{width:36px;height:36px;border-radius:50%;object-fit:cover;display:block;flex:none;border:1px solid rgba(255,255,255,.1);background:rgba(147,51,255,.12)}
+#telAllMatchesOverlay .tel-am-quick-name{display:block;color:#fff;font-size:13px;font-weight:900;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+#telAllMatchesOverlay .tel-am-quick-row:first-child{border-top:0;padding-top:0}
+#telAllMatchesOverlay .tel-am-quick-row img{width:36px;height:36px;border-radius:50%;object-fit:cover;display:block}
+#telAllMatchesOverlay .tel-am-quick-row b{color:#fff;font-size:12px}
+#telAllMatchesOverlay .tel-am-quick-row span{color:#fff;font-size:13px;font-weight:900;text-transform:uppercase}
+#telAllMatchesOverlay .tel-am-side-list .item{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid rgba(255,255,255,.06)}
+#telAllMatchesOverlay .tel-am-side-list .item b{display:block;color:#fff;font-size:13px;text-transform:uppercase;line-height:1.2}
+#telAllMatchesOverlay .tel-am-side-list .item small{display:block;color:#92a0b2;font-size:13px;line-height:1.2;text-align:right}
+#telAllMatchesOverlay .tel-am-side-list .item:first-child{border-top:0;padding-top:0}
+#telAllMatchesOverlay .tel-am-side-list b{color:#fff;font-size:13px;text-transform:uppercase}
+#telAllMatchesOverlay .tel-am-side-list small{color:#92a0b2;font-size:12px}
+#telAllMatchesOverlay.tel-am-cup-mode .tel-am-layout{grid-template-columns:minmax(0,1fr)}
+#telAllMatchesOverlay.tel-am-cup-mode .tel-am-side{display:none}
+#telAllMatchesOverlay .tel-cup-wrap{display:flex;flex-direction:column;gap:26px}
+#telAllMatchesOverlay .tel-cup-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+#telAllMatchesOverlay .tel-cup-title{display:flex;align-items:center;gap:18px}
+#telAllMatchesOverlay .tel-cup-icon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:rgba(147,51,255,.14);border:1px solid rgba(168,84,255,.35);font-size:30px;color:#be62ff;flex:none}
+#telAllMatchesOverlay .tel-cup-title h2{margin:0;color:#fff;font-size:clamp(28px,3.5vw,56px);line-height:1;font-weight:1000;text-transform:uppercase}
+#telAllMatchesOverlay .tel-cup-title p{margin:8px 0 0;color:#bfc8d4;font-size:20px;font-weight:700}
+#telAllMatchesOverlay .tel-cup-info-btn{appearance:none;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.02);color:#e9eef8;border-radius:16px;padding:16px 22px;font-size:18px;font-weight:900;display:inline-flex;align-items:center;gap:12px}
+#telAllMatchesOverlay .tel-cup-info-btn::before{content:"ⓘ";font-size:22px;color:#d6deeb}
+#telAllMatchesOverlay .tel-cup-scroll{overflow:auto;padding-bottom:6px}
+#telAllMatchesOverlay .tel-cup-bracket{min-width:1180px;display:grid;grid-template-columns:minmax(250px,1fr) 200px 240px 200px minmax(250px,1fr);gap:28px;align-items:stretch}
+#telAllMatchesOverlay .tel-cup-col{display:flex;flex-direction:column;gap:16px}
+#telAllMatchesOverlay .tel-cup-round{text-align:center;color:#b546ff;font-size:18px;font-weight:1000;text-transform:uppercase}
+#telAllMatchesOverlay .tel-cup-round small{display:block;margin-top:6px;color:#aab6c6;font-size:14px;letter-spacing:.04em}
+#telAllMatchesOverlay .tel-cup-stack{display:flex;flex-direction:column;gap:22px;flex:1}
+#telAllMatchesOverlay .tel-cup-stack.qf{justify-content:space-between;min-height:540px}
+#telAllMatchesOverlay .tel-cup-stack.sf{justify-content:space-around;min-height:540px;padding-top:72px;padding-bottom:72px}
+#telAllMatchesOverlay .tel-cup-stack.final{justify-content:center;min-height:540px;padding-top:120px;padding-bottom:120px}
+#telAllMatchesOverlay .tel-cup-match,#telAllMatchesOverlay .tel-cup-placeholder{background:rgba(9,14,24,.94);border:1px solid rgba(255,255,255,.09);border-radius:18px;padding:22px 22px 18px;box-shadow:0 10px 40px rgba(0,0,0,.22)}
+#telAllMatchesOverlay .tel-cup-match{display:flex;flex-direction:column;gap:14px;min-height:176px}
+#telAllMatchesOverlay .tel-cup-team{display:grid;grid-template-columns:28px 42px minmax(0,1fr) 44px;align-items:center;gap:12px}
+#telAllMatchesOverlay .tel-cup-score{width:44px;height:34px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.03);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:1000;line-height:1;justify-self:end}
+#telAllMatchesOverlay .tel-cup-score.pending{color:#8fa0b7;border-style:dashed;background:rgba(255,255,255,.02)}
+#telAllMatchesOverlay .tel-cup-final-card .tel-cup-score{width:48px;height:36px;font-size:19px}
+#telAllMatchesOverlay .tel-cup-seed{display:block;color:#c864ff;font-weight:1000;font-size:18px;text-align:center}
+#telAllMatchesOverlay .tel-cup-team-name{display:block;color:#fff;font-size:18px;font-weight:1000;text-transform:uppercase;line-height:1.12;word-break:break-word}
+#telAllMatchesOverlay .tel-cup-crest{width:42px;height:42px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:rgba(147,51,255,.12);border:1px solid rgba(255,255,255,.1)}
+#telAllMatchesOverlay .tel-cup-crest img{width:100%;height:100%;object-fit:cover}
+#telAllMatchesOverlay .tel-cup-vs{display:flex;align-items:center;justify-content:center;color:#9f35ff;font-size:20px;font-weight:1000;text-transform:uppercase;min-height:18px}
+#telAllMatchesOverlay .tel-cup-meta{display:flex;align-items:center;gap:8px;color:#a7b3c4;font-size:14px;margin-top:auto}
+#telAllMatchesOverlay .tel-cup-meta::before{content:"📅";font-size:16px;opacity:.88}
+#telAllMatchesOverlay .tel-cup-placeholder{align-items:center;justify-content:center;text-align:center;min-height:176px;gap:14px}
+#telAllMatchesOverlay .tel-cup-placeholder .icon{font-size:42px;opacity:.9}
+#telAllMatchesOverlay .tel-cup-placeholder b{display:block;color:#fff;font-size:18px;font-weight:1000;text-transform:uppercase}
+#telAllMatchesOverlay .tel-cup-placeholder small{display:block;color:#a7b3c4;font-size:14px}
+#telAllMatchesOverlay .tel-cup-final-card{min-height:210px;justify-content:center;align-items:center;text-align:center}
+#telAllMatchesOverlay .tel-cup-final-card .trophy{font-size:56px;line-height:1;margin-bottom:6px}
+#telAllMatchesOverlay .tel-cup-final-card .tel-cup-vs{font-size:24px}
+#telAllMatchesOverlay .tel-cup-final-card .champ{display:block;color:#fff;font-size:18px;font-weight:1000;text-transform:uppercase}
+#telAllMatchesOverlay .tel-cup-info-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+#telAllMatchesOverlay .tel-cup-info-card{display:flex;align-items:flex-start;gap:14px;border-top:1px solid rgba(255,255,255,.08);padding:18px 8px 0}
+#telAllMatchesOverlay .tel-cup-info-card .ico{font-size:36px;line-height:1;color:#b546ff;flex:none;width:48px;text-align:center}
+#telAllMatchesOverlay .tel-cup-info-card b{display:block;color:#b546ff;font-size:16px;font-weight:1000;text-transform:uppercase;margin-bottom:8px}
+#telAllMatchesOverlay .tel-cup-info-card p{margin:0;color:#d7dee9;font-size:14px;line-height:1.45}
+#telAllMatchesOverlay .tel-cup-note{border-top:1px solid rgba(255,255,255,.08);padding-top:16px;text-align:center;color:#9fadc0;font-size:15px}
+@media(max-width:1100px){#telAllMatchesOverlay .tel-cup-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#telAllMatchesOverlay .tel-cup-title p{font-size:16px}#telAllMatchesOverlay .tel-cup-head{align-items:stretch}#telAllMatchesOverlay .tel-cup-title{align-items:flex-start}#telAllMatchesOverlay .tel-cup-info-grid{grid-template-columns:1fr}#telAllMatchesOverlay .tel-cup-bracket{min-width:980px;gap:20px}#telAllMatchesOverlay .tel-cup-team-name{font-size:16px}}
+
+@media(max-width:1200px){#telAllMatchesOverlay .tel-am-layout{grid-template-columns:1fr}#telAllMatchesOverlay .tel-am-side{order:-1}#telAllMatchesOverlay .tel-am-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#telAllMatchesOverlay .tel-am-shell{padding:14px}#telAllMatchesOverlay .tel-am-main{padding:14px}#telAllMatchesOverlay .tel-am-hero{flex-direction:column}#telAllMatchesOverlay .tel-am-hero-actions{width:100%;justify-content:flex-start}#telAllMatchesOverlay .tel-am-toolbar{grid-template-columns:1fr}#telAllMatchesOverlay .tel-am-row{grid-template-columns:1fr;gap:12px}#telAllMatchesOverlay .tel-am-teams{grid-template-columns:1fr 48px 1fr}#telAllMatchesOverlay .tel-am-team{font-size:16px}#telAllMatchesOverlay .tel-am-preview{width:100%}}
+</style>
+<script>
+/* TODOS LOS PARTIDOS - OVERLAY DE TODAS LAS JORNADAS */
+(function(){
+  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const state={tab:'upcoming', comp:'', jornada:'all', team:'all', search:''};
+  function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+  function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();}
+  function cleanName(name){return String(name||'Equipo').replace(/^\p{Extended_Pictographic}\s*/u,'').trim();}
+  async function fetchJson(url){try{const r=await fetch(url,{cache:'no-store'});if(r.ok)return await r.json();}catch(e){}return null;}
+  function activeCompetition(data){
+    const comps=data?.competiciones||[];
+    return comps.find(c=>String(c.estado||'').toLowerCase()==='activa'&&String(c.tipo||'').toLowerCase()==='liga'&&norm(c.nombre).includes('elite league')) ||
+           comps.find(c=>String(c.estado||'').toLowerCase()==='activa'&&String(c.tipo||'').toLowerCase()==='liga') ||
+           comps.find(c=>String(c.tipo||'').toLowerCase()==='liga') || null;
+  }
+  function clubIndex(data){const m=new Map(); (data?.clubes||[]).forEach(c=>m.set(norm(c.nombre||c.nombreVisual),c)); return m;}
+  function teamForSlot(data,comp,slotId){
+    const slot=(comp?.equipos||[]).find(t=>String(t.slotId)===String(slotId))||{};
+    const base=clubIndex(data).get(norm(slot.clubNombre||slot.nombre))||{};
+    return {...base,...slot,nombre:slot.clubNombre||base.nombre||slot.nombre||'Equipo',nombreVisual:slot.nombre||base.nombreVisual||base.nombre||slot.clubNombre||'Equipo',escudoUrl:slot.escudoUrl||base.escudoUrl||base.escudoPath||''};
+  }
+  function pickLogo(item){
+    for(const k of ['escudoUrl','escudoPath','escudoFilename','logoUrl','logo','escudo']){
+      let v=item?.[k];
+      if(typeof v!=='string'||!v.trim()) continue;
+      v=v.trim().replaceAll('\\\\','/');
+      if(v.startsWith('/escudos/')) return v;
+      if(v.startsWith('escudos/')) return '/'+v;
+      if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return '/escudos/'+v;
+      if(/^https?:\/\//i.test(v)) return v;
+    }
+    return '';
+  }
+  function srcLogo(item){const u=pickLogo(item); if(!u) return ''; return (u.startsWith('/escudos/')||u.startsWith('escudos/')) ? (u.startsWith('/')?u:'/'+u) : '/api/logo?url='+encodeURIComponent(u);}
+  function crest(item){const src=srcLogo(item), emoji=item?.emoji||'⚡', name=esc(cleanName(item?.nombreVisual||item?.nombre||item?.clubNombre||'Equipo')); return src?`<span class="tel-am-crest"><img loading="lazy" decoding="async" src="${esc(src)}" alt="${name}"></span>`:`<span class="tel-am-crest">${esc(emoji)}</span>`;}
+  function finished(p){return !!(p && ((String(p.estado||'').toLowerCase()==='finalizado')||(String(p.estado||'').toLowerCase()==='jugado')||(p.localGoles!==null&&p.localGoles!==undefined&&p.visitanteGoles!==null&&p.visitanteGoles!==undefined)));}
+  function compList(data){return (data?.competiciones||[]).filter(c=>norm(c?.tipo)==='liga').map((c,i)=>({...c,id:String(c.id||c.nombre||('comp-'+i)),nombre:String(c.nombre||('Liga '+(i+1)))}));}
+  function allMatches(data,compId){
+    return compList(data)
+      .filter(c=>!compId || String(c.id)===String(compId))
+      .flatMap(comp=>(comp.partidos||[]).map((p,idx)=>({
+        key:String(p.id||p.partidoId||`${comp.id}-${idx}-${p.jornada||1}`),
+        comp,
+        match:p,
+        home:teamForSlot(data,comp,p.localSlotId),
+        away:teamForSlot(data,comp,p.visitanteSlotId)
+      })));
+  }
+  function currentJornada(comp){
+    const partidos=comp?.partidos||[];
+    const jornadas=[...new Set(partidos.map(p=>Number(p.jornada||1)).filter(Boolean))].sort((a,b)=>a-b);
+    if(!jornadas.length) return 1;
+    const pendiente=jornadas.find(j=>partidos.some(p=>Number(p.jornada||1)===j && !finished(p)));
+    return pendiente ?? jornadas[jornadas.length-1];
+  }
+
+  function isCupComp(comp){
+    const tipo=norm(comp?.tipo||'');
+    const formato=norm(comp?.formato||comp?.formatoNombre||comp?.formatoDescripcion||'');
+    return (tipo && tipo!=='liga') || formato.includes('elimin') || formato.includes('torneo') || formato.includes('copa') || (comp?.partidos||[]).some(p=>String(p.fase||'').toLowerCase()==='eliminatoria' || p.eliminatoria);
+  }
+  function seedMapForComp(comp){
+    const base=Array.isArray(comp?.clasificacion) && comp.clasificacion.length ? comp.clasificacion : (comp?.equipos||[]);
+    const map=new Map();
+    base.forEach((row,i)=>{ const key=String(row?.slotId||''); if(key && !map.has(key)) map.set(key, i+1); });
+    (comp?.equipos||[]).forEach((row,i)=>{ const key=String(row?.slotId||''); if(key && !map.has(key)) map.set(key, i+1); });
+    return map;
+  }
+  function cupRoundKey(match){
+    const txt=norm(match?.rondaNombre||match?.fase||'');
+    if(txt.includes('cuartos')) return 'qf';
+    if(txt.includes('semi')) return 'sf';
+    if(txt.includes('final')) return 'final';
+    const round=Number(match?.ronda||0);
+    if(round>=3) return 'final';
+    if(round===2) return 'sf';
+    return 'qf';
+  }
+  function cupDateLabel(match){
+    const date=String(match?.fecha||'').trim();
+    const hour=String(match?.hora||'').trim();
+    if(date && hour) return `${date} · ${hour}`;
+    if(date) return date;
+    if(hour) return hour;
+    return 'Fecha por definir';
+  }
+  function cupMetaDate(comp){
+    const vals=(comp?.partidos||[]).map(p=>String(p.fecha||'').trim()).filter(Boolean);
+    return vals.length ? `Inicio: ${vals[0]}\nFinal: ${vals[vals.length-1]}` : 'Inicio: Por definir\nFinal: Por definir';
+  }
+  function cupFormatLabel(comp){
+    return comp?.formatoNombre || (isCupComp(comp) ? 'Eliminación directa' : 'Liga');
+  }
+  function cupFormatDetail(comp){
+    if(comp?.formatoDescripcion) return comp.formatoDescripcion;
+    return isCupComp(comp) ? 'Partidos de eliminación directa hasta conocer al campeón.' : 'Competición oficial';
+  }
+  function cupTeamRow(team, seed, scoreValue, hasResult){
+    const src=srcLogo(team);
+    const name=esc(cleanName(team?.nombreVisual||team?.nombre||team?.clubNombre||'Equipo'));
+    const score=(scoreValue!==null && scoreValue!==undefined && scoreValue!=='') ? String(scoreValue) : '—';
+    return `<div class="tel-cup-team"><span class="tel-cup-seed">${seed||''}</span><span class="tel-cup-crest">${src?`<img loading="lazy" decoding="async" src="${esc(src)}" alt="${name}">`:'⚡'}</span><span class="tel-cup-team-name">${name}</span><span class="tel-cup-score ${hasResult?'':'pending'}">${esc(score)}</span></div>`;
+  }
+  function cupMatchCard(item,seeds,kind){
+    const activeTrophyImg = window.__telCurrentCupTrophyImg || (window.telGetCupTrophyImage ? window.telGetCupTrophyImage('') : 'assets/trofeo-copa-inaugural-elite.png');
+    if(!item){
+      const label=kind==='final'?'Campeón':'Por definir';
+      const placeholderImg = 'assets/copa-semifinal-outline.png';
+      return `<article class="tel-cup-placeholder ${kind==='final'?'tel-cup-final-card':''}"><div class="icon">${kind==='final'?`<img loading="lazy" decoding="async" src="${esc(activeTrophyImg)}" alt="Trofeo">`:`<img loading="lazy" decoding="async" src="${esc(placeholderImg)}" alt="Copa">`}</div>${kind==='final'?'<div class="tel-cup-vs">VS</div><span class="champ">Campeón</span>':`<b>${label}</b>`}<small>Fecha por definir</small></article>`;
+    }
+    const p=item.match, h=item.home, a=item.away;
+    const homeSeed=seeds.get(String(p.localSlotId||''))||'';
+    const awaySeed=seeds.get(String(p.visitanteSlotId||''))||'';
+    const score=finished(p) ? `${Number(p.localGoles||0)} - ${Number(p.visitanteGoles||0)}` : 'VS';
+    if(kind==='final'){
+      return `<article class="tel-cup-match tel-cup-final-card">${cupTeamRow(h,homeSeed,p.localGoles,finished(p))}<div class="trophy"><img loading="lazy" decoding="async" src="${esc(trophyImg)}" alt="Trofeo"></div><div class="tel-cup-vs">${score}</div>${cupTeamRow(a,awaySeed,p.visitanteGoles,finished(p))}<div class="tel-cup-meta">${esc(cupDateLabel(p))}</div></article>`;
+    }
+    return `<article class="tel-cup-match">${cupTeamRow(h,homeSeed,p.localGoles,finished(p))}<div class="tel-cup-vs">${score}</div>${cupTeamRow(a,awaySeed,p.visitanteGoles,finished(p))}<div class="tel-cup-meta">${esc(cupDateLabel(p))}</div></article>`;
+  }
+  function sortCupMatches(items,seeds){
+    return [...items].sort((a,b)=>{
+      const sa=Math.min(seeds.get(String(a.match.localSlotId||''))||99, seeds.get(String(a.match.visitanteSlotId||''))||99);
+      const sb=Math.min(seeds.get(String(b.match.localSlotId||''))||99, seeds.get(String(b.match.visitanteSlotId||''))||99);
+      if(sa!==sb) return sa-sb;
+      const ta=Math.max(seeds.get(String(a.match.localSlotId||''))||99, seeds.get(String(a.match.visitanteSlotId||''))||99);
+      const tb=Math.max(seeds.get(String(b.match.localSlotId||''))||99, seeds.get(String(b.match.visitanteSlotId||''))||99);
+      if(ta!==tb) return ta-tb;
+      return String(a.key).localeCompare(String(b.key));
+    });
+  }
+  function stageOrder(item){
+    const m=item?.match || item || {};
+    const direct=Number(m.orden ?? m.order ?? m.posicion);
+    if(Number.isFinite(direct) && direct>0) return direct;
+    const raw=String(m.id || m.matchId || m.partidoId || '').toLowerCase();
+    const semi=raw.match(/semifinal-(\d+)/);
+    if(semi) return Number(semi[1]);
+    const fin=raw.match(/final-(\d+)/);
+    if(fin) return Number(fin[1]);
+    return 999;
+  }
+  function sortCupStage(items,seeds,stage){
+    if(stage==='qf') return sortCupMatches(items,seeds);
+    return [...items].sort((a,b)=>{
+      const oa=stageOrder(a), ob=stageOrder(b);
+      if(oa!==ob) return oa-ob;
+      return String(a.key || '').localeCompare(String(b.key || ''));
+    });
+  }
+  function renderCupBracket(data,comp){
+    const entries=(comp?.partidos||[]).map((p,idx)=>({ key:String(p.id||`cup-${idx}`), match:p, home:teamForSlot(data,comp,p.localSlotId), away:teamForSlot(data,comp,p.visitanteSlotId) }));
+    const seeds=seedMapForComp(comp);
+    const grouped={qf:[], sf:[], final:[]};
+    entries.forEach(item=>{ grouped[cupRoundKey(item.match)].push(item); });
+    grouped.qf=sortCupStage(grouped.qf,seeds,'qf');
+    grouped.sf=sortCupStage(grouped.sf,seeds,'sf');
+    grouped.final=sortCupStage(grouped.final,seeds,'final');
+    const half=Math.ceil(grouped.qf.length/2) || 2;
+    const leftQf=(grouped.qf.length?grouped.qf.slice(0,half):[null,null]);
+    const rightQf=(grouped.qf.length?grouped.qf.slice(half):[null,null]);
+    while(leftQf.length<2) leftQf.push(null);
+    while(rightQf.length<2) rightQf.push(null);
+    const leftSf=grouped.sf[0]||null;
+    const rightSf=grouped.sf[1]||null;
+    const finalMatch=grouped.final[0]||null;
+    const teamCount=(comp?.equipos||[]).length;
+    const formatLine=`${cupFormatLabel(comp)} • ${teamCount} Equipos`;
+    const trophyImg = (window.telGetCupTrophyImage ? window.telGetCupTrophyImage(comp?.nombre) : "assets/trofeo-copa-inaugural-elite.png");
+    window.__telCurrentCupTrophyImg = trophyImg;
+    return `
+      <section class="tel-cup-wrap">
+        <div class="tel-cup-head">
+          <div class="tel-cup-title"><span class="tel-cup-icon"><img loading="lazy" decoding="async" src="${esc(trophyImg)}" alt="Trofeo"></span><div><h2>${esc(comp?.nombre||'Copa')}</h2><p>${esc(formatLine)}</p></div></div>
+          <button type="button" class="tel-cup-info-btn">Ver información del torneo</button>
+        </div>
+        <div class="tel-cup-scroll">
+          <div class="tel-cup-bracket">
+            <div class="tel-cup-col">
+              <div class="tel-cup-round">Cuartos de final<small>Ida</small></div>
+              <div class="tel-cup-stack qf">${leftQf.map(item=>cupMatchCard(item,seeds,'qf')).join('')}</div>
+            </div>
+            <div class="tel-cup-col">
+              <div class="tel-cup-round">Semifinales<small>Ida</small></div>
+              <div class="tel-cup-stack sf">${cupMatchCard(leftSf,seeds,'sf')}</div>
+            </div>
+            <div class="tel-cup-col">
+              <div class="tel-cup-round">Final</div>
+              <div class="tel-cup-stack final">${cupMatchCard(finalMatch,seeds,'final')}</div>
+            </div>
+            <div class="tel-cup-col">
+              <div class="tel-cup-round">Semifinales<small>Ida</small></div>
+              <div class="tel-cup-stack sf">${cupMatchCard(rightSf,seeds,'sf')}</div>
+            </div>
+            <div class="tel-cup-col">
+              <div class="tel-cup-round">Cuartos de final<small>Ida</small></div>
+              <div class="tel-cup-stack qf">${rightQf.map(item=>cupMatchCard(item,seeds,'qf')).join('')}</div>
+            </div>
+          </div>
+        </div>
+        <div class="tel-cup-info-grid">
+          <div class="tel-cup-info-card"><div class="ico">📅</div><div><b>Fechas</b><p>${esc(cupMetaDate(comp)).replace(/\n/g,'<br>')}</p></div></div>
+          <div class="tel-cup-info-card"><div class="ico"><img loading="lazy" decoding="async" src="${esc(trophyImg)}" alt="Trofeo"></div><div><b>Formato</b><p>${esc(cupFormatLabel(comp))}<br>${esc(cupFormatDetail(comp))}</p></div></div>
+          <div class="tel-cup-info-card"><div class="ico">👥</div><div><b>Participantes</b><p>${teamCount} equipos<br>Máxima competitividad</p></div></div>
+          <div class="tel-cup-info-card"><div class="ico">⭐</div><div><b>Premio</b><p>Campeón de ${esc(comp?.nombre||'la copa')}<br>Primera edición oficial</p></div></div>
+        </div>
+        <div class="tel-cup-note">ⓘ Las fechas se confirmarán pronto. ¡No te pierdas ningún partido!</div>
+      </section>`;
+  }
+
+  function ensureOverlay(){
+    let el=document.getElementById('telAllMatchesOverlay');
+    if(el) return el;
+    el=document.createElement('div');
+    el.id='telAllMatchesOverlay';
+    el.innerHTML=`
+      <div class="tel-am-shell">
+        <div class="tel-am-layout">
+          <main class="tel-am-main">
+            <section class="tel-am-hero">
+              <div>
+                <a class="tel-am-back" data-close-all-matches>← VOLVER A PARTIDOS</a>
+                <h1>TODOS LOS PARTIDOS</h1>
+                <p>Consulta todos los partidos de todas las jornadas.</p>
+              </div>
+              <div class="tel-am-hero-actions">
+                <span class="tel-am-live">Ver listado completo</span>
+              </div>
+            </section>
+
+            <nav class="tel-am-tabs">
+              <button type="button" class="tel-am-tab active" data-am-tab="upcoming">Próximos partidos</button>
+              <button type="button" class="tel-am-tab" data-am-tab="results">Resultados</button>
+              <button type="button" class="tel-am-tab" data-am-tab="calendar">Calendario</button>
+            </nav>
+
+            <section class="tel-am-toolbar">
+              <label class="tel-am-filter"><i>📅</i><select id="telAmJornada"></select></label>
+              <label class="tel-am-filter"><i>🛡️</i><select id="telAmCompetition"></select></label>
+              <label class="tel-am-filter"><i>🏷️</i><select id="telAmTeam"></select></label>
+              <label class="tel-am-filter"><i>🔎</i><input id="telAmSearch" type="text" placeholder="Ordenar / buscar"></label>
+            </section>
+
+            <section class="tel-am-board">
+              <div class="tel-am-section-title">
+                <h2>Listado completo</h2>
+                <span id="telAmCount">0 partidos</span>
+              </div>
+              <div id="telAmRounds"></div>
+            </section>
+          </main>
+          <aside class="tel-am-side">
+            <section class="tel-am-side-card">
+              <h3>Jornada actual</h3>
+              <div class="tel-am-side-big"><div class="num" id="telAmCurrentRound">1</div><div><small>Jornada</small><b id="telAmCurrentComp" style="display:block;color:#fff;font-size:18px;margin-top:4px">Élite League</b><small id="telAmCurrentInfo">0 partidos</small></div></div>
+            </section>
+            <section class="tel-am-side-card">
+              <h3>Clasificación rápida</h3>
+              <div id="telAmQuickTable"></div>
+            </section>
+            <section class="tel-am-side-card">
+              <h3>Resumen</h3>
+              <div class="tel-am-side-list" id="telAmSummary"></div>
+            </section>
+          </aside>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', function(e){
+      if(e.target.closest('[data-close-all-matches]')){closeOverlay();}
+      const tab=e.target.closest('[data-am-tab]');
+      if(tab){state.tab=tab.getAttribute('data-am-tab'); updateActiveTab(); render();}
+    });
+    $('#telAmCompetition',el)?.addEventListener('change',e=>{state.comp=e.target.value; state.jornada='all'; state.team='all'; render();});
+    $('#telAmJornada',el)?.addEventListener('change',e=>{state.jornada=e.target.value; render();});
+    $('#telAmTeam',el)?.addEventListener('change',e=>{state.team=e.target.value; render();});
+    $('#telAmSearch',el)?.addEventListener('input',e=>{state.search=e.target.value||''; renderListOnly();});
+    return el;
+  }
+  function updateActiveTab(){const el=ensureOverlay(); $$('.tel-am-tab',el).forEach(btn=>btn.classList.toggle('active', btn.getAttribute('data-am-tab')===state.tab));}
+  function openOverlay(){const el=ensureOverlay(); el.classList.add('tel-am-open'); document.body.classList.add('tel-all-matches-open'); el.scrollTo({top:0});}
+  function closeOverlay(){const el=document.getElementById('telAllMatchesOverlay'); if(el) el.classList.remove('tel-am-open'); document.body.classList.remove('tel-all-matches-open');}
+  function populateFilters(data){
+    const overlay=ensureOverlay();
+    const comps=compList(data); const active=activeCompetition(data);
+    if(!state.comp || !comps.some(c=>String(c.id)===String(state.comp))) state.comp=String((active||comps[0]||{}).id||'');
+    const compSel=$('#telAmCompetition',overlay), jornadaSel=$('#telAmJornada',overlay), teamSel=$('#telAmTeam',overlay);
+    if(compSel){
+      compSel.innerHTML=comps.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
+      compSel.value=state.comp;
+    }
+    const comp=comps.find(c=>String(c.id)===String(state.comp)) || active || comps[0] || null;
+    const jornadas=[...new Set((comp?.partidos||[]).map(p=>Number(p.jornada||1)).filter(Boolean))].sort((a,b)=>a-b);
+    if(jornadaSel){
+      jornadaSel.innerHTML=`<option value="all">Todas las jornadas</option>` + jornadas.map(j=>`<option value="${j}">Jornada ${j}</option>`).join('');
+      if(!['all', ...jornadas.map(String)].includes(String(state.jornada))) state.jornada='all';
+      jornadaSel.value=String(state.jornada);
+    }
+    const teams=(comp?.equipos||[]).map(t=>teamForSlot(data,comp,t.slotId));
+    if(teamSel){
+      teamSel.innerHTML=`<option value="all">Todos los equipos</option>` + teams.map(t=>{const n=cleanName(t.nombreVisual||t.nombre||t.clubNombre); return `<option value="${esc(n)}">${esc(n)}</option>`;}).join('');
+      const vals=['all', ...teams.map(t=>cleanName(t.nombreVisual||t.nombre||t.clubNombre))];
+      if(!vals.includes(state.team)) state.team='all';
+      teamSel.value=state.team;
+    }
+    return comp;
+  }
+  function filterMatches(list){
+    const q=norm(state.search);
+    return list.filter(item=>{
+      const p=item.match, h=cleanName(item.home.nombreVisual||item.home.nombre||item.home.clubNombre), a=cleanName(item.away.nombreVisual||item.away.nombre||item.away.clubNombre);
+      if(state.jornada!=='all' && String(p.jornada||1)!==String(state.jornada)) return false;
+      if(state.team!=='all' && h!==state.team && a!==state.team) return false;
+      if(state.tab==='upcoming' && finished(p)) return false;
+      if(state.tab==='results' && !finished(p)) return false;
+      if(q){const hay=norm(`${item.comp.nombre} ${h} ${a} jornada ${p.jornada||1} ${p.fecha||''}`); if(!hay.includes(q)) return false;}
+      return true;
+    });
+  }
+  function sortMatches(list){
+    return [...list].sort((x,y)=>{
+      const j=Number(x.match.jornada||1)-Number(y.match.jornada||1); if(j) return j;
+      const dx=(x.match.fecha||'').localeCompare(y.match.fecha||''); if(dx) return dx;
+      return String(x.match.hora||'').localeCompare(String(y.match.hora||''));
+    });
+  }
+  function rowHtml(item){
+    const p=item.match, h=item.home, a=item.away;
+    const date=p.fecha?esc(p.fecha):'FECHA POR DEFINIR';
+    const time=p.hora?esc(p.hora):'PENDIENTE';
+    const score=finished(p)?`${p.localGoles ?? 0} - ${p.visitanteGoles ?? 0}`:'VS';
+    return `<article class="tel-am-row">
+      <div class="tel-am-date"><i>📅</i><div><b>${date}</b><small>${time}</small></div></div>
+      <div class="tel-am-teams">
+        <div class="tel-am-team team-cell">${crest(h)}<span class="team-name">${esc(cleanName(h.nombreVisual||h.nombre||h.clubNombre))}</span></div>
+        <div class="tel-am-vs">${score}</div>
+        <div class="tel-am-team away team-cell right">${crest(a)}<span class="team-name">${esc(cleanName(a.nombreVisual||a.nombre||a.clubNombre))}</span></div>
+      </div>
+      <a class="tel-am-preview preview" href="#">Ver previa</a>
+    </article>`;
+  }
+  function renderQuick(data,comp){
+    const box=document.getElementById('telAmQuickTable'); if(!box) return;
+    const bySlot=new Map((comp?.equipos||[]).map(t=>[String(t.slotId),t]));
+    let rows=Array.isArray(comp?.clasificacion)&&comp.clasificacion.length ? comp.clasificacion.map(r=>({...r})) : (comp?.equipos||[]).map(t=>({...t,pj:0,pts:0,dg:0,gf:0}));
+    rows=rows.map(r=>{const s=bySlot.get(String(r.slotId||''))||{}; const t=teamForSlot(data,comp,r.slotId||s.slotId); return {...t,...s,...r,nombre:r.clubNombre||s.clubNombre||t.nombre,nombreVisual:r.nombre||s.nombre||t.nombreVisual};}).sort((a,b)=>(Number(b.pts||0)-Number(a.pts||0))||(Number(b.dg||0)-Number(a.dg||0))||(Number(b.gf||0)-Number(a.gf||0)));
+    box.innerHTML=rows.slice(0,6).map((r,i)=>`<div class="tel-am-quick-row"><span class="tel-am-quick-rank">${i+1}</span>${srcLogo(r)?`<img loading="lazy" decoding="async" class="tel-am-quick-logo" src="${esc(srcLogo(r))}" alt="${esc(cleanName(r.nombreVisual||r.nombre||r.clubNombre))}">`:`<span class="tel-am-quick-logo" style="display:grid;place-items:center">⚡</span>`}<span class="tel-am-quick-name">${esc(cleanName(r.nombreVisual||r.nombre||r.clubNombre))}</span><span class="tel-am-quick-pts">${Number(r.pts||0)}</span></div>`).join('') || '<div class="tel-am-empty">Sin clasificación todavía.</div>';
+  }
+  function renderSummary(comp,list){
+    const cur=currentJornada(comp);
+    const total=(comp?.partidos||[]).length;
+    const finishedCount=list.filter(x=>finished(x.match)).length;
+    const el=document.getElementById('telAmSummary'); if(!el) return;
+    el.innerHTML=`
+      <div class="item"><b>Competición</b><small>${esc(comp?.nombre||'Sin competición')}</small></div>
+      <div class="item"><b>Partidos mostrados</b><small>${list.length} de ${total}</small></div>
+      <div class="item"><b>Jornada actual</b><small>Jornada ${cur}</small></div>
+      <div class="item"><b>Resultados disponibles</b><small>${finishedCount}</small></div>`;
+    const round=document.getElementById('telAmCurrentRound'); if(round) round.textContent=String(cur);
+    const name=document.getElementById('telAmCurrentComp'); if(name) name.textContent=comp?.nombre||'Competición';
+    const info=document.getElementById('telAmCurrentInfo'); if(info) info.textContent=`${(comp?.partidos||[]).filter(p=>Number(p.jornada||1)===cur).length} partidos`;
+  }
+  function renderListOnly(){
+    const data=window.__TEL_ALL_MATCHES_DATA__; if(!data) return;
+    const overlay=ensureOverlay();
+    const comp=populateFilters(data) || activeCompetition(data); if(!comp) return;
+    overlay.classList.toggle('tel-am-cup-mode', isCupComp(comp));
+    const base=allMatches(data, state.comp || comp.id);
+    const list=sortMatches(filterMatches(base));
+    const rounds=document.getElementById('telAmRounds'); if(!rounds) return;
+    const countEl=document.getElementById('telAmCount');
+    if(isCupComp(comp)){
+      if(countEl) countEl.textContent=`${(comp?.partidos||[]).length} partido${(comp?.partidos||[]).length===1?'':'s'}`;
+      rounds.innerHTML=renderCupBracket(data,comp);
+      renderQuick(data,comp);
+      renderSummary(comp,base);
+      return;
+    }
+    if(countEl) countEl.textContent=`${list.length} partido${list.length===1?'':'s'}`;
+    if(!list.length){ rounds.innerHTML='<div class="tel-am-empty">No hay partidos que coincidan con los filtros seleccionados.</div>'; renderQuick(data,comp); renderSummary(comp,list); return; }
+    const grouped=new Map();
+    list.forEach(item=>{const j=Number(item.match.jornada||1); if(!grouped.has(j)) grouped.set(j,[]); grouped.get(j).push(item);});
+    rounds.innerHTML=[...grouped.entries()].sort((a,b)=>a[0]-b[0]).map(([j,items])=>`<section class="tel-am-round"><div class="tel-am-round-head"><h3>Jornada ${j}</h3><span>${items.length} partido${items.length===1?'':'s'}</span></div>${items.map(rowHtml).join('')}</section>`).join('');
+    renderQuick(data,comp); renderSummary(comp,list);
+  }
+  function render(){renderListOnly();}
+  async function openFromButton(){
+    const data=window.__TEL_REAL_DATA__ || await fetchJson('/api/data') || await fetchJson('data.json');
+    if(!data) return;
+    window.__TEL_ALL_MATCHES_DATA__=data;
+    ensureOverlay(); updateActiveTab(); openOverlay(); render();
+  }
+  document.addEventListener('click', function(e){
+    const btn=e.target.closest('a,button,.more-matches');
+    if(!btn) return;
+    const text=norm(btn.textContent);
+    if(!text.includes('ver todos los partidos')) return;
+    e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+    openFromButton();
+  }, true);
+  window.addEventListener('keydown', function(e){ if(e.key==='Escape') closeOverlay(); });
+})();
+</script>
+
+<style id="tel-real-trophy-cup-style">
+/* TROFEOS REALES EN COPAS */
+#telAllMatchesOverlay .tel-cup-final-card .trophy{
+  width:92px!important;
+  height:120px!important;
+  margin:0 auto 4px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  font-size:0!important;
+  filter:none!important;
+  opacity:1!important;
+}
+#telAllMatchesOverlay .tel-cup-final-card .trophy img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  display:block!important;
+  filter:drop-shadow(0 0 18px rgba(255,197,83,.32)) drop-shadow(0 0 14px rgba(155,63,255,.22))!important;
+}
+#telAllMatchesOverlay .tel-cup-icon img{
+  width:38px!important;
+  height:38px!important;
+  object-fit:contain!important;
+  display:block!important;
+}
+#telAllMatchesOverlay .tel-cup-info-card .ico img{
+  width:38px!important;
+  height:38px!important;
+  object-fit:contain!important;
+  display:block!important;
+  filter:drop-shadow(0 0 10px rgba(255,197,83,.25))!important;
+}
+</style>
+
+
+<script id="tel-real-trophy-cup-script">
+/* TROFEOS REALES EN COPAS */
+(function(){
+  window.telGetCupTrophyImage = function(compName){
+    const name = String(compName || "").toLowerCase();
+    if(name.includes("silver")){
+      return "assets/trofeo-copa-inaugural-silver.png";
+    }
+    if(name.includes("inaugural") || name.includes("élite") || name.includes("elite")){
+      return "assets/trofeo-copa-inaugural-elite.png";
+    }
+    return "assets/trofeo-copa-inaugural-elite.png";
+  };
+})();
+</script>
+
+
+<style id="tel-semifinal-icon-style">
+#telAllMatchesOverlay .tel-cup-placeholder .icon{display:flex;align-items:center;justify-content:center;min-height:82px;margin-bottom:8px}
+#telAllMatchesOverlay .tel-cup-placeholder .icon img{width:88px;height:88px;object-fit:contain;display:block;opacity:.95;filter:drop-shadow(0 0 12px rgba(255,255,255,.18))}
+#telAllMatchesOverlay .tel-cup-placeholder.tel-cup-final-card .icon img{width:150px;height:150px;object-fit:contain;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))}
+</style>
+
+
+<style id="tel-copas-nuevas-final-style">
+/* COPAS NUEVAS EN LA FINAL */
+#telAllMatchesOverlay .tel-cup-placeholder.tel-cup-final-card .icon{
+  min-height:150px!important;
+}
+#telAllMatchesOverlay .tel-cup-placeholder.tel-cup-final-card .icon img{
+  width:145px!important;
+  height:145px!important;
+  object-fit:contain!important;
+  display:block!important;
+  opacity:1!important;
+  filter:drop-shadow(0 0 18px rgba(255,199,89,.35)) drop-shadow(0 0 12px rgba(165,70,255,.25))!important;
+}
+#telAllMatchesOverlay .tel-cup-final-card .trophy{
+  width:145px!important;
+  height:145px!important;
+  margin:0 auto 6px!important;
+}
+#telAllMatchesOverlay .tel-cup-final-card .trophy img{
+  width:145px!important;
+  height:145px!important;
+  object-fit:contain!important;
+  display:block!important;
+  opacity:1!important;
+  filter:drop-shadow(0 0 18px rgba(255,199,89,.35)) drop-shadow(0 0 12px rgba(165,70,255,.25))!important;
+}
+#telAllMatchesOverlay .tel-cup-icon img{
+  width:42px!important;
+  height:42px!important;
+  object-fit:contain!important;
+}
+</style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<style id="tel-panel-resultados-link-style">
+.tel-final-inline-edit,.tel-inline-admin-edit,.tel-clean-match-editor{display:none!important}
+.tel-admin-cup-edit-btn,.tel-admin-edit-score,button[class*="resultado"],button[class*="score"],button[class*="edit"]{display:none!important}
+.tel-panel-resultados-link{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  margin:6px 10px!important;
+  padding:10px 14px!important;
+  border:1px solid rgba(177,82,255,.55)!important;
+  border-radius:12px!important;
+  color:#fff!important;
+  text-decoration:none!important;
+  font-weight:1000!important;
+  background:linear-gradient(135deg,#7d25ff,#b64cff)!important;
+  text-transform:uppercase!important;
+}
+</style>
+<script id="tel-panel-resultados-link-script">
+(function(){
+  function add(){ return;
+    if(document.querySelector(".tel-panel-resultados-link")) return;
+    const a=document.createElement("a");
+    a.href="/panel-resultados.html";
+    a.className="tel-panel-resultados-link";
+    a.textContent="Panel resultados";
+    const target=document.querySelector("header nav") || document.querySelector("header") || document.querySelector("nav") || document.body;
+    target.appendChild(a);
+  }
+  function clean(){
+    document.querySelectorAll(".tel-final-inline-edit,.tel-inline-admin-edit,.tel-clean-match-editor").forEach(e=>e.remove());
+    document.querySelectorAll("button").forEach(btn=>{
+      if(/editar resultado|resultado de copa|guardar/i.test(btn.textContent||"") && (btn.closest("#clasificacion") || btn.closest(".tel-cup-match") || btn.closest(".bracket-match"))){
+        btn.style.display="none";
+      }
+    });
+  }
+  document.addEventListener("DOMContentLoaded",()=>{add(); clean(); /* optimizado: limpieza inicial única */});
+})();
+</script>
+
+
+
+
+
+<script id="tel-panel-copas-link-script">
+(function(){
+  function add(){ return;
+    if(document.querySelector(".tel-panel-copas-link")) return;
+    const a=document.createElement("a");
+    a.href="/panel-copas.html";
+    a.className="tel-panel-copas-link";
+    a.textContent="Panel copas";
+    a.style.cssText="display:inline-flex;align-items:center;margin:6px 10px;padding:10px 14px;border:1px solid rgba(177,82,255,.55);border-radius:12px;color:#fff;text-decoration:none;font-weight:1000;background:linear-gradient(135deg,#1a2840,#7d25ff);text-transform:uppercase";
+    const target=document.querySelector("header nav") || document.querySelector("header") || document.querySelector("nav") || document.body;
+    target.appendChild(a);
+  }
+  document.addEventListener("DOMContentLoaded",add);
+})();
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<style id="tel-reconstruye-semis-final-style">
+/* RECONSTRUCCIÓN REAL SEMIS/FINAL: no depende del layout roto */
+#clasificacion .tel-cup-scroll,
+.clean-table-card.tel-class-cup-card .tel-cup-scroll,
+#telAllMatchesOverlay .tel-cup-scroll{
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  padding:0 24px 24px!important;
+  box-sizing:border-box!important;
+}
+
+#clasificacion .tel-cup-bracket,
+.clean-table-card.tel-class-cup-card .tel-cup-bracket,
+#telAllMatchesOverlay .tel-cup-bracket{
+  width:1780px!important;
+  min-width:1780px!important;
+  max-width:1780px!important;
+  display:grid!important;
+  grid-template-columns:300px 330px 330px 330px 300px!important;
+  column-gap:52px!important;
+  align-items:stretch!important;
+  margin:0 auto!important;
+}
+
+/* quitar el aspecto roto solo en semis/final */
+.tel-rebuilt-match{
+  min-height:190px!important;
+  padding:18px 18px!important;
+  overflow:hidden!important;
+  box-sizing:border-box!important;
+}
+
+.tel-rebuilt-final{
+  min-height:260px!important;
+  padding:22px 20px!important;
+}
+
+.tel-rebuilt-content{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  gap:14px!important;
+  width:100%!important;
+  height:100%!important;
+  box-sizing:border-box!important;
+}
+
+.tel-rebuilt-team{
+  display:grid!important;
+  grid-template-columns:46px minmax(0,1fr)!important;
+  gap:12px!important;
+  align-items:center!important;
+  width:100%!important;
+  min-width:0!important;
+}
+
+.tel-rebuilt-team img,
+.tel-rebuilt-crest-fallback{
+  width:46px!important;
+  height:46px!important;
+  min-width:46px!important;
+  border-radius:50%!important;
+  object-fit:contain!important;
+  background:#050914!important;
+  border:1px solid rgba(255,255,255,.14)!important;
+}
+
+.tel-rebuilt-crest-fallback{
+  display:grid!important;
+  place-items:center!important;
+  color:#b84cff!important;
+  font-weight:1000!important;
+}
+
+.tel-rebuilt-name{
+  font-size:16px!important;
+  line-height:1.08!important;
+  font-weight:1000!important;
+  color:#fff!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  overflow-wrap:anywhere!important;
+  word-break:normal!important;
+  min-width:0!important;
+  text-align:left!important;
+}
+
+.tel-rebuilt-score{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:max-content!important;
+  min-width:92px!important;
+  margin:0 auto!important;
+  padding:7px 18px!important;
+  border-radius:999px!important;
+  background:rgba(157,55,255,.22)!important;
+  color:#b84cff!important;
+  font-size:27px!important;
+  font-weight:1000!important;
+  line-height:1!important;
+}
+
+.tel-rebuilt-meta{
+  margin-top:6px!important;
+  text-align:center!important;
+  color:#aeb9c9!important;
+  font-size:12px!important;
+}
+
+/* esconder contenido viejo de esas tarjetas */
+.tel-rebuilt-match > :not(.tel-rebuilt-content){
+  display:none!important;
+}
+
+/* final con trofeo arriba */
+.tel-rebuilt-final .tel-rebuilt-content:before{
+  content:"";
+  display:block;
+  width:80px;
+  height:80px;
+  margin:0 auto 2px;
+  background:var(--tel-final-trophy, none) center/contain no-repeat;
+}
+
+/* resto del bracket compacto */
+#clasificacion .tel-cup-stack.qf .tel-cup-team,
+.clean-table-card.tel-class-cup-card .tel-cup-stack.qf .tel-cup-team,
+#telAllMatchesOverlay .tel-cup-stack.qf .tel-cup-team{
+  display:grid!important;
+  grid-template-columns:24px 36px minmax(0,1fr) 36px!important;
+  gap:8px!important;
+  align-items:center!important;
+}
+
+#clasificacion .tel-cup-stack.qf .tel-cup-team-name,
+.clean-table-card.tel-class-cup-card .tel-cup-stack.qf .tel-cup-team-name,
+#telAllMatchesOverlay .tel-cup-stack.qf .tel-cup-team-name{
+  font-size:15px!important;
+  line-height:1.08!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+}
+
+#clasificacion .tel-final-inline-edit,
+#clasificacion .tel-inline-admin-edit,
+#clasificacion .tel-clean-match-editor,
+.clean-table-card.tel-class-cup-card .tel-final-inline-edit,
+.clean-table-card.tel-class-cup-card .tel-inline-admin-edit,
+.clean-table-card.tel-class-cup-card .tel-clean-match-editor{
+  display:none!important;
+}
+</style>
+
+<script id="tel-reconstruye-semis-final-js">
+(function(){
+  function txt(el, sel){
+    return (el.querySelector(sel)?.textContent || '').trim();
+  }
+
+  function crestHtml(teamEl){
+    const img = teamEl?.querySelector('img');
+    if(img && img.getAttribute('src')){
+      return '<img loading="lazy" decoding="async" src="' + img.getAttribute('src') + '" alt="">';
+    }
+    const name = (teamEl?.querySelector('.tel-cup-team-name')?.textContent || 'E').trim();
+    return '<div class="tel-rebuilt-crest-fallback">' + (name[0] || 'E') + '</div>';
+  }
+
+  function nameOf(teamEl){
+    let n = (teamEl?.querySelector('.tel-cup-team-name')?.textContent || '').trim();
+    n = n.replace(/^⚡\\s*/,'').trim();
+    if(!n || n.toLowerCase() === 'equipo') return 'Por definir';
+    return n;
+  }
+
+  function scoreOf(teamEl){
+    const s = (teamEl?.querySelector('.tel-cup-score')?.textContent || '').trim();
+    return /^\\d+$/.test(s) ? s : '';
+  }
+
+  function escapeHtml(str){
+    return String(str || '').replace(/[&<>"']/g, function(m){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];
+    });
+  }
+
+  function rebuildMatch(card, isFinal){
+    if(!card || card.dataset.telRebuilt === '1') return;
+
+    const teams = card.querySelectorAll('.tel-cup-team');
+    if(teams.length < 2) return;
+
+    const t1 = teams[0], t2 = teams[1];
+    const n1 = nameOf(t1), n2 = nameOf(t2);
+    const s1 = scoreOf(t1), s2 = scoreOf(t2);
+    const score = (s1 !== '' && s2 !== '') ? (s1 + ' - ' + s2) : 'VS';
+    const meta = (card.querySelector('.tel-cup-meta')?.textContent || 'Fecha por definir').trim();
+
+    // intentar usar el trofeo viejo de la final como imagen de fondo
+    if(isFinal){
+      const trophy = card.querySelector('img:not(.tel-cup-crest)');
+      if(trophy && trophy.getAttribute('src')){
+        card.style.setProperty('--tel-final-trophy', 'url("' + trophy.getAttribute('src') + '")');
+      }
+    }
+
+    card.classList.add('tel-rebuilt-match');
+    if(isFinal) card.classList.add('tel-rebuilt-final');
+    card.dataset.telRebuilt = '1';
+
+    const html = `
+      <div class="tel-rebuilt-content">
+        <div class="tel-rebuilt-team">
+          ${crestHtml(t1)}
+          <div class="tel-rebuilt-name">${escapeHtml(n1)}</div>
+        </div>
+        <div class="tel-rebuilt-score">${escapeHtml(score)}</div>
+        <div class="tel-rebuilt-team">
+          ${crestHtml(t2)}
+          <div class="tel-rebuilt-name">${escapeHtml(n2)}</div>
+        </div>
+        <div class="tel-rebuilt-meta">${escapeHtml(meta)}</div>
+      </div>
+    `;
+    card.insertAdjacentHTML('beforeend', html);
+  }
+
+  function run(){
+    const roots = document.querySelectorAll('#clasificacion, .clean-table-card.tel-class-cup-card, #telAllMatchesOverlay');
+    roots.forEach(root=>{
+      root.querySelectorAll('.tel-cup-stack.sf .tel-cup-match').forEach(card=>rebuildMatch(card, false));
+      root.querySelectorAll('.tel-cup-stack.final .tel-cup-match').forEach(card=>rebuildMatch(card, true));
+    });
+    document.querySelectorAll('#clasificacion .tel-final-inline-edit,#clasificacion .tel-inline-admin-edit,#clasificacion .tel-clean-match-editor').forEach(e=>e.remove());
+  }
+
+  /* Desactivado: la copa definitiva se pinta directamente con tel-cup-live-auto-script.
+     Evita que se muestre durante unos instantes un cuadro provisional incorrecto. */
+})();
+</script>
+
+</body>
+</html>
+
+
+<!-- TEL: acceso único al panel de administración -->
+<style id="tel-single-admin-access-style">
+.tel-panel-resultados-link,
+.tel-panel-competiciones-link,
+.tel-panel-copas-link,
+a[href="#admin-resultados"]{
+  display:none!important;
+}
+.tel-panel-admin-link{
+  display:none!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  margin:6px 10px!important;
+  padding:10px 16px!important;
+  border:1px solid rgba(177,82,255,.58)!important;
+  border-radius:12px!important;
+  color:#fff!important;
+  text-decoration:none!important;
+  font-weight:1000!important;
+  line-height:1.05!important;
+  background:linear-gradient(135deg,#54209d,#9c2fff)!important;
+  text-transform:uppercase!important;
+  white-space:nowrap!important;
+}
+body.tel-admin-authorized .tel-panel-admin-link{display:inline-flex!important;}
+.tel-panel-admin-link:hover{
+  filter:brightness(1.12)!important;
+  transform:translateY(-1px)!important;
+}
+</style>
+<script id="tel-single-admin-access-script">
+(function(){
+  function cleanLegacy(root){
+    document.querySelectorAll('.tel-panel-resultados-link,.tel-panel-competiciones-link,.tel-panel-copas-link,a[href="#admin-resultados"]').forEach(function(el){
+      el.remove();
+    });
+    if(root){
+      root.querySelectorAll('a').forEach(function(a){
+        var href=(a.getAttribute('href')||'').toLowerCase();
+        var text=(a.textContent||'').trim().toLowerCase();
+        var legacyHref=href==='/panel-resultados.html'||href==='/panel-competiciones.html'||href==='/panel-copas.html';
+        var legacyText=text==='panel resultados'||text==='panel competiciones'||text==='panel copas'||text==='admin resultados';
+        if(legacyHref && legacyText) a.remove();
+      });
+    }
+  }
+  async function ensureSingleAdminAccess(){
+    var target=document.querySelector('header nav')||document.querySelector('header')||document.querySelector('nav');
+    if(!target) return;
+    cleanLegacy(target);
+    var isAdmin=false;
+    try{var response=await fetch('/api/admin/status',{cache:'no-store'});var status=await response.json();isAdmin=!!status.admin;}catch(error){}
+    document.body.classList.toggle('tel-admin-authorized',isAdmin);
+    var existing=target.querySelector('.tel-panel-admin-link');
+    if(!isAdmin){if(existing)existing.remove();return;}
+    if(existing)return;
+    var a=document.createElement('a');a.href='/panel-admin.html';a.className='tel-panel-admin-link';a.textContent='Panel admin';target.appendChild(a);
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    ensureSingleAdminAccess();
+    setTimeout(ensureSingleAdminAccess,400);
+    setTimeout(ensureSingleAdminAccess,1200);
+  });
+  window.addEventListener('load',ensureSingleAdminAccess);
+  window.addEventListener('tel:auth-changed',ensureSingleAdminAccess); document.addEventListener('visibilitychange',function(){if(!document.hidden)ensureSingleAdminAccess();});
+})();
+</script>
+
+<link rel="stylesheet" href="/tel-public-fixes.css?v=20260714-global2">
+<script src="/tel-public-fixes.js?v=20260714-global2"></script>
+<script src="/tel-live-sync.js?v=20260714-global2"></script>

@@ -1,0 +1,61 @@
+/* TEL 2026: calendarios reales, noticias administrables y acceso admin seguro */
+.tel-normal-login-card{display:none!important}
+
+/* Calendario mensual completo */
+[data-subpanel="calendar"] .month-head .month-arrow,
+.calendar-card .month .chev{
+  border:0;background:transparent;color:#e8eaf2;cursor:pointer;font:inherit;
+}
+[data-subpanel="calendar"] .calendar-grid span.today{
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.58);
+}
+[data-subpanel="calendar"] .calendar-grid span.has-game:after{
+  content:"";position:absolute;bottom:7px;left:50%;width:7px;height:7px;border-radius:50%;
+  background:#9a38ff;transform:translateX(-50%);
+}
+[data-subpanel="calendar"] .calendar-grid span.off{opacity:.42}
+[data-subpanel="calendar"] .calendar-grid span{cursor:pointer}
+[data-subpanel="calendar"] .calendar-grid span.selected{
+  background:linear-gradient(180deg,#9a38ff,#691ed0)!important;color:#fff!important;
+}
+[data-subpanel="calendar"] .calendar-grid span.selected:after{background:#fff}
+
+.calendar-card .mini-cal{
+  display:grid!important;grid-template-columns:repeat(7,minmax(0,1fr))!important;gap:3px!important;
+}
+.calendar-card .mini-cal b,
+.calendar-card .mini-cal span{
+  min-height:31px!important;display:grid!important;place-items:center!important;position:relative!important;
+}
+.calendar-card .mini-cal span{cursor:pointer;border-radius:50%;font-size:12px}
+.calendar-card .mini-cal span.m{opacity:.38}
+.calendar-card .mini-cal span.today{box-shadow:inset 0 0 0 1px rgba(200,100,255,.85)}
+.calendar-card .mini-cal span.sel{background:#962fff;color:#fff}
+.calendar-card .mini-cal span.has-game:after{
+  content:"";position:absolute;bottom:2px;width:4px;height:4px;border-radius:50%;background:#b94dff;
+}
+.calendar-card .mini-cal span.sel.has-game:after{background:#fff}
+
+.tel-calendar-empty,.tel-news-empty{
+  border:1px dashed rgba(255,255,255,.14);border-radius:12px;padding:24px;text-align:center;
+  color:#aeb8c8;background:rgba(255,255,255,.018)
+}
+.tel-news-empty{grid-column:1/-1}
+
+/* Noticias reales */
+.tel-news-photo{width:100%;height:100%;object-fit:cover;display:block}
+.tel-news-modal{position:fixed;inset:0;z-index:100000;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(3,6,13,.88);backdrop-filter:blur(8px)}
+.tel-news-modal.open{display:flex}
+.tel-news-modal-box{width:min(760px,100%);max-height:86vh;overflow:auto;border:1px solid rgba(174,73,255,.42);border-radius:18px;background:#09111f;padding:24px;box-shadow:0 24px 80px rgba(0,0,0,.55)}
+.tel-news-modal-box h2{margin:8px 0 10px;font-size:30px}
+.tel-news-modal-box .meta{color:#bd62ff;font-weight:900;text-transform:uppercase;font-size:12px}
+.tel-news-modal-box p{color:#d6dce6;line-height:1.65;white-space:pre-wrap}
+.tel-news-modal-close{float:right;border:1px solid rgba(255,255,255,.14);background:#111a2a;color:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}
+
+/* El acceso al panel admin queda invisible hasta confirmar sesión admin */
+body:not(.tel-admin-authorized) .tel-panel-admin-link{display:none!important}
+
+@media(max-width:760px){
+  [data-subpanel="calendar"] .calendar-grid b,[data-subpanel="calendar"] .calendar-grid span{min-height:42px!important;font-size:14px!important}
+}
+.tel-login-card{display:none!important}
