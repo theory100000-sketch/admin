@@ -579,6 +579,142 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+
+/* ============================================================
+   DATOS OFICIALES CONSISTENTES PARA WEB, CLASIFICACIÓN Y COPAS
+   - Completa nombres y escudos usando la lista maestra de clubes.
+   - Resuelve participantes por slotId, id, clubId o nombre.
+   - Evita que las rondas posteriores pierdan el escudo.
+   ============================================================ */
+function telClientNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telClientCleanName(value){
+  return String(value || '')
+    .replace(/^(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+/u,'')
+    .trim();
+}
+function telClientLogo(item){
+  let value = String(
+    item?.escudoUrl || item?.logoUrl || item?.escudoPath || item?.escudoFilename ||
+    item?.logo || item?.escudo || item?.imagenUrl || item?.imagen || ''
+  ).trim().replaceAll('\\','/');
+  if(!value) return '';
+  if(value.startsWith('/escudos/')) return value;
+  if(value.startsWith('escudos/')) return '/' + value;
+  if(/^escudo-.*\.(?:png|jpe?g|webp|gif|svg)$/i.test(value)) return '/escudos/' + value;
+  return value;
+}
+function telHydrateDataForClient(rawData){
+  const data = rawData && typeof rawData === 'object'
+    ? JSON.parse(JSON.stringify(rawData))
+    : {clubes:[],competiciones:[]};
+  const clubs = Array.isArray(data.clubes) ? data.clubes : (Array.isArray(data.equipos) ? data.equipos : []);
+  const clubIndex = new Map();
+  function indexObject(map,obj,values){
+    values.filter(Boolean).forEach(value=>{
+      const raw=String(value);
+      const normalized=telClientNorm(raw);
+      if(raw && !map.has(raw)) map.set(raw,obj);
+      if(normalized && !map.has(normalized)) map.set(normalized,obj);
+    });
+  }
+  clubs.forEach(club=>{
+    const logo=telClientLogo(club);
+    if(logo){ club.escudoUrl=logo; if(!club.escudoPath && logo.startsWith('/escudos/')) club.escudoPath=logo.slice(1); }
+    indexObject(clubIndex,club,[club.id,club._id,club.clubId,club.nombre,club.nombreVisual,club.clubNombre,club.name]);
+  });
+  function findClub(source){
+    if(!source) return null;
+    const values = typeof source === 'string' ? [source] : [
+      source.clubId,source.id,source._id,source.slotId,source.clubNombre,
+      source.nombre,source.nombreVisual,source.name,source.equipo,source.club
+    ];
+    for(const value of values){
+      if(!value) continue;
+      const found=clubIndex.get(String(value)) || clubIndex.get(telClientNorm(value));
+      if(found) return found;
+    }
+    return null;
+  }
+  function hydrateTeam(source){
+    const input = source && typeof source === 'object' ? source : {};
+    const base = findClub(input) || (typeof source === 'string' ? findClub(source) : null) || {};
+    const out = {...base,...input};
+    const canonical = telClientCleanName(
+      input.clubNombre || base.nombre || input.nombreVisual || input.nombre || input.name ||
+      (typeof source === 'string' ? source : '') || 'Equipo'
+    ) || 'Equipo';
+    out.clubNombre = input.clubNombre || base.nombre || canonical;
+    out.nombre = input.nombre || input.nombreVisual || base.nombreVisual || base.nombre || canonical;
+    out.nombreVisual = input.nombreVisual || input.nombre || base.nombreVisual || base.nombre || canonical;
+    const logo = telClientLogo(input) || telClientLogo(base);
+    if(logo){
+      out.escudoUrl=logo;
+      if(!out.escudoPath && logo.startsWith('/escudos/')) out.escudoPath=logo.slice(1);
+    }
+    return out;
+  }
+  const comps = Array.isArray(data.competiciones) ? data.competiciones : [];
+  comps.forEach(comp=>{
+    comp.equipos = Array.isArray(comp.equipos) ? comp.equipos.map(hydrateTeam) : [];
+    const teamIndex = new Map();
+    comp.equipos.forEach((team,index)=>{
+      indexObject(teamIndex,team,[
+        team.slotId,team.id,team._id,team.clubId,team.clubNombre,
+        team.nombre,team.nombreVisual,team.name,`slot-${index+1}`
+      ]);
+    });
+    function resolveParticipant(reference,embeddedName){
+      const values=[reference,embeddedName];
+      for(const value of values){
+        if(!value) continue;
+        const found=teamIndex.get(String(value)) || teamIndex.get(telClientNorm(value));
+        if(found) return found;
+      }
+      const club=findClub(embeddedName || reference);
+      return club ? hydrateTeam(club) : (embeddedName ? hydrateTeam({clubNombre:embeddedName,nombre:embeddedName}) : null);
+    }
+    if(Array.isArray(comp.clasificacion)){
+      comp.clasificacion = comp.clasificacion.map(row=>{
+        const base=resolveParticipant(row?.slotId || row?.clubId || row?.id,row?.clubNombre || row?.nombre || row?.nombreVisual);
+        return hydrateTeam({...base,...row});
+      });
+    }
+    if(Array.isArray(comp.partidos)){
+      comp.partidos = comp.partidos.map(match=>{
+        const local=resolveParticipant(
+          match.localSlotId || match.localClubId || match.localId,
+          match.localNombre || match.nombreLocal || match.equipoLocal
+        );
+        const away=resolveParticipant(
+          match.visitanteSlotId || match.visitanteClubId || match.visitanteId,
+          match.visitanteNombre || match.nombreVisitante || match.equipoVisitante
+        );
+        if(local){
+          match.localNombre=telClientCleanName(local.clubNombre || local.nombre || local.nombreVisual) || 'Por definir';
+          match.localLogo=telClientLogo(local);
+          match.localEscudo=match.localLogo;
+          if(!match.localSlotId) match.localSlotId=local.slotId || local.id || local.clubId || '';
+        }
+        if(away){
+          match.visitanteNombre=telClientCleanName(away.clubNombre || away.nombre || away.nombreVisual) || 'Por definir';
+          match.visitanteLogo=telClientLogo(away);
+          match.visitanteEscudo=match.visitanteLogo;
+          if(!match.visitanteSlotId) match.visitanteSlotId=away.slotId || away.id || away.clubId || '';
+        }
+        return match;
+      });
+    }
+  });
+  return data;
+}
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -590,7 +726,7 @@ app.get("/api/data", (req, res) => {
     config: {}
   });
 
-  res.json(data);
+  res.json(telHydrateDataForClient(data));
 });
 
 app.get("/api/ligas", (req, res) => {
@@ -4886,11 +5022,34 @@ function telPanelName(t,fallback){
     .trim();
 }
 function telPanelLogo(t){
-  return t?.escudoUrl || t?.logoUrl || t?.escudo || t?.logo || t?.escudoPath || '';
+  return telClientLogo(t);
 }
-function telPanelTeam(comp,slot){
-  if(!slot) return null;
-  return (comp.equipos || []).find((t,i)=>telPanelSlot(t,i) === String(slot)) || null;
+function telPanelTeam(comp,slot,data,match,side){
+  const teams = comp?.equipos || [];
+  const raw = String(slot || '').trim();
+  const target = telPanelNorm(raw);
+  let found = teams.find((t,i)=>telPanelSlot(t,i) === raw) || teams.find((t,i)=>{
+    const values=[telPanelSlot(t,i),t.id,t.clubId,t.clubNombre,t.nombre,t.nombreVisual,t.name];
+    return values.some(value=>value && telPanelNorm(value) === target);
+  }) || null;
+  const directName = side === 'local'
+    ? (match?.localNombre || match?.nombreLocal || match?.equipoLocal || '')
+    : (match?.visitanteNombre || match?.nombreVisitante || match?.equipoVisitante || '');
+  if(!found && directName){
+    const wanted=telPanelNorm(directName);
+    found=teams.find(t=>[t.clubNombre,t.nombre,t.nombreVisual,t.name].some(value=>value && telPanelNorm(value)===wanted)) || null;
+  }
+  const clubs = data?.clubes || data?.equipos || [];
+  if(!found){
+    const wanted=telPanelNorm(directName || raw);
+    const club=clubs.find(t=>[t.id,t.clubId,t.clubNombre,t.nombre,t.nombreVisual,t.name].some(value=>value && telPanelNorm(value)===wanted));
+    if(club) found=club;
+  }
+  if(found) return found;
+  const embeddedLogo = side === 'local'
+    ? (match?.localLogo || match?.localEscudo || '')
+    : (match?.visitanteLogo || match?.visitanteEscudo || '');
+  return directName ? {nombre:directName,clubNombre:directName,escudoUrl:embeddedLogo} : null;
 }
 function telPanelIsCup(comp){
   const txt = telPanelNorm(`${comp.tipo||''} ${comp.formato||''} ${comp.formatoNombre||''} ${comp.formatoDescripcion||''} ${comp.nombre||''}`);
@@ -5037,8 +5196,8 @@ app.get('/api/tel-panel/matches', (req,res)=>{
       const isCup=telPanelIsCup(comp);
       (comp.partidos || []).forEach((m,mi)=>{
         const id=telPanelMatchId(comp,m,mi);
-        const local=telPanelTeam(comp,m.localSlotId);
-        const away=telPanelTeam(comp,m.visitanteSlotId);
+        const local=telPanelTeam(comp,m.localSlotId,data,m,'local');
+        const away=telPanelTeam(comp,m.visitanteSlotId,data,m,'away');
         const localG = m.localGoles ?? m.golesLocal ?? null;
         const awayG = m.visitanteGoles ?? m.golesVisitante ?? null;
         const played = telPanelPlayed(m);
@@ -5049,10 +5208,10 @@ app.get('/api/tel-panel/matches', (req,res)=>{
           id,
           jornada: m.jornada || '',
           ronda: m.rondaNombre || m.fase || '',
-          localNombre: telPanelName(local,m.localSlotId || 'Por definir'),
-          visitanteNombre: telPanelName(away,m.visitanteSlotId || 'Por definir'),
-          localLogo: telPanelLogo(local),
-          visitanteLogo: telPanelLogo(away),
+          localNombre: telPanelName(local,m.localNombre || m.localSlotId || 'Por definir'),
+          visitanteNombre: telPanelName(away,m.visitanteNombre || m.visitanteSlotId || 'Por definir'),
+          localLogo: telPanelLogo(local) || telClientLogo({escudoUrl:m.localLogo || m.localEscudo || ''}),
+          visitanteLogo: telPanelLogo(away) || telClientLogo({escudoUrl:m.visitanteLogo || m.visitanteEscudo || ''}),
           localGoles: localG,
           visitanteGoles: awayG,
           finalizado: played,
@@ -5605,6 +5764,31 @@ function telCupAutoSideOrder(match){
   if(fin) return Number(fin[1]);
   return 999;
 }
+
+function telCupAutoResolveTeam(comp,reference,embeddedName){
+  const raw=String(reference || '').trim();
+  const target=telClientNorm(raw || embeddedName);
+  const teams=comp?.equipos || [];
+  return teams.find((team,index)=>{
+    const values=[telCupAutoTeamSlot(team,index),team.id,team.clubId,team.clubNombre,team.nombre,team.nombreVisual,team.name];
+    return values.some(value=>value && (String(value)===raw || telClientNorm(value)===target));
+  }) || null;
+}
+function telCupAutoDecorateMatch(comp,match){
+  if(!match) return;
+  const local=telCupAutoResolveTeam(comp,match.localSlotId,match.localNombre);
+  const away=telCupAutoResolveTeam(comp,match.visitanteSlotId,match.visitanteNombre);
+  if(local){
+    match.localNombre=telClientCleanName(local.clubNombre || local.nombre || local.nombreVisual) || 'Por definir';
+    match.localLogo=telClientLogo(local);
+    match.localEscudo=match.localLogo;
+  }
+  if(away){
+    match.visitanteNombre=telClientCleanName(away.clubNombre || away.nombre || away.nombreVisual) || 'Por definir';
+    match.visitanteLogo=telClientLogo(away);
+    match.visitanteEscudo=match.visitanteLogo;
+  }
+}
 function telCupAdvanceAuthoritative(comp){
   if(!comp) return;
   telCupAutoEnsureRounds(comp);
@@ -5672,7 +5856,10 @@ function telCupAdvanceAuthoritative(comp){
     comp.campeon = null;
   }
 
-  (comp.partidos || []).forEach(match=>delete match.__telAutoIndex);
+  (comp.partidos || []).forEach(match=>{
+    telCupAutoDecorateMatch(comp,match);
+    delete match.__telAutoIndex;
+  });
 }
 
 // Todas las pantallas de administración usan la misma lógica de avance.

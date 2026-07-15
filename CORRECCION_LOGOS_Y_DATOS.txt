@@ -1,0 +1,8 @@
+CORRECCIÓN APLICADA
+
+- Los escudos de copa usan object-fit: contain y dejan de verse recortados.
+- Semifinales y final resuelven equipos por slotId, id, clubId o nombre.
+- Los partidos guardan nombre y escudo del participante que avanza.
+- Clasificación hereda siempre el escudo desde la lista maestra de clubes.
+- Se ocultan los datos de demostración mientras carga /api/data para que no aparezcan equipos inventados.
+- Los paneles privados incrustados en admin-pages.js incluyen la misma corrección.

@@ -87,6 +87,13 @@ body.cup-mode .cup-admin{display:block}
 .msg{position:fixed;right:24px;bottom:24px;padding:13px 16px;border-radius:12px;font-weight:900;display:none;z-index:20}.msg.ok{display:block;background:rgba(25,184,92,.14);border:1px solid rgba(25,184,92,.4);color:#21dd73}.msg.bad{display:block;background:rgba(255,70,110,.14);border:1px solid rgba(255,70,110,.4);color:#ff6888}
 @media(max-width:1200px){.admin-layout{grid-template-columns:1fr}.sidebar{display:none}.filters,.cup-top{grid-template-columns:1fr}.match-card,.cup-layout{grid-template-columns:1fr}.teams,.cup-edit-head{grid-template-columns:1fr}.team.right,.cup-edit-team.right{justify-content:flex-start;text-align:left}.team.right .logo,.cup-edit-team.right .cup-edit-logo{order:0}.date-box,.actions{border-left:0;padding-left:0}.score-box,.cup-edit-score{justify-content:start}}
 </style>
+
+<style id="tel-data-integrity-style">
+html.tel-official-data-loading body::before{content:"";position:fixed;inset:0;background:rgba(2,7,17,.96);z-index:2147483645;backdrop-filter:blur(3px)}
+html.tel-official-data-loading body::after{content:"Cargando datos oficiales…";position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483646;color:#d58cff;font:900 16px/1.2 Arial,sans-serif;letter-spacing:.04em;padding:15px 20px;border:1px solid rgba(183,76,255,.45);border-radius:12px;background:#08101f;box-shadow:0 20px 70px rgba(0,0,0,.5)}
+.tel-cup-crest img,.tel-live-cup-team img,.real-crest img,.logo,.big-logo{object-fit:contain!important;box-sizing:border-box!important;padding:2px!important}
+</style>
+<script src="/tel-data-integrity.js?v=20260715-integrity1"></script>
 </head>
 <body>
 <div class="admin-layout">

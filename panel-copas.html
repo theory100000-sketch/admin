@@ -292,6 +292,13 @@ textarea{min-height:105px;resize:vertical}
   .page{padding:22px}
 }
 </style>
+
+<style id="tel-data-integrity-style">
+html.tel-official-data-loading body::before{content:"";position:fixed;inset:0;background:rgba(2,7,17,.96);z-index:2147483645;backdrop-filter:blur(3px)}
+html.tel-official-data-loading body::after{content:"Cargando datos oficiales…";position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483646;color:#d58cff;font:900 16px/1.2 Arial,sans-serif;letter-spacing:.04em;padding:15px 20px;border:1px solid rgba(183,76,255,.45);border-radius:12px;background:#08101f;box-shadow:0 20px 70px rgba(0,0,0,.5)}
+.tel-cup-crest img,.tel-live-cup-team img,.real-crest img,.logo,.big-logo{object-fit:contain!important;box-sizing:border-box!important;padding:2px!important}
+</style>
+<script src="/tel-data-integrity.js?v=20260715-integrity1"></script>
 </head>
 <body>
 <div class="page">
@@ -355,8 +362,17 @@ function showMsg(text, ok=true){
   el.textContent=text; el.className="msg "+(ok?"ok":"bad");
   setTimeout(()=>{el.className="msg";},2500);
 }
+function normalizeLogo(src){
+  let value=String(src||'').trim().replaceAll('\\','/');
+  if(!value) return '';
+  if(value.startsWith('escudos/')) return '/'+value;
+  if(/^escudo-.*\.(?:png|jpe?g|webp|gif|svg)$/i.test(value)) return '/escudos/'+value;
+  if(/^https?:\/\//i.test(value)) return '/api/logo?url='+encodeURIComponent(value);
+  return value;
+}
 function logoHtml(src,name,cls="logo"){
-  if(src) return `<img loading="lazy" decoding="async" class="${cls}" src="${esc(src)}" onerror="this.outerHTML='<div class=&quot;placeholder-logo&quot;>${esc((name||'?')[0]||'?')}</div>'">`;
+  const finalSrc=normalizeLogo(src);
+  if(finalSrc) return `<img loading="lazy" decoding="async" class="${cls}" src="${esc(finalSrc)}" onerror="if(!this.dataset.retry){this.dataset.retry='1';this.src='/api/logo?url='+encodeURIComponent('${esc(src)}')}else{this.outerHTML='<div class=&quot;placeholder-logo&quot;>${esc((name||'?')[0]||'?')}</div>'}">`;
   return `<div class="placeholder-logo">${esc((name||'?')[0]||'?')}</div>`;
 }
 function cleanText(v){
