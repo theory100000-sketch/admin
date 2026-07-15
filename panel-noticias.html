@@ -64,6 +64,6 @@ async function save(){const payload={id:$('newsId').value,titulo:$('title').valu
 async function removeNews(id){if(!confirm('¿Eliminar esta noticia?'))return;const r=await json('/api/admin/noticias/'+encodeURIComponent(id),{method:'DELETE'});if(!r.ok){toast(r.message||'No se pudo eliminar.',true);return}toast('Noticia eliminada.');await load()}
 $('saveBtn').onclick=save;$('clearBtn').onclick=clearForm;$('syncBtn').onclick=load;document.addEventListener('DOMContentLoaded',()=>{clearForm();load()});window.telRefreshCurrent=load;
 </script>
-<script src="/tel-live-sync.js?v=20260714-global2"></script>
+<script src="/tel-live-sync.js?v=20260716-autosync1"></script>
 </body>
 </html>

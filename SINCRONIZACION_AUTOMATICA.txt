@@ -1,0 +1,22 @@
+SINCRONIZACION AUTOMATICA DISCORD -> WEB
+
+Esta version usa una sola clave en Upstash para la web y el bot:
+  tel:web:v1:data:live
+
+Cada comando que llama a guardarDatos publica automaticamente el cambio. Antes
+de confirmar el comando en Discord, el bot espera a que Upstash termine el
+guardado. La web y los paneles comprueban cambios cada 2 segundos.
+
+VARIABLES IGUALES EN VERCEL Y EN EL HOST DEL BOT:
+UPSTASH_REDIS_REST_URL=<URL REST REAL>
+UPSTASH_REDIS_REST_TOKEN=<TOKEN REST REAL>
+TEL_REDIS_PREFIX=tel:web:v1:
+
+ORDEN DE DESPLIEGUE:
+1. Sube todos los archivos de esta carpeta a GitHub.
+2. Redeploy en Vercel sin cache.
+3. Reinicia completamente el bot de Discord.
+4. Crea o edita un club. Debe aparecer solo en la web en unos 2 segundos.
+
+Los escudos se guardan en Upstash por ID, rol y nombre del club. Vercel ya no
+necesita que el fichero exista fisicamente en public/escudos.

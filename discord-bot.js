@@ -211,6 +211,11 @@ function telInstallSafeInteractionResponses(interaction) {
     interaction[methodName] = async payload => {
       const sanitized = telDiscordSanitizePayload(payload, interaction.commandName || "comando");
       try {
+        /* Si el comando modificó datos, confirma en Discord únicamente después
+           de que el cambio haya quedado publicado en Upstash para la web. */
+        if(interaction.commandName && typeof telBotFlushStorage === 'function'){
+          await telBotFlushStorage();
+        }
         return await original(sanitized);
       } catch (error) {
         console.error(`[discord-respuesta:${interaction.commandName || "desconocido"}:${methodName}]`, error?.rawError || error);
@@ -311,28 +316,26 @@ let telBotPersistQueue = Promise.resolve();
 let telBotPreSyncLocalData = null;
 const TEL_REDIS_SAFE_PREFIX = TEL_REDIS_PREFIX.endsWith(':') ? TEL_REDIS_PREFIX : `${TEL_REDIS_PREFIX}:`;
 const TEL_MAX_LOGO_BYTES = Math.max(100000, Number(process.env.TEL_MAX_LOGO_BYTES || 1500000));
-function telBotRedisKey(name){ return `${TEL_REDIS_PREFIX}${name}`; }
+const TEL_BOT_LIVE_DATA_KEY = `${TEL_REDIS_SAFE_PREFIX}data:live`;
+function telBotRedisKey(name){
+  if(name === 'data.json') return TEL_BOT_LIVE_DATA_KEY;
+  return `${TEL_REDIS_PREFIX}${name}`;
+}
 function telBotVersionKey(){ return `${TEL_REDIS_PREFIX}__version`; }
 function telBotActiveDataKey(){ return `${TEL_REDIS_PREFIX}__active_data_key`; }
 function telBotClubLogoKey(clubKey){ return `${TEL_REDIS_SAFE_PREFIX}club-logo:${String(clubKey || '').trim()}`; }
 async function telBotResolveDataRedisKey(force=false){
-  if(!telBotRedis) return telBotRedisKey('data.json');
-  if(!force && telBotActiveDataRedisKey) return telBotActiveDataRedisKey;
-  try{
-    const raw = await telBotRedis.get(telBotActiveDataKey());
-    const candidate = String(raw || '').trim();
-    if(candidate && candidate.startsWith(TEL_REDIS_PREFIX)){
-      telBotActiveDataRedisKey = candidate;
-      return candidate;
-    }
-  }catch(error){
-    console.warn('[bot-storage] No se pudo leer la clave activa de la web:', error.message || error);
+  telBotActiveDataRedisKey = TEL_BOT_LIVE_DATA_KEY;
+  if(telBotRedis){
+    try{ await telBotRedis.set(telBotActiveDataKey(), TEL_BOT_LIVE_DATA_KEY); }
+    catch(error){ console.warn('[bot-storage] No se pudo publicar la clave activa:', error.message || error); }
   }
-  telBotActiveDataRedisKey = telBotRedisKey('data.json');
-  return telBotActiveDataRedisKey;
+  return TEL_BOT_LIVE_DATA_KEY;
 }
 async function telBotRefreshFromRedis(force=false){
   if(!telBotRedis) return;
+  /* Nunca pises datos locales mientras un comando los está publicando. */
+  await telBotPersistQueue.catch(()=>{});
   const previousDataKey = telBotActiveDataRedisKey;
   const dataKey = await telBotResolveDataRedisKey(true);
   const remoteVersionRaw = await telBotRedis.get(telBotVersionKey());
@@ -347,28 +350,47 @@ async function telBotRefreshFromRedis(force=false){
   telBotRemoteVersion = remoteVersion;
 }
 function telBotPersistData(content){
-  if(!telBotRedis || !telBotStorageReady) return;
+  if(!telBotRedis || !telBotStorageReady) return Promise.resolve(false);
   const version = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
   telBotPersistQueue = telBotPersistQueue
     .catch(()=>{})
     .then(async()=>{
       const dataKey = await telBotResolveDataRedisKey(true);
-      await telBotRedis.set(dataKey, String(content));
-      // Copia de compatibilidad para instalaciones antiguas. La web nueva usa dataKey.
-      const legacyKey = telBotRedisKey('data.json');
-      if(legacyKey !== dataKey) await telBotRedis.set(legacyKey, String(content));
-      await telBotRedis.set(telBotVersionKey(), version);
+      await Promise.all([
+        telBotRedis.set(dataKey, String(content)),
+        telBotRedis.set(telBotActiveDataKey(), dataKey),
+        telBotRedis.set(telBotVersionKey(), version)
+      ]);
       telBotRemoteVersion = version;
-      console.log(`[bot-storage] data.json sincronizado con la web en ${dataKey}`);
+      console.log(`[bot-storage] Cambio publicado automáticamente en ${dataKey}`);
+      return true;
     })
-    .catch(error=>console.error('[bot-storage] No se pudo sincronizar data.json:', error));
+    .catch(error=>{
+      console.error('[bot-storage] No se pudo sincronizar data.json:', error);
+      return false;
+    });
+  return telBotPersistQueue;
+}
+
+async function telBotFlushStorage(timeoutMs=8000){
+  if(!telBotRedis || !telBotStorageReady) return false;
+  let timeout;
+  try{
+    return await Promise.race([
+      telBotPersistQueue,
+      new Promise(resolve=>{ timeout=setTimeout(()=>resolve(false), timeoutMs); })
+    ]);
+  }finally{
+    if(timeout) clearTimeout(timeout);
+  }
 }
 async function telBotPersistClubLogo(clubKey, logo){
   if(!telBotRedis || !clubKey || !logo?.base64) return false;
   try{
     const payload = JSON.stringify({
       contentType: logo.contentType || 'image/png',
-      base64: logo.base64,
+      base64: logo.base64 || '',
+      remoteUrl: String(logo.remoteUrl || logo.url || ''),
       size: Number(logo.size || 0),
       updatedAt: new Date().toISOString()
     });
@@ -382,6 +404,31 @@ async function telBotPersistClubLogo(clubKey, logo){
 async function telBotDeleteClubLogo(clubKey){
   if(!telBotRedis || !clubKey) return;
   try{ await telBotRedis.del(telBotClubLogoKey(clubKey)); }catch(error){}
+}
+
+function telBotLogoAliases(club){
+  const values = [club?.id, club?._id, club?.clubId, club?.rolId, club?.nombre, club?.nombreVisual, club?.clubNombre, club?.name].filter(Boolean);
+  const seen = new Set();
+  const aliases = [];
+  for(const value of values){
+    const raw = String(value).trim();
+    const normalized = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+    const slug = telSlug(raw);
+    for(const alias of [raw, normalized, slug]){
+      if(!alias || seen.has(alias)) continue;
+      seen.add(alias);
+      aliases.push(alias);
+    }
+  }
+  return aliases;
+}
+
+async function telBotPersistClubLogoForClub(club, logo){
+  if(!club || !logo) return false;
+  const aliases = telBotLogoAliases(club);
+  if(!aliases.length) return false;
+  const results = await Promise.all(aliases.map(alias=>telBotPersistClubLogo(alias, logo)));
+  return results.some(Boolean);
 }
 async function telBotBackfillClubLogos(data){
   if(!telBotRedis || !Array.isArray(data?.clubes)) return;
@@ -402,9 +449,10 @@ async function telBotBackfillClubLogos(data){
         : ext === '.webp' ? 'image/webp'
         : ext === '.gif' ? 'image/gif'
         : 'image/png';
-      await telBotPersistClubLogo(clubKey, {
+      await telBotPersistClubLogoForClub(club, {
         contentType,
         base64: buffer.toString('base64'),
+        remoteUrl: club.escudoDiscordUrl || club.escudoUrl || '',
         size: buffer.length
       });
     }catch(error){}
@@ -735,9 +783,15 @@ async function guardarEscudoLocal(attachment, clubName) {
 
 function guardarDatos(data) {
   const normalized = telNormalizarDatosParaWeb(data);
+  normalized.sync = {
+    ...(normalized.sync || {}),
+    version: Date.now(),
+    source: 'discord-bot',
+    updatedAt: new Date().toISOString()
+  };
   const content = JSON.stringify(normalized, null, 2);
   fs.writeFileSync(DATA_FILE, content);
-  telBotPersistData(content);
+  return telBotPersistData(content);
 }
 
 async function telPrepareBotStorage(){
@@ -756,7 +810,7 @@ async function telPrepareBotStorage(){
         });
       }, 2500);
       timer.unref?.();
-      console.log(`[bot-storage] Sincronización Upstash activa. Clave web: ${await telBotResolveDataRedisKey(true)}`);
+      console.log(`[bot-storage] Sincronización automática activa. Clave compartida: ${await telBotResolveDataRedisKey(true)}`);
     }
     console.log("[web-sync] Datos de Discord preparados para la web.");
   }catch(error){
@@ -2002,6 +2056,8 @@ client.on("interactionCreate", async interaction => {
 
   try {
     await interaction.deferReply();
+    /* Lee los últimos cambios del panel antes de ejecutar cualquier comando. */
+    if(telBotRedis) await telBotRefreshFromRedis(false);
     const data = cargarDatos();
 
     if (interaction.commandName === "warn") {
@@ -2284,7 +2340,7 @@ client.on("interactionCreate", async interaction => {
       });
 
       const clubCreado = data.clubes[data.clubes.length - 1];
-      await telBotPersistClubLogo(clubCreado.id, escudoGuardado);
+      await telBotPersistClubLogoForClub(clubCreado, escudoGuardado);
       for (const usuarioDirectiva of directivaParaPlantilla) {
         data.jugadores.push(crearRegistroJugadorWeb(usuarioDirectiva, clubCreado, interaction, {
           agregadoComoDirectiva: true
@@ -2507,7 +2563,7 @@ client.on("interactionCreate", async interaction => {
         club.escudoDiscordUrl = escudo.url;
         club.escudoPath = escudoGuardado.path || club.escudoPath || "";
         club.escudoFilename = escudoGuardado.filename || club.escudoFilename || "";
-        await telBotPersistClubLogo(club.id || telClubStableId(club), escudoGuardado);
+        await telBotPersistClubLogoForClub(club, escudoGuardado);
         cambios.push("Escudo actualizado y sincronizado con la web");
       }
 
@@ -3489,7 +3545,7 @@ client.on("interactionCreate", async interaction => {
 
 async function telStartDiscordBot(){
   await telPrepareBotStorage();
-  const token = process.env.TOKEN;
+  const token = process.env.TOKEN || process.env.DISCORD_BOT_TOKEN;
   if(!token || typeof token !== 'string' || token.trim().length < 30 || token.includes('TU_TOKEN')){
     console.warn('[bot] Token de Discord no configurado o inválido. Bot desactivado; web activa.');
     return;

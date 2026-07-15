@@ -90,12 +90,11 @@ let telPersistentLastCheck = 0;
 let telPersistentRemoteVersion = '';
 let telPersistQueue = Promise.resolve();
 /*
-   DATA.JSON VERSIONADA POR EL CONTENIDO DEL REPOSITORIO
-   ----------------------------------------------------
-   La data de cada despliegue usa una clave Redis distinta basada en el
-   SHA-256 del data.json incluido en GitHub. Así una copia antigua guardada
-   en Upstash nunca puede volver a sustituir la data nueva del repositorio.
-   Las cuentas y los mensajes mantienen sus claves de siempre.
+   DATA EN VIVO COMPARTIDA ENTRE DISCORD Y VERCEL
+   ------------------------------------------------
+   Discord y la web leen y escriben SIEMPRE la misma clave estable. El
+   data.json del repositorio solo se usa para inicializar una base vacía.
+   Así cualquier comando de Discord aparece automáticamente en la web.
 */
 const TEL_REPO_DATA_PATH = path.join(__dirname, 'data.json');
 const TEL_REPO_DATA_CONTENT = telNativeFs.existsSync(TEL_REPO_DATA_PATH)
@@ -107,12 +106,10 @@ const TEL_REPO_DATA_HASH = TEL_REPO_DATA_CONTENT
 const TEL_REPO_DATA_REVISION = TEL_REPO_DATA_HASH
   ? TEL_REPO_DATA_HASH.slice(0, 24)
   : 'sin-data-repo';
-const TEL_DATA_KEY_SEPARATOR = TEL_REDIS_PREFIX.endsWith(':') ? '' : ':';
+const TEL_LIVE_DATA_KEY = `${TEL_REDIS_SAFE_PREFIX}data:live`;
 
 function telRedisKey(name){
-  if(name === 'data.json'){
-    return `${TEL_REDIS_PREFIX}${TEL_DATA_KEY_SEPARATOR}data:${TEL_REPO_DATA_REVISION}`;
-  }
+  if(name === 'data.json') return TEL_LIVE_DATA_KEY;
   return `${TEL_REDIS_PREFIX}${name}`;
 }
 function telRedisVersionKey(){
@@ -135,11 +132,7 @@ async function telLoadPersistentFiles(force=false){
   let remoteVersion = String(remoteVersionRaw || '');
   const currentDataKey = telRedisKey('data.json');
 
-  /*
-     Nunca se lee la antigua clave genérica data.json para la web actual.
-     Si la clave de esta revisión todavía no existe, se crea exclusivamente
-     con el data.json que viene dentro del despliegue de GitHub.
-  */
+  /* La clave en vivo se inicializa desde GitHub únicamente si está vacía. */
   let storedCurrentData = await telRedis.get(currentDataKey);
   if(storedCurrentData === null || storedCurrentData === undefined){
     if(!TEL_REPO_DATA_CONTENT){
@@ -152,9 +145,9 @@ async function telLoadPersistentFiles(force=false){
     await telRedis.set(telRedisVersionKey(), version);
     storedCurrentData = TEL_REPO_DATA_CONTENT;
     remoteVersion = version;
-    console.log(`[vercel-storage] Data oficial activada: ${TEL_REPO_DATA_REVISION}`);
+    console.log(`[vercel-storage] Data en vivo inicializada desde GitHub: ${TEL_REPO_DATA_REVISION}`);
   }else{
-    /* Mantiene el indicador de revisión sincronizado para diagnóstico. */
+    /* Publica la clave canónica para que el bot la descubra incluso si usa una versión anterior. */
     await Promise.all([
       telRedis.set(telRedisActiveDataKey(), currentDataKey),
       telRedis.set(telRedisRepoDataHashKey(), TEL_REPO_DATA_HASH)
@@ -163,7 +156,7 @@ async function telLoadPersistentFiles(force=false){
 
   if(telPersistentStateLoaded && remoteVersion === telPersistentRemoteVersion && !force) return;
 
-  /* La data siempre procede de la clave versionada de este despliegue. */
+  /* La data siempre procede de la clave en vivo compartida con Discord. */
   const dataContent = typeof storedCurrentData === 'string'
     ? storedCurrentData
     : JSON.stringify(storedCurrentData, null, 2);
@@ -644,9 +637,32 @@ function telResolveClubLogo(club){
 }
 
 function telStableClubLogoUrl(club){
-  if(!club || !telResolveClubLogo(club)) return '';
-  const key = club.id || club._id || club.clubId || club.nombre || club.clubNombre || club.nombreVisual || club.name;
+  if(!club) return '';
+  const key = club.id || club._id || club.clubId || club.rolId || club.nombre || club.clubNombre || club.nombreVisual || club.name;
+  /* El fichero puede vivir en el ordenador del bot y no en Vercel. La ruta API
+     consulta primero Upstash, por lo que no debemos exigir que exista localmente. */
   return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : '';
+}
+
+function telClubLogoRedisAliases(club, requestedKey){
+  const values = [
+    requestedKey,
+    club?.id, club?._id, club?.clubId, club?.rolId,
+    club?.nombre, club?.nombreVisual, club?.clubNombre, club?.name
+  ].filter(Boolean);
+  const seen = new Set();
+  const aliases = [];
+  for(const value of values){
+    const raw = String(value).trim();
+    const normalized = normalizeText(raw);
+    const slug = telLogoSlug(raw);
+    for(const alias of [raw, normalized, slug]){
+      if(!alias || seen.has(alias)) continue;
+      seen.add(alias);
+      aliases.push(alias);
+    }
+  }
+  return aliases;
 }
 
 function telCanonicalTeam(data, team){
@@ -728,7 +744,8 @@ app.get("/api/health", (req, res) => {
     adminPasswordConfigured: TEL_ADMIN_PASSWORD_CONFIGURED || !TEL_IS_VERCEL,
     sessionSecretConfigured: Boolean(process.env.WEB_SESSION_SECRET) || !TEL_IS_VERCEL,
     dataRevision: TEL_REPO_DATA_REVISION,
-    dataStorageMode: 'repo-hash-versioned-shared-with-discord',
+    dataStorageMode: 'shared-live-discord-vercel',
+    liveDataKey: TEL_LIVE_DATA_KEY,
     guildId: process.env.GUILD_ID || null,
     clientId: process.env.CLIENT_ID || null
   });
@@ -1099,11 +1116,12 @@ app.get('/api/club-logo', async (req,res)=>{
 
     // Los escudos creados por Discord se guardan también en Upstash. De esta
     // forma Vercel puede servirlos aunque el bot se ejecute en otro ordenador.
-    const clubKey = club.id || club._id || club.clubId || req.query.key;
+    const clubKey = club.id || club._id || club.clubId || club.rolId || req.query.key;
     if(telRedis && clubKey){
       try{
-        const stored = await telRedis.get(telClubLogoRedisKey(clubKey));
-        if(stored !== null && stored !== undefined){
+        for(const alias of telClubLogoRedisAliases(club, req.query.key)){
+          const stored = await telRedis.get(telClubLogoRedisKey(alias));
+          if(stored === null || stored === undefined) continue;
           let payload = stored;
           if(typeof payload === 'string'){
             try{ payload = JSON.parse(payload); }catch(error){ payload = null; }
@@ -1112,9 +1130,12 @@ app.get('/api/club-logo', async (req,res)=>{
             const buffer = Buffer.from(String(payload.base64), 'base64');
             if(buffer.length){
               res.set('Content-Type', String(payload.contentType || 'image/png'));
-              res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+              res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
               return res.send(buffer);
             }
+          }
+          if(payload && /^https?:\/\//i.test(String(payload.remoteUrl || ''))){
+            return res.redirect(302, '/api/logo?url=' + encodeURIComponent(String(payload.remoteUrl)));
           }
         }
       }catch(error){
