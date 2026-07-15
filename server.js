@@ -85,15 +85,14 @@ let telPersistentStateLoaded = false;
 let telPersistentLastCheck = 0;
 let telPersistentRemoteVersion = '';
 let telPersistQueue = Promise.resolve();
-function telRedisKey(name){
-  return `${TEL_REDIS_PREFIX}${name}`;
-}
-function telRedisVersionKey(){
-  return `${TEL_REDIS_PREFIX}__version`;
-}
-function telRedisRepoDataHashKey(){
-  return `${TEL_REDIS_PREFIX}__repo_data_hash`;
-}
+/*
+   DATA.JSON VERSIONADA POR EL CONTENIDO DEL REPOSITORIO
+   ----------------------------------------------------
+   La data de cada despliegue usa una clave Redis distinta basada en el
+   SHA-256 del data.json incluido en GitHub. Así una copia antigua guardada
+   en Upstash nunca puede volver a sustituir la data nueva del repositorio.
+   Las cuentas y los mensajes mantienen sus claves de siempre.
+*/
 const TEL_REPO_DATA_PATH = path.join(__dirname, 'data.json');
 const TEL_REPO_DATA_CONTENT = telNativeFs.existsSync(TEL_REPO_DATA_PATH)
   ? telNativeFs.readFileSync(TEL_REPO_DATA_PATH, 'utf8')
@@ -101,6 +100,27 @@ const TEL_REPO_DATA_CONTENT = telNativeFs.existsSync(TEL_REPO_DATA_PATH)
 const TEL_REPO_DATA_HASH = TEL_REPO_DATA_CONTENT
   ? crypto.createHash('sha256').update(TEL_REPO_DATA_CONTENT).digest('hex')
   : '';
+const TEL_REPO_DATA_REVISION = TEL_REPO_DATA_HASH
+  ? TEL_REPO_DATA_HASH.slice(0, 24)
+  : 'sin-data-repo';
+const TEL_DATA_KEY_SEPARATOR = TEL_REDIS_PREFIX.endsWith(':') ? '' : ':';
+
+function telRedisKey(name){
+  if(name === 'data.json'){
+    return `${TEL_REDIS_PREFIX}${TEL_DATA_KEY_SEPARATOR}data:${TEL_REPO_DATA_REVISION}`;
+  }
+  return `${TEL_REDIS_PREFIX}${name}`;
+}
+function telRedisVersionKey(){
+  return `${TEL_REDIS_PREFIX}__version`;
+}
+function telRedisActiveDataKey(){
+  return `${TEL_REDIS_PREFIX}__active_data_key`;
+}
+function telRedisRepoDataHashKey(){
+  return `${TEL_REDIS_PREFIX}__active_repo_data_hash`;
+}
+
 async function telLoadPersistentFiles(force=false){
   if(!TEL_IS_VERCEL || !telRedis) return;
   const now = Date.now();
@@ -109,32 +129,51 @@ async function telLoadPersistentFiles(force=false){
 
   let remoteVersionRaw = await telRedis.get(telRedisVersionKey());
   let remoteVersion = String(remoteVersionRaw || '');
-  const storedRepoHashRaw = await telRedis.get(telRedisRepoDataHashKey());
-  const storedRepoHash = String(storedRepoHashRaw || '');
-  const repoDataChanged = Boolean(TEL_REPO_DATA_HASH && storedRepoHash !== TEL_REPO_DATA_HASH);
+  const currentDataKey = telRedisKey('data.json');
 
-  /* Si data.json cambia en GitHub, se importa una sola vez a Upstash. */
-  let repoDataSeeded = false;
-  if(repoDataChanged){
+  /*
+     Nunca se lee la antigua clave genérica data.json para la web actual.
+     Si la clave de esta revisión todavía no existe, se crea exclusivamente
+     con el data.json que viene dentro del despliegue de GitHub.
+  */
+  let storedCurrentData = await telRedis.get(currentDataKey);
+  if(storedCurrentData === null || storedCurrentData === undefined){
+    if(!TEL_REPO_DATA_CONTENT){
+      throw new Error('El despliegue no contiene un data.json válido.');
+    }
     const version = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-    telNativeFs.writeFileSync(path.join(TEL_RUNTIME_DIR, 'data.json'), TEL_REPO_DATA_CONTENT, 'utf8');
-    await telRedis.set(telRedisKey('data.json'), TEL_REPO_DATA_CONTENT);
+    await telRedis.set(currentDataKey, TEL_REPO_DATA_CONTENT);
+    await telRedis.set(telRedisActiveDataKey(), currentDataKey);
     await telRedis.set(telRedisRepoDataHashKey(), TEL_REPO_DATA_HASH);
     await telRedis.set(telRedisVersionKey(), version);
+    storedCurrentData = TEL_REPO_DATA_CONTENT;
     remoteVersion = version;
-    repoDataSeeded = true;
-    console.log('[vercel-storage] Nueva data.json de GitHub importada en Upstash.');
+    console.log(`[vercel-storage] Data oficial activada: ${TEL_REPO_DATA_REVISION}`);
+  }else{
+    /* Mantiene el indicador de revisión sincronizado para diagnóstico. */
+    await Promise.all([
+      telRedis.set(telRedisActiveDataKey(), currentDataKey),
+      telRedis.set(telRedisRepoDataHashKey(), TEL_REPO_DATA_HASH)
+    ]);
   }
 
-  if(telPersistentStateLoaded && remoteVersion === telPersistentRemoteVersion && !repoDataSeeded) return;
+  if(telPersistentStateLoaded && remoteVersion === telPersistentRemoteVersion && !force) return;
 
+  /* La data siempre procede de la clave versionada de este despliegue. */
+  const dataContent = typeof storedCurrentData === 'string'
+    ? storedCurrentData
+    : JSON.stringify(storedCurrentData, null, 2);
+  telNativeFs.writeFileSync(path.join(TEL_RUNTIME_DIR, 'data.json'), dataContent, 'utf8');
+
+  /* Las cuentas y los mensajes siguen siendo persistentes entre versiones. */
   for(const name of TEL_MUTABLE_FILE_NAMES){
-    if(repoDataSeeded && name === 'data.json') continue;
+    if(name === 'data.json') continue;
     const stored = await telRedis.get(telRedisKey(name));
     if(stored === null || stored === undefined) continue;
     const content = typeof stored === 'string' ? stored : JSON.stringify(stored, null, 2);
     telNativeFs.writeFileSync(path.join(TEL_RUNTIME_DIR, name), content, 'utf8');
   }
+
   telPersistentStateLoaded = true;
   telPersistentRemoteVersion = remoteVersion;
   try{
@@ -679,6 +718,8 @@ app.get("/api/health", (req, res) => {
     persistentStorage: telRedis ? 'upstash-redis' : (TEL_IS_VERCEL ? 'temporary-only' : 'local-files'),
     adminPasswordConfigured: TEL_ADMIN_PASSWORD_CONFIGURED || !TEL_IS_VERCEL,
     sessionSecretConfigured: Boolean(process.env.WEB_SESSION_SECRET) || !TEL_IS_VERCEL,
+    dataRevision: TEL_REPO_DATA_REVISION,
+    dataStorageMode: 'repo-hash-versioned',
     guildId: process.env.GUILD_ID || null,
     clientId: process.env.CLIENT_ID || null
   });

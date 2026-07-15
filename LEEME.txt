@@ -1,16 +1,17 @@
-PARCHE DEFINITIVO: DATA DE GITHUB + LOGOS + NOMBRES DE EQUIPOS
+PARCHE DATA VERSIONADA — THUNDER ELITE LEAGUE
 
-1. Sustituye únicamente server.js en la raíz de tu repositorio.
-2. NO sustituyas data.json. Conserva la data nueva que ya subiste a GitHub.
-3. Haz Commit changes.
-4. En Vercel, haz Redeploy sin usar la caché anterior.
+Sustituye únicamente server.js en la raíz del repositorio.
+No sustituyas tu data.json actual.
 
 Qué corrige:
-- Cuando data.json cambia en GitHub, se importa automáticamente una sola vez a Upstash.
-- Upstash deja de mantener una data antigua después de cambiar data.json en GitHub.
-- Copas, semifinales, final y clasificación toman el nombre y escudo del club oficial por clubId.
-- Las copias antiguas dentro de una competición ya no pueden mostrar Samba do Espana si el club oficial fue renombrado.
-- Los escudos se sirven mediante /api/club-logo y se buscan también por nombre si cambió la marca de tiempo del archivo.
-- El panel de copas usa el mismo sistema estable de escudos.
+- Deja de leer la clave antigua y genérica de data.json en Upstash.
+- Crea una clave nueva basada en el contenido exacto del data.json de GitHub.
+- Una instancia antigua de Vercel ya no puede volver a imponer la data anterior.
+- Conserva las cuentas y los mensajes guardados en Upstash.
 
-Después del despliegue, abre la web con Ctrl + F5.
+Después:
+1. Commit en GitHub.
+2. Vercel > Deployments > Redeploy sin Build Cache.
+3. Abre /api/health y comprueba:
+   "dataStorageMode": "repo-hash-versioned"
+4. Haz Ctrl + F5.
