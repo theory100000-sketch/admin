@@ -4632,6 +4632,13 @@ body.tel-preview-overlay-open{overflow:hidden!important}
 [data-clean-class-tab="estadisticas"],
 [data-clean-class-panel="estadisticas"]{display:none!important}
 </style>
+  <script src="/tel-data-integrity.js?v=20260715-integrity1"></script>
+
+<style id="tel-data-integrity-style">
+html.tel-official-data-loading body::before{content:"";position:fixed;inset:0;background:rgba(2,7,17,.96);z-index:2147483645;backdrop-filter:blur(3px)}
+html.tel-official-data-loading body::after{content:"Cargando datos oficiales…";position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483646;color:#d58cff;font:900 16px/1.2 Arial,sans-serif;letter-spacing:.04em;padding:15px 20px;border:1px solid rgba(183,76,255,.45);border-radius:12px;background:#08101f;box-shadow:0 20px 70px rgba(0,0,0,.5)}
+.tel-cup-crest img,.tel-live-cup-team img,.real-crest img,.logo,.big-logo{object-fit:contain!important;box-sizing:border-box!important;padding:2px!important}
+</style>
 </head>
 <body>
   <header class="topbar">
@@ -9874,7 +9881,10 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   function clubsMap(data){
     const map = new Map();
     (data?.clubes || data?.equipos || data?.teams || []).forEach(c=>{
-      map.set(norm(c.nombre || c.name || c.nombreVisual), c);
+      [c.id,c._id,c.clubId,c.nombre,c.name,c.nombreVisual,c.clubNombre].filter(Boolean).forEach(value=>{
+        map.set(String(value),c);
+        map.set(norm(value),c);
+      });
     });
     return map;
   }
@@ -9901,7 +9911,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       ...source,
       nombre: source?.clubNombre || base.nombre || source?.nombre || name,
       nombreVisual: source?.nombre || base.nombreVisual || base.nombre || source?.clubNombre || name,
-      escudoUrl: source?.escudoUrl || base.escudoUrl || source?.logoUrl || base.logoUrl || "",
+      escudoUrl: source?.escudoUrl || source?.logoUrl || source?.escudoPath || source?.logo || source?.escudo || base.escudoUrl || base.logoUrl || base.escudoPath || base.logo || base.escudo || "",
       __compNombre: comp?.nombre || "",
       __compId: comp?.id || ""
     };
@@ -9936,7 +9946,12 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   }
 
   function getSlotTeam(data, comp, slotId){
-    const slot = (comp.equipos || []).find(t => String(t.slotId) === String(slotId)) || {};
+    const raw=String(slotId || '').trim();
+    const wanted=norm(raw);
+    const slot = (comp.equipos || []).find((t,index)=>{
+      const values=[t.slotId,t.id,t._id,t.clubId,t.clubNombre,t.nombre,t.nombreVisual,t.name,`slot-${index+1}`];
+      return values.some(value=>value && (String(value)===raw || norm(value)===wanted));
+    }) || {clubNombre:raw || 'Equipo',nombre:raw || 'Equipo'};
     return teamObject(data, comp, slot);
   }
 
@@ -10971,7 +10986,7 @@ body.tel-all-matches-open{overflow:hidden!important}
 #telAllMatchesOverlay .tel-cup-seed{display:block;color:#c864ff;font-weight:1000;font-size:18px;text-align:center}
 #telAllMatchesOverlay .tel-cup-team-name{display:block;color:#fff;font-size:18px;font-weight:1000;text-transform:uppercase;line-height:1.12;word-break:break-word}
 #telAllMatchesOverlay .tel-cup-crest{width:42px;height:42px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:rgba(147,51,255,.12);border:1px solid rgba(255,255,255,.1)}
-#telAllMatchesOverlay .tel-cup-crest img{width:100%;height:100%;object-fit:cover}
+#telAllMatchesOverlay .tel-cup-crest img{width:100%;height:100%;object-fit:contain;padding:2px;box-sizing:border-box}
 #telAllMatchesOverlay .tel-cup-vs{display:flex;align-items:center;justify-content:center;color:#9f35ff;font-size:20px;font-weight:1000;text-transform:uppercase;min-height:18px}
 #telAllMatchesOverlay .tel-cup-meta{display:flex;align-items:center;gap:8px;color:#a7b3c4;font-size:14px;margin-top:auto}
 #telAllMatchesOverlay .tel-cup-meta::before{content:"📅";font-size:16px;opacity:.88}
@@ -11585,7 +11600,7 @@ body.tel-all-matches-open{overflow:hidden!important}
 .clean-table-card.tel-class-cup-card .tel-cup-seed{display:block;color:#c864ff;font-weight:1000;font-size:18px;text-align:center;line-height:1}
 .clean-table-card.tel-class-cup-card .tel-cup-team-name{display:block;color:#fff;font-size:18px;font-weight:1000;text-transform:uppercase;line-height:1.12;word-break:normal;overflow-wrap:anywhere;max-width:100%}
 .clean-table-card.tel-class-cup-card .tel-cup-crest{width:48px;height:48px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:rgba(147,51,255,.12);border:1px solid rgba(255,255,255,.1)}
-.clean-table-card.tel-class-cup-card .tel-cup-crest img{width:100%;height:100%;object-fit:cover}
+.clean-table-card.tel-class-cup-card .tel-cup-crest img{width:100%;height:100%;object-fit:contain;padding:2px;box-sizing:border-box}
 .clean-table-card.tel-class-cup-card .tel-cup-vs{display:flex;align-items:center;justify-content:center;color:#9f35ff;font-size:24px;font-weight:1000;text-transform:uppercase;min-height:24px}
 .clean-table-card.tel-class-cup-card .tel-cup-meta{display:flex;align-items:center;gap:8px;color:#a7b3c4;font-size:14px;margin-top:auto;padding-top:6px}
 .clean-table-card.tel-class-cup-card .tel-cup-meta::before{content:"📅";font-size:16px;opacity:.88}
@@ -13814,7 +13829,12 @@ body.tel-all-matches-open{overflow:hidden!important}
   }
   function teamOf(comp,slot){
     if(!slot) return null;
-    return (comp?.equipos || []).find((team,index)=>slotOf(team,index) === String(slot)) || null;
+    const raw=String(slot).trim();
+    const wanted=normalize(raw);
+    return (comp?.equipos || []).find((team,index)=>{
+      const values=[slotOf(team,index),team.id,team.clubId,team.clubNombre,team.nombre,team.nombreVisual,team.name];
+      return values.some(value=>value && (String(value)===raw || normalize(value)===wanted));
+    }) || null;
   }
   function teamName(team){
     return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || 'Por definir')
@@ -13822,7 +13842,12 @@ body.tel-all-matches-open{overflow:hidden!important}
       .trim() || 'Por definir';
   }
   function teamLogo(team){
-    return team?.escudoUrl || team?.logoUrl || team?.escudo || team?.logo || team?.escudoPath || '';
+    let value=String(team?.escudoUrl || team?.logoUrl || team?.escudoPath || team?.escudo || team?.logo || '').trim().replaceAll('\\','/');
+    if(!value) return '';
+    if(value.startsWith('escudos/')) value='/'+value;
+    if(/^escudo-.*\.(?:png|jpe?g|webp|gif|svg)$/i.test(value)) value='/escudos/'+value;
+    if(/^https?:\/\//i.test(value)) return '/api/logo?url='+encodeURIComponent(value);
+    return value;
   }
   function trophyFor(comp){
     if(window.telGetCupTrophyImage) return window.telGetCupTrophyImage(comp?.nombre || '');
