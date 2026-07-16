@@ -6324,9 +6324,27 @@ function telContactRateAllowed(ip){
   recent.push(now); telContactRate.set(ip,recent); return true;
 }
 async function telSendContactToDiscord(entry){
-  const webhook=String(process.env.DISCORD_CONTACT_WEBHOOK_URL || '').trim();
-  const channelId=String(process.env.DISCORD_CONTACT_CHANNEL_ID || process.env.TICKETS_LOGS_CHANNEL_ID || '').trim();
-  const token=String(process.env.DISCORD_BOT_TOKEN || process.env.TOKEN || '').trim();
+  const webhook=String(
+    process.env.DISCORD_CONTACT_WEBHOOK_URL ||
+    process.env.CONTACT_DISCORD_WEBHOOK_URL ||
+    process.env.DISCORD_WEBHOOK_URL ||
+    process.env.CONTACT_WEBHOOK_URL ||
+    ''
+  ).trim();
+  const channelId=String(
+    process.env.DISCORD_CONTACT_CHANNEL_ID ||
+    process.env.CONTACT_DISCORD_CHANNEL_ID ||
+    process.env.TICKETS_LOGS_CHANNEL_ID ||
+    process.env.TICKETS_LOG_CHANNEL_ID ||
+    process.env.DISCORD_CHANNEL_ID ||
+    ''
+  ).trim();
+  const token=String(
+    process.env.DISCORD_BOT_TOKEN ||
+    process.env.TOKEN ||
+    process.env.BOT_TOKEN ||
+    ''
+  ).trim();
   const embed={
     title:'📩 Nuevo mensaje desde la web TEL',
     color:0x9633ff,
@@ -6354,7 +6372,7 @@ async function telSendContactToDiscord(entry){
       body:JSON.stringify({embeds:[embed],allowed_mentions:{parse:[]}})
     });
   }else{
-    const error=new Error('Discord no está configurado. Añade DISCORD_CONTACT_WEBHOOK_URL o DISCORD_CONTACT_CHANNEL_ID en .env.');
+    const error=new Error('Discord no está configurado en Vercel. Añade DISCORD_CONTACT_WEBHOOK_URL, o bien TOKEN/DISCORD_BOT_TOKEN junto con TICKETS_LOGS_CHANNEL_ID.');
     error.code='discord_not_configured';
     throw error;
   }
@@ -6363,6 +6381,30 @@ async function telSendContactToDiscord(entry){
     throw new Error(`Discord respondió ${response.status}: ${detail}`);
   }
 }
+
+function telContactDiscordConfig(){
+  const webhook=String(
+    process.env.DISCORD_CONTACT_WEBHOOK_URL || process.env.CONTACT_DISCORD_WEBHOOK_URL ||
+    process.env.DISCORD_WEBHOOK_URL || process.env.CONTACT_WEBHOOK_URL || ''
+  ).trim();
+  const channelId=String(
+    process.env.DISCORD_CONTACT_CHANNEL_ID || process.env.CONTACT_DISCORD_CHANNEL_ID ||
+    process.env.TICKETS_LOGS_CHANNEL_ID || process.env.TICKETS_LOG_CHANNEL_ID ||
+    process.env.DISCORD_CHANNEL_ID || ''
+  ).trim();
+  const token=String(process.env.DISCORD_BOT_TOKEN || process.env.TOKEN || process.env.BOT_TOKEN || '').trim();
+  return {
+    configured:Boolean(webhook || (token && channelId)),
+    mode:webhook ? 'webhook' : (token && channelId ? 'bot-rest' : 'none'),
+    channelConfigured:Boolean(channelId)
+  };
+}
+
+app.get('/api/contact/status', (req,res)=>{
+  const config=telContactDiscordConfig();
+  res.set('Cache-Control','no-store');
+  res.json({ok:true,...config});
+});
 
 app.post('/api/contact', express.json({limit:'100kb'}), async (req,res)=>{
   try{
@@ -6384,9 +6426,12 @@ app.post('/api/contact', express.json({limit:'100kb'}), async (req,res)=>{
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry.email)) return res.status(400).json({ok:false,message:'Escribe un correo electrónico válido.'});
     if(entry.asunto.length<3) return res.status(400).json({ok:false,message:'Escribe el asunto.'});
     if(entry.mensaje.length<10) return res.status(400).json({ok:false,message:'El mensaje debe tener al menos 10 caracteres.'});
-    telContactStore(entry);
     await telSendContactToDiscord(entry);
-    res.json({ok:true,message:'Mensaje enviado correctamente a la administración por Discord.'});
+    entry.entregadoDiscord = true;
+    entry.entregadoEn = new Date().toISOString();
+    telContactStore(entry);
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,message:'Mensaje enviado correctamente a la administración por Discord.',id:entry.id});
   }catch(error){
     console.error('[contacto-discord]',error);
     const status=error.code==='discord_not_configured'?503:502;
