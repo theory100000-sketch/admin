@@ -4646,6 +4646,123 @@ body.auth-locked #login{display:block!important}
 .send-btn:disabled{opacity:.65;cursor:wait}
 #contactStatus{min-height:18px}
 </style>
+
+<style id="tel-responsive-guest-mode-v1">
+/* Acceso público como invitado */
+body.auth-guest:not(.login-visible) .view.active{display:block}
+body.auth-guest .user-btn{border-color:rgba(169,78,255,.42);background:linear-gradient(135deg,rgba(126,34,234,.2),rgba(8,13,20,.96))}
+body.auth-guest #userDisplayName{color:#f1dcff}
+.guest-entry{width:100%;min-height:48px;border:1px solid rgba(184,102,255,.48);border-radius:8px;background:rgba(151,51,255,.08);color:#e8d1ff;font-weight:1000;text-transform:uppercase;letter-spacing:.02em;transition:.2s ease}
+.guest-entry:hover{background:rgba(151,51,255,.18);transform:translateY(-1px)}
+.guest-copy{margin:10px 0 0!important;text-align:center;color:#9da8b9!important;font-size:12px!important;line-height:1.45!important}
+.guest-copy b{color:#d5a2ff}
+.mobile-menu-toggle{display:none}
+.mobile-nav-backdrop{display:none}
+
+/* Seguridad frente a desbordamientos */
+html,body{max-width:100%;overflow-x:hidden}
+img,video,canvas,svg{max-width:100%}
+input,select,textarea,button{max-width:100%}
+.tel-cup-scroll,.standings-table,.clean-table-card,.table-scroll,.calendar-table{overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+
+@media(max-width:1180px){
+  .mobile-menu-toggle{display:grid!important;place-items:center;font-size:22px;line-height:1}
+  .sidebar{display:flex!important;position:fixed!important;top:0!important;left:0!important;bottom:0!important;width:min(86vw,320px)!important;max-width:320px!important;height:100dvh!important;border-radius:0 18px 18px 0!important;z-index:1002!important;overflow-y:auto!important;overflow-x:hidden!important;transform:translateX(-110%);transition:transform .24s ease;box-shadow:28px 0 70px rgba(0,0,0,.62)!important}
+  body.mobile-nav-open .sidebar{transform:translateX(0)}
+  body.mobile-nav-open{overflow:hidden}
+  .mobile-nav-backdrop{display:block;position:fixed;inset:0;z-index:1001;background:rgba(0,0,0,.65);backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:.2s ease}
+  body.mobile-nav-open .mobile-nav-backdrop{opacity:1;visibility:visible}
+  .sidebar .side-head{min-height:120px}
+  .sidebar .side-nav a{min-height:52px;height:auto;padding:14px 24px}
+  .page{margin-left:0!important;width:100%;padding-left:clamp(12px,2.4vw,24px)!important;padding-right:clamp(12px,2.4vw,24px)!important}
+  .topbar{gap:12px!important;padding-inline:16px!important}
+  .brand{flex:1;min-width:0!important;width:auto!important}
+  .top-actions{flex:0 0 auto}
+  .league-layout,.news-layout,.standings-layout,.rules-layout,.contact-layout,.account-layout,.login-layout{min-width:0}
+  .tel-cup-scroll{width:100%;overflow-x:auto!important}
+}
+
+@media(max-width:760px){
+  :root{--mobile-gap:10px}
+  .topbar{height:62px!important;padding:0 max(10px,env(safe-area-inset-left))!important;gap:8px!important}
+  .page{padding-top:74px!important;padding-bottom:calc(24px + env(safe-area-inset-bottom))!important;padding-inline:10px!important}
+  .brand svg{width:38px!important;height:44px!important;flex:none}
+  .brand span{min-width:0}
+  .brand strong{font-size:14px!important;line-height:.95!important;white-space:nowrap}
+  .brand span span{display:none!important}
+  .top-actions{gap:6px!important}
+  .top-actions>.top-square{width:38px!important;height:38px!important}
+  .top-search,.top-notifications{display:none!important}
+  .discord{width:38px!important;height:38px!important;padding:0!important;justify-content:center;font-size:0!important}
+  .discord svg{width:20px!important;height:20px!important}
+  .user{height:38px!important;max-width:132px!important;padding:0 9px!important;gap:6px!important;min-width:0}
+  .user #userDisplayName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+  .user-chevron{display:none}
+  .avatar{display:grid!important;width:22px!important;height:22px!important;font-size:12px!important;flex:none}
+
+  .home-wrap,.league-page,.news-page,.teams-page,.players-page,.rules-page,.contact-page,.classification-page,.clean-classification-page{width:100%;min-width:0}
+  .home-hero,.hero-card,.league-hero,.news-hero,.teams-hero,.players-hero,.rules-hero,.contact-hero,.class-hero,.clean-class-hero,.account-hero,.login-hero{border-radius:12px!important}
+  .home-copy,.hero-copy,.league-hero-copy,.news-hero-copy,.teams-hero-copy,.players-hero-copy,.rules-hero-copy,.contact-hero-copy,.class-hero,.clean-class-hero{padding:24px 16px!important}
+  .home-title{font-size:clamp(38px,13vw,54px)!important;line-height:.9!important;letter-spacing:-1px!important}
+  .hero-copy h1,.league-hero-copy h1,.news-hero-copy h1,.teams-hero-copy h1,.players-hero-copy h1,.rules-hero-copy h1,.contact-hero-copy h1,.class-hero h1,.clean-class-hero h1,.account-hero h1{font-size:clamp(34px,10vw,48px)!important;line-height:.95!important;overflow-wrap:anywhere}
+  .home-copy p,.hero-copy p,.league-hero-copy p{font-size:15px!important}
+  .home-actions,.tabs-filter,.filters,.filter-group.active,.news-topbar,.standings-topbar,.rules-topbar,.team-tabs,.player-tabs{width:100%!important}
+  .home-actions .btn,.calendar-add,.send-btn{width:100%!important;min-width:0!important}
+  .tabs{width:100%!important;overflow-x:auto!important;display:flex!important;gap:18px!important;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs a,.tabs button{white-space:nowrap;flex:none}
+  .filters,.filter-group.active{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
+  .filter-btn{width:100%!important}
+
+  .home-grid,.home-features,.team-grid,.player-grid,.news-grid,.info-strip,.stats-strip,.player-stats,.player-submeta,.meta-grid,.team-stats,.account-grid,.tel-cup-info-grid{grid-template-columns:1fr!important}
+  .stats-strip{overflow:visible!important}
+  .stats-item{border-left:0!important;border-top:1px solid rgba(255,255,255,.07)}
+  .stats-item:first-child{border-top:0}
+
+  .game,.result-row,.day-match{grid-template-columns:1fr!important;gap:12px!important;text-align:center!important;padding:16px 12px!important}
+  .game>* ,.result-row>* ,.day-match>*{grid-column:1!important;width:100%;min-width:0}
+  .game .team-cell,.result-row .team-cell,.day-match .team-cell,.team-cell.right{justify-content:center!important;text-align:center!important;flex-direction:row!important}
+  .preview,.day-cta{width:100%!important}
+  .datebox,.datecol,.day-time{justify-self:center!important}
+
+  .standings-card,.clean-table-card,.stand-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+  .stand-head,.stand-row,.clean-table-head,.clean-row{min-width:720px!important}
+  .clean-row{grid-template-columns:56px minmax(190px,1fr) repeat(6,58px)!important}
+  .clean-table-head{grid-template-columns:56px minmax(190px,1fr) repeat(6,58px)!important}
+
+  .form-card,.contact-options,.info-card,.account-card,.login-card,.benefits-card,.right-card,.rail-card{padding:16px!important}
+  .form-grid,.contact-main,.login-main,.login-layout,.account-layout{grid-template-columns:1fr!important}
+  .login-layout{gap:12px!important}
+  .login-hero{min-height:auto!important;padding:20px 16px!important}
+  .login-hero h1{font-size:38px!important}
+  .login-art,.login-side{display:none!important}
+  .login-options{align-items:flex-start!important;flex-direction:column!important}
+  .social-login{grid-template-columns:1fr!important}
+  input,.input,.selectbox,textarea,.textarea{font-size:16px!important}
+
+  .option-row{grid-template-columns:1fr!important;text-align:center}
+  .option-icon{margin:auto}
+  .social-buttons{justify-content:center;flex-wrap:wrap}
+  .tel-cup-title{max-width:100%!important;align-items:flex-start!important}
+  .tel-cup-title h2{font-size:30px!important}
+  .tel-cup-title p{font-size:15px!important}
+  .tel-cup-info-btn{width:100%;justify-content:center;font-size:14px!important;padding:12px!important}
+  .tel-cup-scroll{margin-inline:-8px;width:calc(100% + 16px)!important;padding-inline:8px}
+  .tel-cup-bracket{transform-origin:left top}
+
+  .user-menu{position:fixed!important;right:10px!important;top:58px!important;left:auto!important;max-width:calc(100vw - 20px)!important}
+  .modal-card,.password-modal-card{width:calc(100vw - 20px)!important;max-height:90dvh;overflow:auto}
+  .atlas-creative-watermark{transform:scale(.82);transform-origin:right bottom}
+}
+
+@media(max-width:420px){
+  .brand strong{font-size:12px!important}
+  .user{max-width:112px!important}
+  .home-title{font-size:38px!important}
+  .page{padding-inline:8px!important}
+}
+</style>
+
 </head>
 <body>
   <header class="topbar">
@@ -4664,8 +4781,9 @@ body.auth-locked #login{display:block!important}
       <a href="#noticias" data-view="noticias">Noticias</a>
     </nav>
     <div class="top-actions">
-      <button class="top-square" aria-label="Buscar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
-      <button class="top-square" aria-label="Notificaciones"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
+      <button class="top-square mobile-menu-toggle" id="mobileMenuButton" type="button" aria-label="Abrir menú" aria-expanded="false"><span aria-hidden="true">☰</span></button>
+      <button class="top-square top-search" aria-label="Buscar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
+      <button class="top-square top-notifications" aria-label="Notificaciones"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
       <a class="discord" href="https://discord.gg/sJ5WDKMp84" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M20 5.5A16 16 0 0 0 16 4l-.4.8a14 14 0 0 1 3.6 1.8A11.6 11.6 0 0 0 5 6.6a14 14 0 0 1 3.6-1.8L8.2 4a16 16 0 0 0-4 1.5C1.7 9.2 1 12.8 1.3 16.4A16 16 0 0 0 6.2 19l1-1.4a9 9 0 0 1-1.6-.8l.4-.3a11.4 11.4 0 0 0 12 0l.4.3a9 9 0 0 1-1.6.8l1 1.4a16 16 0 0 0 4.9-2.6c.4-4.2-.6-7.8-2.7-10.9ZM8.4 14.2c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8S10 11.4 10 12.4s-.7 1.8-1.6 1.8Zm7.2 0c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8 1.6.8 1.6 1.8-.7 1.8-1.6 1.8Z"/></svg>Discord</a>
       
       
@@ -4724,6 +4842,7 @@ body.auth-locked #login{display:block!important}
       <a href="#noticias" title="YouTube / Noticias" aria-label="YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 12.1s0-3-0.4-4.5a3.2 3.2 0 0 0-2.2-2.2C18.9 5 12 5 12 5s-6.9 0-8.4.4A3.2 3.2 0 0 0 1.4 7.6C1 9.1 1 12.1 1 12.1s0 3 .4 4.5a3.2 3.2 0 0 0 2.2 2.2C5.1 19.2 12 19.2 12 19.2s6.9 0 8.4-.4a3.2 3.2 0 0 0 2.2-2.2c.4-1.5.4-4.5.4-4.5ZM9.8 15.5V8.7l5.9 3.4-5.9 3.4Z"/></svg></a>
     </div>
   </aside>
+  <div class="mobile-nav-backdrop" id="mobileNavBackdrop" aria-hidden="true"></div>
 
   <main class="page">
     
@@ -4765,6 +4884,8 @@ body.auth-locked #login{display:block!important}
                   <a class="forgot" href="#">¿Olvidaste tu contraseña?</a>
                 </div>
                 <button class="login-submit" id="loginSubmit" type="submit">Iniciar sesión <span>→</span></button>
+                <button class="guest-entry" id="continueAsGuest" type="button">Continuar como invitado</button>
+                <p class="guest-copy">Puedes consultar la web sin cuenta. El acceso solo es obligatorio para <b>Mi cuenta</b> y el <b>Panel Admin</b>.</p>
               </form>
               <p class="register-line"><span id="switchText">¿No tienes cuenta?</span> <a href="#" class="register-action" id="registerSwitch">Regístrate →</a></p>
             </section>
@@ -7448,7 +7569,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
 // REGISTRO AUTO CUENTA + SEGURIDAD + EQUIPO
 (function(){
-  const protectedHashes = ['#inicio','#partidos','#partidos-resultados','#partidos-calendario','#resultados','#calendario','#clasificacion','#equipos','#jugadores','#reglamento','#noticias','#contacto','#cuenta'];
+  const protectedHashes = ['#cuenta'];
   let authMode = 'login';
   let currentPasswordCode = '';
 
@@ -7607,7 +7728,36 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   function updateAccountUI(){
     const u = getUser();
-    if(!u) return;
+    const userName = document.querySelector('#userDisplayName');
+    const accountLink = document.querySelector('#accountMenuLink');
+    const logoutOption = document.querySelector('#logoutBtn');
+    const topAvatar = document.querySelector('#topUserAvatar');
+
+    if(!u){
+      if(userName) userName.textContent = 'Iniciar sesión';
+      if(accountLink){
+        accountLink.setAttribute('href','#login');
+        const label = accountLink.querySelector('span:last-child');
+        if(label) label.textContent = 'Iniciar sesión';
+      }
+      if(logoutOption) logoutOption.hidden = true;
+      if(topAvatar){
+        topAvatar.textContent = '👤';
+        topAvatar.style.backgroundImage = '';
+        topAvatar.classList.remove('has-image');
+      }
+      document.body.classList.add('auth-guest');
+      return;
+    }
+
+    document.body.classList.remove('auth-guest');
+    if(accountLink){
+      accountLink.setAttribute('href','#cuenta');
+      const label = accountLink.querySelector('span:last-child');
+      if(label) label.textContent = 'Mi cuenta';
+    }
+    if(logoutOption) logoutOption.hidden = false;
+    if(topAvatar) topAvatar.textContent = '';
     document.querySelectorAll('#userDisplayName,.account-name,.account-fullname').forEach(el=>el.textContent = u.name);
     document.querySelectorAll('.account-email').forEach(el=>el.textContent = u.email);
     document.querySelectorAll('.role-pill').forEach(el=>el.textContent = u.role || 'Manager');
@@ -7743,8 +7893,9 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       target.style.display = 'block';
       target.setAttribute('aria-hidden','false');
     }
-    document.body.classList.toggle('auth-locked', !logged);
+    document.body.classList.toggle('auth-locked', !logged && hash === '#login');
     document.body.classList.toggle('auth-session-active', logged);
+    document.body.classList.toggle('auth-guest', !logged);
     document.querySelectorAll('.nav a,.side-link,.side-menu a').forEach(a=>{
       a.classList.toggle('active', a.getAttribute('href') === hash);
     });
@@ -7816,6 +7967,14 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   }
 
   document.addEventListener('click', function(e){
+    const guestBtn = e.target.closest('#continueAsGuest');
+    if(guestBtn){
+      e.preventDefault();
+      closeMenu();
+      openPage('#inicio');
+      return;
+    }
+
     const switchBtn = e.target.closest('#registerSwitch');
     if(switchBtn){
       e.preventDefault();
@@ -7827,6 +7986,11 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     if(userBtn){
       e.preventDefault();
       e.stopPropagation();
+      if(!isLoggedIn()){
+        closeMenu();
+        openPage('#login');
+        return;
+      }
       const menu = document.querySelector('#userMenu');
       if(menu){
         menu.classList.toggle('open');
@@ -7860,7 +8024,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       fetch('/api/admin/logout',{method:'POST'}).catch(()=>{});
       window.dispatchEvent(new Event('tel:auth-changed'));
       closeMenu();
-      openPage('#login');
+      openPage('#inicio');
       return;
     }
 
@@ -8075,8 +8239,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   setAuthMode('login');
   setTimeout(()=>{
-    if(!isLoggedIn()) openPage('#login');
-    else openPage(location.hash || '#inicio');
+    const requested = location.hash || '#inicio';
+    openPage(!isLoggedIn() && requested === '#cuenta' ? '#login' : requested);
   }, 0);
 })();
 
@@ -8150,8 +8314,9 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       sec.style.display = 'block';
       sec.setAttribute('aria-hidden','false');
     }
-    document.body.classList.toggle('auth-locked', !logged);
+    document.body.classList.toggle('auth-locked', !logged && hash === '#login');
     document.body.classList.toggle('auth-session-active', logged);
+    document.body.classList.toggle('auth-guest', !logged);
     markMenu(hash);
     if(location.hash !== hash) history.replaceState(null,'',hash);
     window.scrollTo({top:0,behavior:'auto'});
@@ -8187,7 +8352,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   function route(rawHash){
     let hash = normalizeHash(rawHash || location.hash || '#inicio');
-    const protectedIds = new Set(['#inicio','#partidos','#partidos-resultados','#partidos-calendario','#resultados','#calendario','#clasificacion','#equipos','#jugadores','#reglamento','#noticias','#contacto','#cuenta','#temporada-info']);
+    const protectedIds = new Set(['#cuenta']);
     const logged = window.TELAuth?.isLoggedIn ? window.TELAuth.isLoggedIn() : (localStorage.getItem('tel_logged_in') === '1' && !!localStorage.getItem('tel_current_email'));
     if(!logged && protectedIds.has(hash)) hash = '#login';
 
@@ -8244,7 +8409,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   window.addEventListener('hashchange', ()=>route(location.hash));
   window.addEventListener('tel:auth-changed', ()=>{
     const logged = window.TELAuth?.isLoggedIn ? window.TELAuth.isLoggedIn() : false;
-    const next = logged && (location.hash === '#login' || !location.hash) ? '#inicio' : (location.hash || '#login');
+    const next = logged && (location.hash === '#login' || !location.hash) ? '#inicio' : (location.hash || '#inicio');
     route(next);
   });
 
@@ -14579,6 +14744,87 @@ body.tel-all-matches-open{overflow:hidden!important}
   }
 }
 </style>
+
+<script id="tel-responsive-guest-controller-v1">
+(function(){
+  const PUBLIC_HASHES = new Set(['#inicio','#partidos','#partidos-resultados','#partidos-calendario','#resultados','#calendario','#clasificacion','#equipos','#jugadores','#reglamento','#noticias','#contacto','#temporada-info','#login']);
+
+  function logged(){
+    return window.TELAuth?.isLoggedIn ? window.TELAuth.isLoggedIn() : (localStorage.getItem('tel_logged_in') === '1' && !!localStorage.getItem('tel_current_email'));
+  }
+  function setDrawer(open){
+    const shouldOpen = !!open && window.innerWidth <= 1180;
+    document.body.classList.toggle('mobile-nav-open', shouldOpen);
+    document.querySelector('#mobileMenuButton')?.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    document.querySelector('#mobileNavBackdrop')?.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  }
+  function syncGuestState(){
+    const isLogged = logged();
+    document.body.classList.toggle('auth-guest', !isLogged);
+    const hash = location.hash || '#inicio';
+    document.body.classList.toggle('auth-locked', !isLogged && hash === '#login');
+    const name = document.querySelector('#userDisplayName');
+    const logout = document.querySelector('#logoutBtn');
+    if(!isLogged){
+      if(name) name.textContent = 'Iniciar sesión';
+      if(logout) logout.hidden = true;
+    }else if(logout){
+      logout.hidden = false;
+    }
+  }
+
+  document.addEventListener('click', function(event){
+    const menuButton = event.target.closest('#mobileMenuButton');
+    if(menuButton){
+      event.preventDefault();
+      setDrawer(!document.body.classList.contains('mobile-nav-open'));
+      return;
+    }
+    if(event.target.closest('#mobileNavBackdrop')){
+      setDrawer(false);
+      return;
+    }
+    const sidebarLink = event.target.closest('.sidebar a[href]');
+    if(sidebarLink) setDrawer(false);
+
+    const accountTarget = event.target.closest('a[href="#cuenta"],#accountMenuLink,.side-account-link');
+    if(accountTarget && !logged()){
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setDrawer(false);
+      const msg = document.querySelector('#authMessage');
+      if(msg) msg.textContent = 'Inicia sesión o crea una cuenta para acceder a Mi cuenta.';
+      if(window.TELAuth?.openPage) window.TELAuth.openPage('#login');
+      else location.hash = '#login';
+    }
+  }, true);
+
+  document.addEventListener('keydown', function(event){
+    if(event.key === 'Escape') setDrawer(false);
+  });
+  window.addEventListener('resize', function(){
+    if(window.innerWidth > 1180) setDrawer(false);
+  });
+  window.addEventListener('hashchange', function(){
+    setDrawer(false);
+    syncGuestState();
+    if(!logged() && location.hash === '#cuenta'){
+      if(window.TELAuth?.openPage) window.TELAuth.openPage('#login');
+    }
+  });
+  window.addEventListener('tel:auth-changed', syncGuestState);
+
+  document.addEventListener('DOMContentLoaded', function(){
+    syncGuestState();
+    const requested = location.hash || '#inicio';
+    if(!logged() && !PUBLIC_HASHES.has(requested) && requested !== '#cuenta'){
+      history.replaceState(null,'','#inicio');
+    }
+  });
+  setTimeout(syncGuestState, 150);
+})();
+</script>
+
 </body>
 </html>
 
