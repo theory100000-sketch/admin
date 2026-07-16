@@ -6278,11 +6278,14 @@ app.get('/api/live-updates', (req,res)=>{
 
 app.get('/api/data-version', async (req,res)=>{
   res.set('Cache-Control','no-store');
-  let remoteVersion='';
-  try{
-    if(telRedis) remoteVersion=String(await telRedis.get(telRedisVersionKey()) || '');
-  }catch(error){}
-  res.json({ok:true,version:remoteVersion || telLastDataHash || telDataHash()});
+  /*
+     La versión pública se basa en el contenido real de data.json.
+     El bot puede renovar la clave auxiliar de versión aunque los datos no
+     cambien; usar ese valor provocaba refrescos visuales periódicos.
+  */
+  const contentHash = telDataHash();
+  if(contentHash) telLastDataHash = contentHash;
+  res.json({ok:true,version:contentHash || telLastDataHash || 'sin-datos'});
 });
 
 /* ============================================================
