@@ -4639,6 +4639,13 @@ html.tel-official-data-loading body::before{content:"";position:fixed;inset:0;ba
 html.tel-official-data-loading body::after{content:"Cargando datos oficiales…";position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483646;color:#d58cff;font:900 16px/1.2 Arial,sans-serif;letter-spacing:.04em;padding:15px 20px;border:1px solid rgba(183,76,255,.45);border-radius:12px;background:#08101f;box-shadow:0 20px 70px rgba(0,0,0,.5)}
 .tel-cup-crest img,.tel-live-cup-team img,.real-crest img,.logo,.big-logo{object-fit:contain!important;box-sizing:border-box!important;padding:2px!important}
 </style>
+
+<style id="tel-auth-visibility-fix">
+body.auth-session-active #login:not(.active){display:none!important}
+body.auth-locked #login{display:block!important}
+.send-btn:disabled{opacity:.65;cursor:wait}
+#contactStatus{min-height:18px}
+</style>
 </head>
 <body>
   <header class="topbar">
@@ -6970,13 +6977,13 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
           </article>
 
           <div class="contact-main">
-            <section class="form-card">
+            <form class="form-card" id="contactForm" novalidate>
               <h3>Envíanos un mensaje</h3>
               <p>Completa el formulario y te responderemos lo antes posible.</p>
               <div class="form-grid">
-                <label class="field">Nombre<input class="input" placeholder="Tu nombre completo" /></label>
-                <label class="field">Correo electrónico<input class="input" placeholder="tu@correo.com" /></label>
-                <label class="field full">Asunto<input class="input" placeholder="Ej: Consulta sobre torneo, soporte técnico, colaboración..." /></label>
+                <label class="field">Nombre<input class="input" id="contactName" name="nombre" type="text" autocomplete="name" placeholder="Tu nombre completo" required maxlength="100" /></label>
+                <label class="field">Correo electrónico<input class="input" id="contactEmail" name="email" type="email" autocomplete="email" placeholder="tu@correo.com" required maxlength="180" /></label>
+                <label class="field full">Asunto<input class="input" id="contactSubject" name="asunto" type="text" placeholder="Ej: Consulta sobre torneo, soporte técnico, colaboración..." required maxlength="180" /></label>
                 <label class="field full">Categoría
                   <select class="input selectbox contact-category" id="contactCategory" name="categoria" required>
                     <option value="" selected>Selecciona una categoría</option>
@@ -6989,11 +6996,12 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
                     <option value="Otros">Otros</option>
                   </select>
                 </label>
-                <label class="field full">Mensaje<textarea class="textarea" placeholder="Escribe tu mensaje aquí..."></textarea></label>
-                <button class="send-btn">Enviar mensaje</button>
-                <div class="privacy">🔒 Tus datos están protegidos y no serán compartidos.</div>
+                <label class="field full">Mensaje<textarea class="textarea" id="contactMessage" name="mensaje" placeholder="Escribe tu mensaje aquí..." required minlength="10" maxlength="1800"></textarea></label>
+                <input name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
+                <button class="send-btn" id="contactSubmit" type="submit">Enviar mensaje</button>
+                <div class="privacy" id="contactStatus" role="status" aria-live="polite">🔒 Tus datos están protegidos y no serán compartidos.</div>
               </div>
-            </section>
+            </form>
             <section class="contact-options">
               <article class="option-row"><div class="option-icon">🎧</div><div><h3>Soporte</h3><p>Soporte técnico, problemas de acceso, errores o asistencia general.</p></div><a class="btn" href="https://discord.gg/sJ5WDKMp84" target="_blank" rel="noopener">Abrir ticket →</a></article>
               <article class="option-row"><div class="option-icon">🛡️</div><div><h3>Administración</h3><p>Consultas sobre torneos, reglas, sanciones o gestión general.</p></div><a class="btn" href="#">Contactar →</a></article>
@@ -7291,19 +7299,55 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       card.addEventListener('click',()=>showToast('Elemento seleccionado'));
     });
 
-    // Formulario de contacto
-    document.querySelector('.send-btn')?.addEventListener('click',e=>{
+    // Formulario de contacto real: envía el mensaje al servidor y este lo publica en Discord.
+    const contactForm = document.querySelector('#contactForm');
+    contactForm?.addEventListener('submit', async e=>{
       e.preventDefault();
-      const category = document.querySelector('#contactCategory');
-      if(category && !category.value){
-        showToast('Selecciona una categoría');
-        category.focus();
-        return;
+      e.stopImmediatePropagation();
+
+      const submit = document.querySelector('#contactSubmit');
+      const status = document.querySelector('#contactStatus');
+      const payload = {
+        nombre: String(document.querySelector('#contactName')?.value || '').trim(),
+        email: String(document.querySelector('#contactEmail')?.value || '').trim(),
+        asunto: String(document.querySelector('#contactSubject')?.value || '').trim(),
+        categoria: String(document.querySelector('#contactCategory')?.value || '').trim(),
+        mensaje: String(document.querySelector('#contactMessage')?.value || '').trim(),
+        website: String(contactForm.querySelector('[name="website"]')?.value || '').trim()
+      };
+
+      if(payload.nombre.length < 2){ showToast('Escribe tu nombre'); document.querySelector('#contactName')?.focus(); return; }
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)){ showToast('Escribe un correo válido'); document.querySelector('#contactEmail')?.focus(); return; }
+      if(payload.asunto.length < 3){ showToast('Escribe el asunto'); document.querySelector('#contactSubject')?.focus(); return; }
+      if(!payload.categoria){ showToast('Selecciona una categoría'); document.querySelector('#contactCategory')?.focus(); return; }
+      if(payload.mensaje.length < 10){ showToast('El mensaje debe tener al menos 10 caracteres'); document.querySelector('#contactMessage')?.focus(); return; }
+
+      if(submit){ submit.disabled = true; submit.textContent = 'Enviando…'; }
+      if(status) status.textContent = 'Enviando el mensaje a Discord…';
+      try{
+        const response = await fetch('/api/contact', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          credentials:'same-origin',
+          cache:'no-store',
+          body:JSON.stringify(payload)
+        });
+        let result = null;
+        try{ result = await response.json(); }catch(error){}
+        if(!response.ok || !result?.ok){
+          throw new Error(result?.message || `No se pudo enviar el mensaje (${response.status}).`);
+        }
+        contactForm.reset();
+        if(status) status.textContent = '✅ Mensaje enviado correctamente a la administración por Discord.';
+        showToast('Mensaje enviado correctamente a Discord');
+      }catch(error){
+        const message = error?.message || 'No se pudo enviar el mensaje a Discord.';
+        if(status) status.textContent = '⚠ ' + message;
+        showToast(message);
+      }finally{
+        if(submit){ submit.disabled = false; submit.textContent = 'Enviar mensaje'; }
       }
-      showToast('Mensaje enviado correctamente');
-      document.querySelectorAll('.form-card input,.form-card textarea').forEach(el=>el.value='');
-      document.querySelectorAll('.form-card select').forEach(el=>el.selectedIndex=0);
-    });
+    }, true);
 
     // Botón recordatorio / activar
     document.querySelectorAll('.reminder-card .btn').forEach(btn=>{
@@ -7683,18 +7727,34 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   function openPage(hash){
     if(!hash) hash = '#inicio';
-    if(!isLoggedIn() && protectedHashes.includes(hash)){
-      hash = '#login';
+    const logged = isLoggedIn();
+    if(!logged && protectedHashes.includes(hash)) hash = '#login';
+
+    // El router final también usa estilos inline. Los limpiamos aquí para que
+    // una pantalla de login anterior nunca quede superpuesta tras acceder.
+    document.querySelectorAll('section.view').forEach(v=>{
+      v.classList.remove('active','force-active','tel-visible');
+      v.style.display = 'none';
+      v.setAttribute('aria-hidden','true');
+    });
+    const target = document.querySelector(`section.view${hash}`) || document.querySelector(hash);
+    if(target){
+      target.classList.add('active','tel-visible');
+      target.style.display = 'block';
+      target.setAttribute('aria-hidden','false');
     }
-    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-    const target = document.querySelector(hash);
-    if(target) target.classList.add('active');
-    document.body.classList.toggle('auth-locked', !isLoggedIn());
+    document.body.classList.toggle('auth-locked', !logged);
+    document.body.classList.toggle('auth-session-active', logged);
     document.querySelectorAll('.nav a,.side-link,.side-menu a').forEach(a=>{
       a.classList.toggle('active', a.getAttribute('href') === hash);
     });
-    history.replaceState(null,'',hash);
+    if(location.hash !== hash) history.replaceState(null,'',hash);
     updateAccountUI();
+
+    // Mantiene sincronizado el segundo router sin provocar recarga ni hashchange.
+    if(window.TELRouter && typeof window.TELRouter.route === 'function'){
+      queueMicrotask(()=>window.TELRouter.route(hash));
+    }
   }
   window.TELAuth.openPage = openPage;
 
@@ -8078,15 +8138,20 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   }
 
   function showSection(id, hash){
+    const logged = window.TELAuth?.isLoggedIn ? window.TELAuth.isLoggedIn() : false;
     document.querySelectorAll('section.view').forEach(v=>{
       v.classList.remove('active','force-active','tel-visible');
       v.style.display = 'none';
+      v.setAttribute('aria-hidden','true');
     });
     const sec = document.querySelector(`section.view#${id}`);
     if(sec){
       sec.classList.add('active','tel-visible');
       sec.style.display = 'block';
+      sec.setAttribute('aria-hidden','false');
     }
+    document.body.classList.toggle('auth-locked', !logged);
+    document.body.classList.toggle('auth-session-active', logged);
     markMenu(hash);
     if(location.hash !== hash) history.replaceState(null,'',hash);
     window.scrollTo({top:0,behavior:'auto'});
@@ -8175,7 +8240,13 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     }
   }, true);
 
+  window.TELRouter = { route };
   window.addEventListener('hashchange', ()=>route(location.hash));
+  window.addEventListener('tel:auth-changed', ()=>{
+    const logged = window.TELAuth?.isLoggedIn ? window.TELAuth.isLoggedIn() : false;
+    const next = logged && (location.hash === '#login' || !location.hash) ? '#inicio' : (location.hash || '#login');
+    route(next);
+  });
 
   setTimeout(()=>route(location.hash || '#inicio'), 100);
 })();
