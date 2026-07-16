@@ -5,7 +5,7 @@ DIAGNOSTICO_*
 README_*.txt
 *.bat
 *.sh
-discord-bot.js
+index.js
 deploy-commands.js
 verify-commands.js
 start-all.js

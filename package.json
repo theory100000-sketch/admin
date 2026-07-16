@@ -1,26 +1,24 @@
 {
   "name": "thunder-elite-league-web-bot",
-  "version": "1.0.0",
-  "description": "Web y bot Discord de Thunder Elite League",
+  "version": "1.0.1",
+  "description": "Thunder Elite League con sincronización Discord-Web mediante Upstash",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "web": "node server.js",
-    "bot": "node discord-bot.js",
+    "bot": "node index.js",
     "start:all": "node start-all.js",
-    "deploy:commands": "node deploy-commands.js",
-    "verify:commands": "node verify-commands.js"
+    "deploy": "node deploy-commands.js",
+    "verify": "node verify-commands.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "@upstash/redis": "^1.35.3",
     "cookie-session": "^2.1.0",
-    "@upstash/redis": "^1.35.3"
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
   },
   "engines": {
     "node": "22.x"
-  },
-  "devDependencies": {
-    "discord.js": "^14.16.3"
   }
 }

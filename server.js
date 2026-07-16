@@ -110,16 +110,16 @@ const TEL_LIVE_DATA_KEY = `${TEL_REDIS_SAFE_PREFIX}data:live`;
 
 function telRedisKey(name){
   if(name === 'data.json') return TEL_LIVE_DATA_KEY;
-  return `${TEL_REDIS_PREFIX}${name}`;
+  return `${TEL_REDIS_SAFE_PREFIX}${name}`;
 }
 function telRedisVersionKey(){
-  return `${TEL_REDIS_PREFIX}__version`;
+  return `${TEL_REDIS_SAFE_PREFIX}__version`;
 }
 function telRedisActiveDataKey(){
-  return `${TEL_REDIS_PREFIX}__active_data_key`;
+  return `${TEL_REDIS_SAFE_PREFIX}__active_data_key`;
 }
 function telRedisRepoDataHashKey(){
-  return `${TEL_REDIS_PREFIX}__active_repo_data_hash`;
+  return `${TEL_REDIS_SAFE_PREFIX}__active_repo_data_hash`;
 }
 
 async function telLoadPersistentFiles(force=false){
@@ -889,6 +889,36 @@ function telHydrateDataForClient(rawData){
   });
   return data;
 }
+
+
+app.get('/api/sync-status', async (req,res)=>{
+  res.set('Cache-Control','no-store');
+  let data={clubes:[],jugadores:[],competiciones:[]};
+  try{ data=readJson(DATA_FILE,data); }catch(error){}
+  let redisHost='';
+  try{ redisHost=new URL(telRedisUrl).host; }catch(error){}
+  let remoteVersion='';
+  let remoteExists=false;
+  try{
+    if(telRedis){
+      remoteVersion=String(await telRedis.get(telRedisVersionKey()) || '');
+      remoteExists=(await telRedis.get(TEL_LIVE_DATA_KEY)) !== null;
+    }
+  }catch(error){}
+  res.json({
+    ok:true,
+    redisConnected:Boolean(telRedis),
+    redisHost,
+    prefix:TEL_REDIS_SAFE_PREFIX,
+    dataKey:TEL_LIVE_DATA_KEY,
+    remoteExists,
+    remoteVersion,
+    source:data?.sync?.source || 'repo',
+    updatedAt:data?.sync?.updatedAt || '',
+    clubs:Array.isArray(data?.clubes)?data.clubes.length:0,
+    players:Array.isArray(data?.jugadores)?data.jugadores.length:0
+  });
+});
 
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");

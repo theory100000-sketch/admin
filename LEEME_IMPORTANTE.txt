@@ -1,0 +1,27 @@
+CORRECCIÓN PARA EL REPOSITORIO ACTUAL
+
+El repositorio de GitHub estaba ejecutando index.js como bot, mientras que el parche anterior creó discord-bot.js. Por eso el bot que realmente funcionaba nunca escribía en Upstash. Además, el server.js publicado no tenía conexión con Upstash.
+
+ARCHIVOS A SUSTITUIR EN GITHUB:
+- server.js
+- index.js
+- package.json
+- package-lock.json
+- start-all.js
+- admin-pages.js
+- vercel.json
+- .vercelignore
+- public/tel-live-sync.js
+- public/tel-data-integrity.js
+
+NO sustituyas ni borres data.json.
+
+EN EL .env DEL BOT (ordenador/VPS/hosting) deben existir los mismos valores que en Vercel:
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+TEL_REDIS_PREFIX=tel:web:v1:
+
+Reinicia el bot con: npm run bot
+En consola debe salir: SINCRONIZACIÓN ACTIVA
+
+Tras desplegar Vercel abre /api/sync-status. Debe mostrar redisConnected:true y dataKey:tel:web:v1:data:live.
