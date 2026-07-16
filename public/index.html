@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#05080d" />
   <title>Thunder Elite League</title>
   <style>
     :root{
@@ -4763,6 +4764,140 @@ input,select,textarea,button{max-width:100%}
 }
 </style>
 
+
+<style id="tel-mobile-perfect-v2">
+/* Navegación móvil completa */
+.tel-mobile-sections,.tel-mobile-bottom-nav{display:none}
+.tel-mobile-sections{position:fixed;inset:0;z-index:5000;pointer-events:none}
+.tel-mobile-sections-backdrop{position:absolute;inset:0;border:0;background:rgba(0,0,0,.72);backdrop-filter:blur(5px);opacity:0;transition:opacity .22s ease}
+.tel-mobile-sections-panel{position:absolute;left:0;right:0;bottom:0;max-height:min(88dvh,760px);overflow-y:auto;overscroll-behavior:contain;padding:18px 14px calc(22px + env(safe-area-inset-bottom));border:1px solid rgba(183,82,255,.34);border-bottom:0;border-radius:24px 24px 0 0;background:linear-gradient(180deg,#101625 0%,#070b12 100%);box-shadow:0 -28px 80px rgba(0,0,0,.68);transform:translateY(105%);transition:transform .25s ease;-webkit-overflow-scrolling:touch}
+body.tel-mobile-sections-open .tel-mobile-sections{pointer-events:auto}
+body.tel-mobile-sections-open .tel-mobile-sections-backdrop{opacity:1}
+body.tel-mobile-sections-open .tel-mobile-sections-panel{transform:translateY(0)}
+body.tel-mobile-sections-open{overflow:hidden!important}
+.tel-mobile-sheet-handle{width:46px;height:5px;border-radius:999px;margin:0 auto 15px;background:rgba(255,255,255,.26)}
+.tel-mobile-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
+.tel-mobile-sheet-head h2{margin:0;font-size:21px;line-height:1.1;text-transform:uppercase;letter-spacing:.3px}
+.tel-mobile-sheet-head p{margin:5px 0 0;color:#9da8b9;font-size:12px}
+.tel-mobile-sheet-close{width:42px;height:42px;flex:none;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:#080d15;font-size:24px;line-height:1}
+.tel-mobile-section-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tel-mobile-section-link{min-height:86px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;padding:13px;border-radius:15px;border:1px solid rgba(255,255,255,.075);background:linear-gradient(155deg,rgba(255,255,255,.045),rgba(255,255,255,.012));color:#fff;text-decoration:none;min-width:0}
+.tel-mobile-section-link:active{transform:scale(.98);background:rgba(151,51,255,.18)}
+.tel-mobile-section-link.tel-mobile-active{border-color:rgba(184,78,255,.68);background:linear-gradient(145deg,rgba(151,51,255,.25),rgba(77,25,148,.12));box-shadow:inset 0 0 0 1px rgba(184,78,255,.12)}
+.tel-mobile-section-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:rgba(157,65,255,.17);font-size:18px}
+.tel-mobile-section-link strong{display:block;max-width:100%;font-size:13px;line-height:1.15;text-transform:uppercase;overflow-wrap:anywhere}
+.tel-mobile-section-link small{display:block;max-width:100%;color:#9fa9b9;font-size:10px;line-height:1.2}
+.tel-mobile-section-link.tel-mobile-wide{grid-column:1/-1;min-height:62px;flex-direction:row;align-items:center;justify-content:flex-start}
+.tel-mobile-section-link.tel-mobile-wide .tel-mobile-section-icon{flex:none}
+.tel-mobile-admin-link{display:none!important}
+body.tel-admin-authorized .tel-mobile-admin-link{display:flex!important}
+.tel-mobile-sheet-footer{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.tel-mobile-sheet-footer a{min-height:48px;border-radius:13px;border:1px solid rgba(255,255,255,.09);display:flex;align-items:center;justify-content:center;gap:8px;background:#080d15;font-size:12px;font-weight:900;text-transform:uppercase}
+.tel-mobile-sheet-footer a:first-child{background:linear-gradient(135deg,#6722bd,#9b2eff);border-color:transparent}
+
+@media(max-width:1180px){
+  .tel-mobile-sections{display:block}
+  .main-nav{display:none!important}
+  .sidebar{transform:translateX(-110%)!important}
+  body.mobile-nav-open .sidebar{transform:translateX(-110%)!important}
+  .page{margin-left:0!important;max-width:100%!important}
+  .topbar{width:100%;max-width:100vw}
+}
+
+@media(max-width:900px){
+  .tel-mobile-bottom-nav{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:4200;min-height:62px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;padding:5px;border:1px solid rgba(169,78,255,.25);border-radius:18px;background:rgba(7,11,18,.95);box-shadow:0 18px 55px rgba(0,0,0,.65),0 0 28px rgba(151,51,255,.12);backdrop-filter:blur(18px)}
+  .tel-mobile-bottom-nav a,.tel-mobile-bottom-nav button{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:13px;color:#9da8b9;text-decoration:none;font-size:9px;font-weight:900;text-transform:uppercase;line-height:1.1;padding:5px 2px}
+  .tel-mobile-bottom-nav .tel-mobile-nav-icon{font-size:19px;line-height:1}
+  .tel-mobile-bottom-nav .tel-mobile-active{color:#fff;background:linear-gradient(145deg,rgba(151,51,255,.35),rgba(111,29,220,.18));box-shadow:inset 0 0 0 1px rgba(184,78,255,.25)}
+  .page{padding-bottom:calc(96px + env(safe-area-inset-bottom))!important}
+  .atlas-creative-watermark{bottom:calc(80px + env(safe-area-inset-bottom))!important}
+}
+
+@media(max-width:760px){
+  html{scroll-padding-top:72px}
+  body{font-size:15px}
+  .topbar{padding-left:10px!important;padding-right:10px!important}
+  .mobile-menu-toggle{order:-2!important;flex:none}
+  .brand{order:-1!important;min-width:0!important}
+  .top-actions .discord{display:none!important}
+  .top-actions{margin-left:auto!important}
+  .user-menu-wrap{min-width:0}
+  .user{max-width:108px!important}
+  .page,.view,.view>*,.view article,.view section,.view div{min-width:0}
+  .page{padding-top:72px!important}
+
+  /* Cabeceras sin elementos que tapen el contenido */
+  .home-hero,.league-hero,.hero-card,.news-hero,.teams-hero,.players-hero,.rules-hero,.contact-hero,.clean-class-hero,.class-hero,.account-hero,.tel-season-hero{min-height:0!important;height:auto!important}
+  .home-player,.season-box,.hero-symbol,.league-hero-art,.news-hero-art,.teams-art,.players-art,.rules-art,.contact-art,.clean-class-art,.class-hero-icon,.tel-season-hero-side{display:none!important}
+  .home-copy,.hero-copy,.league-hero-copy,.news-hero-copy,.teams-hero-copy,.players-hero-copy,.rules-hero-copy,.contact-hero-copy,.account-hero,.tel-season-hero{max-width:100%!important;width:100%!important}
+  .home-copy,.hero-copy,.league-hero-copy,.news-hero-copy,.teams-hero-copy,.players-hero-copy,.rules-hero-copy,.contact-hero-copy{padding:24px 16px!important}
+  .kicker{font-size:11px!important;letter-spacing:1px!important}
+  .home-copy p,.hero-copy p,.league-hero-copy p,.news-hero-copy p,.teams-hero-copy p,.rules-hero-copy p,.contact-hero-copy p{max-width:100%!important}
+
+  /* Todas las estructuras pasan a una columna */
+  .home-grid,.home-features,.league-layout,.news-layout,.teams-layout,.players-layout,.rules-layout,.contact-layout,.calendar-layout,.classification-page,.clean-classification-page,.account-layout,.login-layout,.tel-season-layout,.tel-season-bottom,.tel-season-sidebar,.tel-tp-layout,.tel-po-layout,.contact-main,.login-main,.account-grid,.team-grid,.player-grid,.news-grid,.rules-grid,.info-grid,.meta-grid{grid-template-columns:minmax(0,1fr)!important}
+  .league-right,.news-right,.teams-right,.players-right,.rules-right,.contact-right{width:100%!important}
+  .league-left,.league-right{min-width:0!important}
+
+  /* Barras de filtros y pestañas cómodas al tacto */
+  .tabs-filter,.news-topbar,.standings-topbar,.rules-topbar,.team-tabs,.player-tabs,.clean-class-tabs,.class-tabs{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:10px!important;padding:10px!important;height:auto!important}
+  .tabs,.clean-class-tabs>div,.class-tabs>div{width:100%!important;overflow-x:auto!important;scroll-snap-type:x proximity;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+  .tabs a,.tabs button{min-height:46px!important;scroll-snap-align:start}
+  .filters,.filter-group.active,.clean-class-filters,.class-filters{width:100%!important;display:grid!important;grid-template-columns:1fr!important;margin-left:0!important}
+  .selector,.filter-btn,.league-select,.league-select>button{width:100%!important;max-width:none!important}
+
+  /* Calendario */
+  .month-panel,.day-board,.sync-card{width:100%!important;padding:12px!important}
+  .calendar-grid b,.calendar-grid span{min-height:42px!important;font-size:14px!important}
+  .calendar-grid b{font-size:10px!important}
+  .sync-card{flex-direction:column!important;align-items:stretch!important}
+  .calendar-add{width:100%!important;min-width:0!important}
+
+  /* Partidos y resultados como tarjetas verticales */
+  .game,.result-row,.day-match,.match-row,.tel-am-row{width:100%!important;grid-template-columns:minmax(0,1fr)!important;text-align:center!important}
+  .game>*,.result-row>*,.day-match>*,.match-row>*,.tel-am-row>*{grid-column:1!important;max-width:100%!important}
+  .team-cell,.team-cell.right{justify-content:center!important;white-space:normal!important}
+  .team-name{white-space:normal!important;overflow-wrap:anywhere!important}
+  .stadium{grid-column:1!important;white-space:normal!important}
+
+  /* Tablas y brackets: desplazamiento controlado, sin cortar la página */
+  .standings-card,.stand-table-wrap,.clean-table-card,.table-card,.table-wrap,.tel-table-wrap,.tel-cup-scroll,#telAllMatchesOverlay .tel-cup-scroll{position:relative;display:block!important;width:100%!important;max-width:100%!important;overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  .stand-head,.stand-row,.clean-table-head,.clean-row,.table-head,.table-row{min-width:680px!important}
+  .tel-cup-bracket,.clean-table-card.tel-class-cup-card .tel-cup-bracket,#telAllMatchesOverlay .tel-cup-bracket{min-width:940px!important;transform:none!important}
+  .tel-cup-round{min-width:245px!important}
+  .tel-cup-scroll::before,.clean-table-card.tel-class-cup-card::before{content:'Desliza horizontalmente para ver todo  →';position:sticky;left:8px;display:inline-flex;z-index:4;margin:0 0 8px;padding:7px 10px;border-radius:999px;background:rgba(8,13,21,.92);border:1px solid rgba(169,78,255,.28);color:#cda1ff;font-size:10px;font-weight:900;text-transform:uppercase;white-space:nowrap}
+  .clean-table-card:not(.tel-class-cup-card)::before,.standings-card::before,.stand-table-wrap::before{content:'Desliza para ver todas las columnas  →';position:sticky;left:8px;display:inline-flex;z-index:4;margin:8px;padding:7px 10px;border-radius:999px;background:rgba(8,13,21,.92);border:1px solid rgba(169,78,255,.28);color:#cda1ff;font-size:10px;font-weight:900;text-transform:uppercase;white-space:nowrap}
+
+  /* Formularios, tarjetas y botones */
+  .form-card,.contact-options,.info-card,.account-card,.login-card,.benefits-card,.right-card,.rail-card,.home-panel,.league-card,.news-card,.team-card,.player-card,.rule-card,.tel-side-card,.tel-season-card,.tel-season-list,.tel-season-links{width:100%!important;max-width:100%!important;padding:15px!important}
+  .form-grid,.info-row,.profile-banner,.option-row,.tel-tp-meta,.tel-tp-stats,.tel-po-info,.tel-po-meta{grid-template-columns:minmax(0,1fr)!important}
+  input,select,textarea,.input,.selectbox,.textarea{width:100%!important;min-height:48px;font-size:16px!important}
+  textarea,.textarea{min-height:130px}
+  .btn,.send-btn,.preview,.day-cta,.tel-tp-action,.tel-po-action{width:100%!important;min-width:0!important;min-height:48px!important}
+  .home-actions,.tel-tp-actions,.tel-po-actions{display:grid!important;grid-template-columns:1fr!important;width:100%!important}
+
+  /* Ventanas superpuestas */
+  #telAllMatchesOverlay,.modal,.password-modal,.edit-profile-modal{padding:8px!important}
+  #telAllMatchesOverlay .tel-am-shell,.modal-card,.password-modal-card,.edit-profile-card{width:100%!important;max-width:100%!important;max-height:94dvh!important;border-radius:16px!important}
+  #telAllMatchesOverlay .tel-am-main{padding:12px!important}
+
+  /* Evita textos y logos deformados */
+  img{height:auto}
+  .real-crest img,.logo img,.big-logo img,.tel-cup-crest img{height:100%!important;object-fit:contain!important}
+  h1,h2,h3,h4,p,span,b,strong,a{overflow-wrap:anywhere}
+}
+
+@media(max-width:420px){
+  .tel-mobile-section-grid{gap:8px}
+  .tel-mobile-section-link{min-height:80px;padding:11px}
+  .tel-mobile-section-link strong{font-size:12px}
+  .tel-mobile-bottom-nav{left:5px;right:5px;bottom:calc(5px + env(safe-area-inset-bottom))}
+  .tel-mobile-bottom-nav a,.tel-mobile-bottom-nav button{font-size:8px}
+  .topbar .brand strong{font-size:11px!important}
+  .topbar .user{max-width:96px!important}
+}
+</style>
+
 </head>
 <body>
   <header class="topbar">
@@ -4843,6 +4978,44 @@ input,select,textarea,button{max-width:100%}
     </div>
   </aside>
   <div class="mobile-nav-backdrop" id="mobileNavBackdrop" aria-hidden="true"></div>
+
+
+  <div class="tel-mobile-sections" id="telMobileSections" aria-hidden="true">
+    <button class="tel-mobile-sections-backdrop" type="button" aria-label="Cerrar menú de secciones" data-mobile-sections-close></button>
+    <section class="tel-mobile-sections-panel" role="dialog" aria-modal="true" aria-labelledby="telMobileSectionsTitle">
+      <div class="tel-mobile-sheet-handle" aria-hidden="true"></div>
+      <div class="tel-mobile-sheet-head">
+        <div><h2 id="telMobileSectionsTitle">Todas las secciones</h2><p>Accede rápidamente a cualquier apartado de TEL.</p></div>
+        <button class="tel-mobile-sheet-close" type="button" aria-label="Cerrar" data-mobile-sections-close>×</button>
+      </div>
+      <div class="tel-mobile-section-grid">
+        <a class="tel-mobile-section-link" href="#inicio" data-mobile-route="#inicio"><span class="tel-mobile-section-icon">⌂</span><strong>Inicio</strong><small>Portada y destacados</small></a>
+        <a class="tel-mobile-section-link" href="#partidos" data-mobile-route="#partidos"><span class="tel-mobile-section-icon">⚽</span><strong>Partidos</strong><small>Próximos encuentros</small></a>
+        <a class="tel-mobile-section-link" href="#partidos-resultados" data-mobile-route="#partidos-resultados"><span class="tel-mobile-section-icon">✓</span><strong>Resultados</strong><small>Marcadores oficiales</small></a>
+        <a class="tel-mobile-section-link" href="#partidos-calendario" data-mobile-route="#partidos-calendario"><span class="tel-mobile-section-icon">▦</span><strong>Calendario</strong><small>Jornadas y fechas</small></a>
+        <a class="tel-mobile-section-link" href="#clasificacion" data-mobile-route="#clasificacion"><span class="tel-mobile-section-icon">🏆</span><strong>Clasificación</strong><small>Ligas y copas</small></a>
+        <a class="tel-mobile-section-link" href="#equipos" data-mobile-route="#equipos"><span class="tel-mobile-section-icon">🛡️</span><strong>Equipos</strong><small>Clubes y plantillas</small></a>
+        <a class="tel-mobile-section-link" href="#noticias" data-mobile-route="#noticias"><span class="tel-mobile-section-icon">▤</span><strong>Noticias</strong><small>Novedades de TEL</small></a>
+        <a class="tel-mobile-section-link" href="#reglamento" data-mobile-route="#reglamento"><span class="tel-mobile-section-icon">§</span><strong>Reglamento</strong><small>Normas y sanciones</small></a>
+        <a class="tel-mobile-section-link" href="#contacto" data-mobile-route="#contacto"><span class="tel-mobile-section-icon">✉</span><strong>Contacto</strong><small>Habla con el staff</small></a>
+        <a class="tel-mobile-section-link" href="#temporada-info" data-mobile-route="#temporada-info"><span class="tel-mobile-section-icon">★</span><strong>Temporada</strong><small>Información general</small></a>
+        <a class="tel-mobile-section-link tel-mobile-wide" href="#cuenta" data-mobile-account><span class="tel-mobile-section-icon">👤</span><span><strong data-mobile-account-label>Mi cuenta</strong><small data-mobile-account-copy>Inicia sesión para acceder</small></span></a>
+        <a class="tel-mobile-section-link tel-mobile-wide tel-mobile-admin-link" href="/panel-admin.html"><span class="tel-mobile-section-icon">⚙</span><span><strong>Panel Admin</strong><small>Gestión privada de la liga</small></span></a>
+      </div>
+      <div class="tel-mobile-sheet-footer">
+        <a href="https://discord.gg/sJ5WDKMp84" target="_blank" rel="noopener">Discord</a>
+        <a href="#login" data-mobile-login>Iniciar sesión</a>
+      </div>
+    </section>
+  </div>
+
+  <nav class="tel-mobile-bottom-nav" aria-label="Navegación móvil">
+    <a href="#inicio" data-mobile-route="#inicio"><span class="tel-mobile-nav-icon">⌂</span><span>Inicio</span></a>
+    <a href="#partidos" data-mobile-route="#partidos"><span class="tel-mobile-nav-icon">⚽</span><span>Partidos</span></a>
+    <a href="#clasificacion" data-mobile-route="#clasificacion"><span class="tel-mobile-nav-icon">🏆</span><span>Clasif.</span></a>
+    <a href="#equipos" data-mobile-route="#equipos"><span class="tel-mobile-nav-icon">🛡️</span><span>Equipos</span></a>
+    <button type="button" data-mobile-sections-open aria-expanded="false"><span class="tel-mobile-nav-icon">☰</span><span>Secciones</span></button>
+  </nav>
 
   <main class="page">
     
@@ -14777,7 +14950,8 @@ body.tel-all-matches-open{overflow:hidden!important}
     const menuButton = event.target.closest('#mobileMenuButton');
     if(menuButton){
       event.preventDefault();
-      setDrawer(!document.body.classList.contains('mobile-nav-open'));
+      setDrawer(false);
+      window.dispatchEvent(new CustomEvent('tel:mobile-sections-toggle'));
       return;
     }
     if(event.target.closest('#mobileNavBackdrop')){
@@ -14822,6 +14996,66 @@ body.tel-all-matches-open{overflow:hidden!important}
     }
   });
   setTimeout(syncGuestState, 150);
+})();
+</script>
+
+
+<script id="tel-mobile-perfect-controller-v2">
+(function(){
+  const root=document.getElementById('telMobileSections');
+  if(!root) return;
+  const openButtons=()=>document.querySelectorAll('[data-mobile-sections-open],#mobileMenuButton');
+  const logged=()=>window.TELAuth?.isLoggedIn ? !!window.TELAuth.isLoggedIn() : (localStorage.getItem('tel_logged_in')==='1' && !!localStorage.getItem('tel_current_email'));
+  function normalizeHash(hash){
+    hash=hash||'#inicio';
+    if(hash==='#resultados') return '#partidos-resultados';
+    if(hash==='#calendario') return '#partidos-calendario';
+    return hash;
+  }
+  function openSheet(force){
+    const open=typeof force==='boolean' ? force : !document.body.classList.contains('tel-mobile-sections-open');
+    document.body.classList.toggle('tel-mobile-sections-open',open);
+    root.setAttribute('aria-hidden',open?'false':'true');
+    openButtons().forEach(btn=>btn.setAttribute('aria-expanded',open?'true':'false'));
+    if(open) setTimeout(()=>root.querySelector('[data-mobile-sections-close]')?.focus(),40);
+  }
+  function syncActive(){
+    const hash=normalizeHash(location.hash||'#inicio');
+    document.querySelectorAll('[data-mobile-route]').forEach(el=>{
+      const route=normalizeHash(el.getAttribute('data-mobile-route'));
+      const active=route===hash || (route==='#partidos' && ['#partidos-resultados','#partidos-calendario'].includes(hash));
+      el.classList.toggle('tel-mobile-active',active);
+      if(active) el.setAttribute('aria-current','page'); else el.removeAttribute('aria-current');
+    });
+    const isLogged=logged();
+    const accountLabel=document.querySelector('[data-mobile-account-label]');
+    const accountCopy=document.querySelector('[data-mobile-account-copy]');
+    const loginLink=document.querySelector('[data-mobile-login]');
+    if(accountLabel) accountLabel.textContent=isLogged?'Mi cuenta':'Crear cuenta / Entrar';
+    if(accountCopy) accountCopy.textContent=isLogged?'Perfil, equipo y preferencias':'El resto de la web es pública';
+    if(loginLink){loginLink.textContent=isLogged?'Mi cuenta':'Iniciar sesión';loginLink.setAttribute('href',isLogged?'#cuenta':'#login')}
+  }
+  document.addEventListener('click',event=>{
+    if(event.target.closest('[data-mobile-sections-open]')){event.preventDefault();openSheet();return}
+    if(event.target.closest('[data-mobile-sections-close]')){event.preventDefault();openSheet(false);return}
+    const route=event.target.closest('.tel-mobile-sections a[href],.tel-mobile-bottom-nav a[href]');
+    if(route) openSheet(false);
+    const account=event.target.closest('[data-mobile-account]');
+    if(account && !logged()){
+      event.preventDefault();
+      openSheet(false);
+      const msg=document.querySelector('#authMessage');
+      if(msg) msg.textContent='Inicia sesión o crea una cuenta para acceder a Mi cuenta.';
+      if(window.TELAuth?.openPage) window.TELAuth.openPage('#login'); else location.hash='#login';
+    }
+  },true);
+  window.addEventListener('tel:mobile-sections-toggle',()=>openSheet());
+  window.addEventListener('hashchange',()=>{openSheet(false);syncActive();setTimeout(()=>window.scrollTo({top:0,behavior:'instant'}),0)});
+  window.addEventListener('tel:auth-changed',syncActive);
+  window.addEventListener('resize',()=>{if(innerWidth>1180) openSheet(false)});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape') openSheet(false)});
+  document.addEventListener('DOMContentLoaded',syncActive);
+  syncActive();
 })();
 </script>
 
