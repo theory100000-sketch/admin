@@ -107,12 +107,13 @@
         emitUpdate();
         return;
       }
-      savePageState();
-      location.reload();
+      // Nunca recargamos el documento completo. Si el panel no expone una
+      // función de refresco, notificamos el cambio para que sus componentes
+      // actualicen solo el contenido necesario.
+      emitUpdate();
     }catch(error){
-      console.warn('[TEL live sync] Refresco de administración fallido:', error);
-      savePageState();
-      location.reload();
+      console.warn('[TEL live sync] Actualización silenciosa de administración fallida:', error);
+      emitUpdate();
     }finally{
       refreshing = false;
     }
@@ -229,7 +230,7 @@
     }
     pollVersion(false);
     // Comprobación ligera permanente: mantiene sincronizadas las distintas instancias.
-    setInterval(()=>pollVersion(false), 2000);
+    setInterval(()=>pollVersion(false), 7000);
   });
 
   window.addEventListener('beforeunload', ()=>{

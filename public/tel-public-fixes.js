@@ -395,9 +395,9 @@
   }
 
   window.telRefreshPublic=async function(){
+    // Actualización silenciosa: no simulamos un cambio de ruta porque varios
+    // renderizadores antiguos volvían a pintar la página completa.
     await apply();
-    // Existing section renderers already listen to hashchange; trigger them without reloading.
-    try{ window.dispatchEvent(new Event('hashchange')); }catch(e){}
   };
 
   document.addEventListener('DOMContentLoaded',()=>setTimeout(apply,100));

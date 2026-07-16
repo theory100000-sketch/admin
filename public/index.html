@@ -8866,7 +8866,11 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     renderHeader(data, comp);
     renderQuickStandings(data, comp);
     renderHome(data, comp);
-    renderClassification(data, comp);
+    if(typeof window.renderTelClassificationByLeagueAndJornada === 'function'){
+      await window.renderTelClassificationByLeagueAndJornada(data);
+    }else{
+      renderClassification(data, comp);
+    }
     renderMatches(data, comp);
     renderAllTeams(data);
   }
@@ -9878,6 +9882,19 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     }));
   }
 
+  const TEL_CLASS_SELECTION_KEY = 'tel:classification:competition';
+
+  function readStoredClassCompetition(){
+    try{return sessionStorage.getItem(TEL_CLASS_SELECTION_KEY) || localStorage.getItem(TEL_CLASS_SELECTION_KEY) || '';}
+    catch(error){return '';}
+  }
+
+  function storeClassCompetition(value){
+    const selected=String(value || 'all');
+    try{sessionStorage.setItem(TEL_CLASS_SELECTION_KEY,selected);}catch(error){}
+    try{localStorage.setItem(TEL_CLASS_SELECTION_KEY,selected);}catch(error){}
+  }
+
   function clubsMap(data){
     const map = new Map();
     (data?.clubes || data?.equipos || data?.teams || []).forEach(c=>{
@@ -10061,6 +10078,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     const jornadas = jornadaOptionsFor(data);
     const currentLeague = leagueOptions.find(l => String(l.id) === String(window.__telClassLeagueId || "all")) || leagueOptions[0];
     const currentJornada = window.__telClassJornada || "all";
+    const currentIsCup = currentLeague.id !== "all" && isCupCompetition(currentLeague);
+    if(currentIsCup) window.__telClassJornada = "all";
 
     filters.innerHTML = `
       <div class="tel-class-current-info" style="display:none"></div>
@@ -10080,6 +10099,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
         </div>
       </div>
 
+      ${currentIsCup ? "" : `
       <div class="tel-class-filter-wrap" id="telClassJornadaFilter">
         <button type="button" class="tel-class-filter-btn" style="min-width:170px">
           <span>📅 <b>${currentJornada === "all" ? "Todas las jornadas" : "Jornada " + esc(currentJornada)}</b></span><span>⌄</span>
@@ -10095,6 +10115,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
           `).join("")}
         </div>
       </div>
+      `}
     `;
 
     $$(".tel-class-filter-btn", filters).forEach(btn=>{
@@ -10116,6 +10137,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
           window.__telClassLeagueId = opt.dataset.value || "all";
           window.__selectedLeagueId = window.__telClassLeagueId;
           window.__telClassJornada = "all";
+          storeClassCompetition(window.__telClassLeagueId);
         }
 
         if(opt.dataset.type === "jornada"){
@@ -10130,9 +10152,19 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
 
   function isCupCompetition(comp){
-    const tipo = norm(comp?.tipo || '');
-    const formato = norm(comp?.formato || comp?.formatoNombre || comp?.formatoDescripcion || '');
-    return (tipo && tipo !== 'liga') || formato.includes('elimin') || formato.includes('torneo') || formato.includes('copa') || (comp?.partidos || []).some(p => String(p.fase || '').toLowerCase() === 'eliminatoria' || p.eliminatoria);
+    const identity = norm([
+      comp?.tipo, comp?.type, comp?.categoria, comp?.modalidad,
+      comp?.nombre, comp?.name, comp?.titulo,
+      comp?.formato, comp?.formatoNombre, comp?.formatoDescripcion
+    ].filter(Boolean).join(' '));
+    const cupWords = ['copa','cup','elimin','knockout','torneo'];
+    const leagueWords = ['liga','league'];
+    if(cupWords.some(word => identity.includes(word))) return true;
+    if(leagueWords.some(word => identity.includes(word))) return false;
+    return (comp?.partidos || []).some(p => {
+      const phase = norm([p?.fase,p?.rondaNombre,p?.ronda,p?.tipo].filter(Boolean).join(' '));
+      return !!p?.eliminatoria || ['cuartos','semifinal','final','elimin'].some(word => phase.includes(word));
+    });
   }
 
   function cupSeedMap(comp){
@@ -10175,7 +10207,11 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   }
 
   function cupFormatLabel(comp){
-    return comp?.formatoNombre || (isCupCompetition(comp) ? 'Eliminación directa' : 'Liga');
+    if(isCupCompetition(comp)){
+      const explicit = String(comp?.formatoNombre || comp?.formato || '').trim();
+      return explicit && !norm(explicit).includes('liga') ? explicit : 'Eliminación directa';
+    }
+    return comp?.formatoNombre || 'Liga';
   }
 
   function cupFormatDetail(comp){
@@ -10310,8 +10346,17 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     const data = dataArg || await fetchJson("/api/data") || await fetchJson("data.json");
     if(!data) return;
 
-    if(!window.__telClassLeagueId) window.__telClassLeagueId = "all";
+    if(!window.__telClassLeagueId) window.__telClassLeagueId = readStoredClassCompetition() || "all";
     if(!window.__telClassJornada) window.__telClassJornada = "all";
+    const availableCompetitions = getCompetitions(data);
+    if(window.__telClassLeagueId !== "all" && !availableCompetitions.some(c =>
+      String(c.id) === String(window.__telClassLeagueId) ||
+      norm(c.id) === norm(window.__telClassLeagueId) ||
+      norm(c.nombre) === norm(window.__telClassLeagueId)
+    )){
+      window.__telClassLeagueId = "all";
+      storeClassCompetition("all");
+    }
 
     buildClassFilters(data);
 
@@ -10391,6 +10436,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   bindClose();
   document.addEventListener("DOMContentLoaded", ()=>setTimeout(init, 200));
   window.addEventListener("hashchange", ()=>setTimeout(init, 200));
+  window.addEventListener("tel:data-updated", ()=>setTimeout(()=>renderClassPage(), 90));
 
   window.renderTelClassificationByLeagueAndJornada = renderClassPage;
 })();
@@ -11067,9 +11113,17 @@ body.tel-all-matches-open{overflow:hidden!important}
   }
 
   function isCupComp(comp){
-    const tipo=norm(comp?.tipo||'');
-    const formato=norm(comp?.formato||comp?.formatoNombre||comp?.formatoDescripcion||'');
-    return (tipo && tipo!=='liga') || formato.includes('elimin') || formato.includes('torneo') || formato.includes('copa') || (comp?.partidos||[]).some(p=>String(p.fase||'').toLowerCase()==='eliminatoria' || p.eliminatoria);
+    const identity=norm([
+      comp?.tipo,comp?.type,comp?.categoria,comp?.modalidad,
+      comp?.nombre,comp?.name,comp?.titulo,
+      comp?.formato,comp?.formatoNombre,comp?.formatoDescripcion
+    ].filter(Boolean).join(' '));
+    if(['copa','cup','elimin','knockout','torneo'].some(word=>identity.includes(word))) return true;
+    if(['liga','league'].some(word=>identity.includes(word))) return false;
+    return (comp?.partidos||[]).some(p=>{
+      const phase=norm([p?.fase,p?.rondaNombre,p?.ronda,p?.tipo].filter(Boolean).join(' '));
+      return !!p?.eliminatoria || ['cuartos','semifinal','final','elimin'].some(word=>phase.includes(word));
+    });
   }
   function seedMapForComp(comp){
     const base=Array.isArray(comp?.clasificacion) && comp.clasificacion.length ? comp.clasificacion : (comp?.equipos||[]);
@@ -11101,7 +11155,11 @@ body.tel-all-matches-open{overflow:hidden!important}
     return vals.length ? `Inicio: ${vals[0]}\nFinal: ${vals[vals.length-1]}` : 'Inicio: Por definir\nFinal: Por definir';
   }
   function cupFormatLabel(comp){
-    return comp?.formatoNombre || (isCupComp(comp) ? 'Eliminación directa' : 'Liga');
+    if(isCupComp(comp)){
+      const explicit=String(comp?.formatoNombre||comp?.formato||'').trim();
+      return explicit && !norm(explicit).includes('liga') ? explicit : 'Eliminación directa';
+    }
+    return comp?.formatoNombre || 'Liga';
   }
   function cupFormatDetail(comp){
     if(comp?.formatoDescripcion) return comp.formatoDescripcion;
@@ -13972,7 +14030,6 @@ body.tel-all-matches-open{overflow:hidden!important}
     ))) queueRefresh(0);
   }).observe(document.documentElement,{subtree:true,childList:true});
 
-  setInterval(refresh,30000);
 })();
 </script>
 
@@ -14536,4 +14593,4 @@ body.tel-admin-authorized .tel-panel-admin-link{display:inline-flex!important;}
 
 <link rel="stylesheet" href="/tel-public-fixes.css?v=20260714-global2">
 <script src="/tel-public-fixes.js?v=20260714-global2"></script>
-<script src="/tel-live-sync.js?v=20260716-autosync1"></script>
+<script src="/tel-live-sync.js?v=20260716-noreload-cupfix1"></script>
