@@ -69,8 +69,17 @@ const telRedisUrl = String(
 const telRedisToken = String(
   process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || ''
 ).trim();
-const TEL_REDIS_PREFIX = String(process.env.TEL_REDIS_PREFIX || 'tel:web:v1:');
-const TEL_REDIS_SAFE_PREFIX = TEL_REDIS_PREFIX.endsWith(':') ? TEL_REDIS_PREFIX : `${TEL_REDIS_PREFIX}:`;
+function telNormalizeRedisPrefix(value){
+  let prefix = String(value || 'tel:web:v1:').trim();
+  // Corrige automáticamente el error común de guardar la clave completa
+  // (tel:web:v1:data:live) en TEL_REDIS_PREFIX. La variable debe ser solo
+  // el prefijo (tel:web:v1:), igual que en el bot de Discord.
+  prefix = prefix.replace(/(?::)?(?:data:live|data\.json|data)$/i, '');
+  return `${prefix.replace(/:+$/, '')}:`;
+}
+const TEL_REDIS_PREFIX_RAW = String(process.env.TEL_REDIS_PREFIX || 'tel:web:v1:');
+const TEL_REDIS_SAFE_PREFIX = telNormalizeRedisPrefix(TEL_REDIS_PREFIX_RAW);
+const TEL_REDIS_PREFIX = TEL_REDIS_SAFE_PREFIX;
 function telClubLogoRedisKey(clubKey){
   return `${TEL_REDIS_SAFE_PREFIX}club-logo:${String(clubKey || '').trim()}`;
 }
@@ -331,10 +340,34 @@ function requireWebLogin(req, res, next){
 
 app.set('trust proxy', 1);
 
-/* Carga los JSON persistentes antes de atender la primera petición. */
+/*
+   Mantiene la web alineada con la clave que escribe el bot.
+   Las rutas que muestran o modifican datos fuerzan una lectura directa de
+   Upstash. De este modo una instancia serverless no puede seguir sirviendo
+   durante minutos su copia temporal antigua.
+*/
+function telRequestNeedsFreshLiveData(req){
+  const pathname = String(req.path || req.url || '').split('?')[0];
+  const method = String(req.method || 'GET').toUpperCase();
+  if(pathname === '/data.json') return true;
+  if(/^\/api\/(?:data(?:-|$)|clubes$|raw-clubes$|ligas$|sync-status$|sync-debug$|data-version$)/.test(pathname)) return true;
+  if(pathname.startsWith('/api/tel-panel/')) return true;
+  if(pathname.startsWith('/api/admin/')) return true;
+  if(!['GET','HEAD','OPTIONS'].includes(method) && pathname.startsWith('/api/')) return true;
+  return false;
+}
 app.use(async (req,res,next)=>{
-  await telEnsurePersistentFiles();
-  next();
+  try{
+    if(telRequestNeedsFreshLiveData(req)) await telLoadPersistentFiles(true);
+    else await telEnsurePersistentFiles();
+    next();
+  }catch(error){
+    console.error('[vercel-storage] Error refrescando la data en vivo:', error);
+    if(String(req.path || '').startsWith('/api/')){
+      return res.status(503).json({ok:false,message:'No se pudo leer la data en vivo de Upstash.'});
+    }
+    next();
+  }
 });
 
 /* Espera los guardados en Redis antes de cerrar la respuesta. */
@@ -917,6 +950,37 @@ app.get('/api/sync-status', async (req,res)=>{
     updatedAt:data?.sync?.updatedAt || '',
     clubs:Array.isArray(data?.clubes)?data.clubes.length:0,
     players:Array.isArray(data?.jugadores)?data.jugadores.length:0
+  });
+});
+
+
+app.get('/api/sync-debug', async (req,res)=>{
+  res.set('Cache-Control','no-store');
+  let remoteData=null;
+  let remoteVersion='';
+  let remoteError='';
+  try{
+    if(telRedis){
+      const stored = await telRedis.get(TEL_LIVE_DATA_KEY);
+      remoteData = typeof stored === 'string' ? JSON.parse(stored) : stored;
+      remoteVersion = String(await telRedis.get(telRedisVersionKey()) || '');
+    }
+  }catch(error){ remoteError=String(error?.message || error); }
+  let runtimeData={};
+  try{ runtimeData=readJson(DATA_FILE,{}); }catch(error){}
+  const count = value => Array.isArray(value?.clubes) ? value.clubes.length : (Array.isArray(value?.equipos) ? value.equipos.length : 0);
+  res.json({
+    ok:!remoteError,
+    redisConnected:Boolean(telRedis),
+    configuredPrefix:TEL_REDIS_PREFIX_RAW,
+    normalizedPrefix:TEL_REDIS_SAFE_PREFIX,
+    dataKey:TEL_LIVE_DATA_KEY,
+    remoteClubs:count(remoteData),
+    runtimeClubs:count(runtimeData),
+    remoteUpdatedAt:remoteData?._sync?.updatedAt || remoteData?.sync?.updatedAt || '',
+    runtimeUpdatedAt:runtimeData?._sync?.updatedAt || runtimeData?.sync?.updatedAt || '',
+    remoteVersion,
+    remoteError
   });
 });
 
@@ -6212,9 +6276,13 @@ app.get('/api/live-updates', (req,res)=>{
   });
 });
 
-app.get('/api/data-version', (req,res)=>{
+app.get('/api/data-version', async (req,res)=>{
   res.set('Cache-Control','no-store');
-  res.json({ok:true,version:telLastDataHash || telDataHash()});
+  let remoteVersion='';
+  try{
+    if(telRedis) remoteVersion=String(await telRedis.get(telRedisVersionKey()) || '');
+  }catch(error){}
+  res.json({ok:true,version:remoteVersion || telLastDataHash || telDataHash()});
 });
 
 /* ============================================================
