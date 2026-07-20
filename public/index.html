@@ -8976,7 +8976,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   }
 
   async function initBotAdapter(){
-    const data = await fetchJson('/api/data') || await fetchJson('data.json');
+    const data = await fetchJson('/api/data') || await fetchJson('/api/data');
     const commands = await fetchJson('/api/comandos') || await fetchJson('commands.json') || [];
 
     if(data) updateTeamsFromBot(data);
@@ -9015,7 +9015,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     }catch(e){}
 
     try{
-      const res = await fetch("data.json", { cache:"no-store" });
+      const res = await fetch("/api/data", { cache:"no-store" });
       if(res.ok){
         const data = await res.json();
         const jugadores = data.jugadores || [];
@@ -9188,7 +9188,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   async function loadData(){
     try{ const r = await fetch('/api/data',{cache:'no-store'}); if(r.ok) return await r.json(); }catch(e){}
-    try{ const r = await fetch('data.json',{cache:'no-store'}); if(r.ok) return await r.json(); }catch(e){}
+    try{ const r = await fetch('/api/data',{cache:'no-store'}); if(r.ok) return await r.json(); }catch(e){}
     return {clubes:[],jugadores:[],competiciones:[]};
   }
 
@@ -9433,7 +9433,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   async function loadLeagues(){
     let ligas = await fetchJson("/api/ligas");
     if(!Array.isArray(ligas)){
-      const data = await fetchJson("data.json");
+      const data = await fetchJson("/api/data");
       ligas = data ? localLeaguesFromData(data) : [];
     }
     window.__leaguesCache = ligas || [];
@@ -9480,7 +9480,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     // Si la versión dinámica tiene getClubes/renderTeams globales, las usamos.
     let clubes = await fetchJson(`/api/clubes?liga=${encodeURIComponent(window.__selectedLeagueId)}`);
     if(!Array.isArray(clubes)){
-      const data = await fetchJson("data.json");
+      const data = await fetchJson("/api/data");
       if(!data) return;
       const liga = window.__leaguesCache.find(l=>String(l.id)===String(window.__selectedLeagueId));
       const rawClubes = data.clubes || data.equipos || data.teams || [];
@@ -9534,7 +9534,12 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     const keys = ["escudoUrl","logoUrl","logo","escudo","imagenUrl","imagen","imageUrl","image","avatarUrl","avatar","iconUrl","icon"];
     for(const k of keys){
       const v = club[k];
-      if(typeof v === "string" && /^https?:\/\//i.test(v.trim())) return v.trim();
+      if(typeof v === "string") {
+        const clean = v.trim().replaceAll("\\", "/");
+        if(clean.startsWith("/api/club-logo") || clean.startsWith("/api/logo") || clean.startsWith("/escudos/")) return clean;
+        if(clean.startsWith("api/club-logo") || clean.startsWith("api/logo") || clean.startsWith("escudos/")) return "/" + clean;
+        if(/^https?:\/\//i.test(clean)) return clean;
+      }
     }
     for(const v of Object.values(club || {})){
       if(typeof v === "string" && /^https?:\/\//i.test(v.trim()) && /(cdn\.discord|media\.discord|attachments|\.png|\.jpg|\.jpeg|\.webp|\.gif)/i.test(v)){
@@ -9546,6 +9551,9 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   function proxy(url){
     if(!url) return "";
+    url = String(url).replaceAll("\\", "/");
+    if(url.startsWith("/api/club-logo") || url.startsWith("/api/logo") || url.startsWith("/escudos/")) return url;
+    if(url.startsWith("api/club-logo") || url.startsWith("api/logo") || url.startsWith("escudos/")) return "/" + url;
     return location.protocol === "file:" ? url : "/api/logo?url=" + encodeURIComponent(url);
   }
 
@@ -9608,7 +9616,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     let clubes = await fetchJson("/api/clubes" + liga);
     if(Array.isArray(clubes) && clubes.length) return clubes.map(normalizeClub);
 
-    const raw = await fetchJson("data.json");
+    const raw = await fetchJson("/api/data");
     if(raw){
       const base = raw.clubes || raw.equipos || raw.teams || [];
       return base.map(normalizeClub);
@@ -9811,6 +9819,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       let v = club[k];
       if(typeof v !== "string" || !v.trim()) continue;
       v = v.trim().replaceAll("\\\\","/");
+      if(v.startsWith("/api/club-logo") || v.startsWith("/api/logo")) return v;
+      if(v.startsWith("api/club-logo") || v.startsWith("api/logo")) return "/" + v;
       if(v.startsWith("/escudos/")) return v;
       if(v.startsWith("escudos/")) return "/" + v;
       if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return "/escudos/" + v;
@@ -9821,7 +9831,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   function srcFor(url){
     if(!url) return "";
-    if(url.startsWith("/escudos/") || url.startsWith("escudos/")) return url.startsWith("/") ? url : "/" + url;
+    if(url.startsWith("/api/club-logo") || url.startsWith("/api/logo") || url.startsWith("/escudos/")) return url;
+    if(url.startsWith("api/club-logo") || url.startsWith("api/logo") || url.startsWith("escudos/")) return "/" + url;
     return "/api/logo?url=" + encodeURIComponent(url);
   }
 
@@ -9851,11 +9862,11 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   async function getData(){
     try{
-      const res = await fetch("/data.json", {cache:"no-store"});
+      const res = await fetch("/api/data", {cache:"no-store"});
       if(res.ok) return await res.json();
     }catch(e){}
     try{
-      const res = await fetch("data.json", {cache:"no-store"});
+      const res = await fetch("/api/data", {cache:"no-store"});
       if(res.ok) return await res.json();
     }catch(e){}
     return null;
@@ -9948,6 +9959,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       let v = club[k];
       if(typeof v !== "string" || !v.trim()) continue;
       v = v.trim().replaceAll("\\\\","/");
+      if(v.startsWith("/api/club-logo") || v.startsWith("/api/logo")) return v;
+      if(v.startsWith("api/club-logo") || v.startsWith("api/logo")) return "/" + v;
       if(v.startsWith("/escudos/")) return v;
       if(v.startsWith("escudos/")) return "/" + v;
       if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return "/escudos/" + v;
@@ -9958,7 +9971,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   function logoSrc(url){
     if(!url) return "";
-    if(url.startsWith("/escudos/") || url.startsWith("escudos/")) return url.startsWith("/") ? url : "/" + url;
+    if(url.startsWith("/api/club-logo") || url.startsWith("/api/logo") || url.startsWith("/escudos/")) return url;
+    if(url.startsWith("api/club-logo") || url.startsWith("api/logo") || url.startsWith("escudos/")) return "/" + url;
     return "/api/logo?url=" + encodeURIComponent(url);
   }
 
@@ -9993,7 +10007,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   async function getData(){
     try{
-      const res = await fetch("/data.json?ts=" + Date.now(), {cache:"no-store"});
+      const res = await fetch("/api/data?ts=" + Date.now(), {cache:"no-store"});
       if(res.ok) return await res.json();
     }catch(e){}
     return null;
@@ -10138,6 +10152,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       let v = club[k];
       if(typeof v !== 'string' || !v.trim()) continue;
       v = v.trim().replaceAll('\\','/');
+      if(v.startsWith('/api/club-logo') || v.startsWith('/api/logo')) return v;
+      if(v.startsWith('api/club-logo') || v.startsWith('api/logo')) return '/' + v;
       if(v.startsWith('/escudos/')) return v;
       if(v.startsWith('escudos/')) return '/' + v;
       if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return '/escudos/' + v;
@@ -10169,14 +10185,14 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   window.telLogoProxy = function(url){
     if(!url) return '';
     url = String(url).replaceAll('\\','/');
-    if(url.startsWith('/escudos/')) return url;
-    if(url.startsWith('escudos/')) return '/' + url;
+    if(url.startsWith('/api/club-logo') || url.startsWith('/api/logo') || url.startsWith('/escudos/')) return url;
+    if(url.startsWith('api/club-logo') || url.startsWith('api/logo') || url.startsWith('escudos/')) return '/' + url;
     return url;
   };
 
   async function loadData(){
     if(STATE.data) return STATE.data;
-    const res = await fetch('/data.json?logos=' + Date.now(), {cache:'no-store'});
+    const res = await fetch('/api/data?logos=' + Date.now(), {cache:'no-store'});
     STATE.data = await res.json();
     const byName = new Map();
     (STATE.data.clubes || []).forEach(c => {
@@ -10278,6 +10294,11 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     STATE.observer.observe(document.body, {childList:true, subtree:true});
   });
   window.addEventListener('hashchange', () => setTimeout(apply, 150));
+  window.addEventListener('tel:data-updated', () => {
+    STATE.data = null;
+    STATE.byName = null;
+    setTimeout(apply, 80);
+  });
 
   // Anular el menú falso de filtros antiguos.
   document.addEventListener('click', function(e){
@@ -10345,6 +10366,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       let v = item?.[k];
       if(typeof v !== "string" || !v.trim()) continue;
       v = v.trim().replaceAll("\\\\","/");
+      if(v.startsWith("/api/club-logo") || v.startsWith("/api/logo")) return v;
+      if(v.startsWith("api/club-logo") || v.startsWith("api/logo")) return "/" + v;
       if(v.startsWith("/escudos/")) return v;
       if(v.startsWith("escudos/")) return "/" + v;
       if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return "/escudos/" + v;
@@ -10355,7 +10378,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
 
   function proxyLogo(url){
     if(!url) return "";
-    if(url.startsWith("/escudos/") || url.startsWith("escudos/")) return url.startsWith("/") ? url : "/" + url;
+    if(url.startsWith("/api/club-logo") || url.startsWith("/api/logo") || url.startsWith("/escudos/")) return url;
+    if(url.startsWith("api/club-logo") || url.startsWith("api/logo") || url.startsWith("escudos/")) return "/" + url;
     return "/api/logo?url=" + encodeURIComponent(url);
   }
 
@@ -10843,7 +10867,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   }
 
   async function renderClassPage(dataArg){
-    const data = dataArg || await fetchJson("/api/data") || await fetchJson("data.json");
+    const data = dataArg || await fetchJson("/api/data") || await fetchJson("/api/data");
     if(!data) return;
 
     if(!window.__telClassLeagueId) window.__telClassLeagueId = readStoredClassCompetition() || "all";
@@ -11070,6 +11094,8 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       let v=item?.[k];
       if(typeof v!=="string"||!v.trim()) continue;
       v=v.trim().replaceAll("\\\\","/");
+      if(v.startsWith("/api/club-logo") || v.startsWith("/api/logo")) return v;
+      if(v.startsWith("api/club-logo") || v.startsWith("api/logo")) return "/" + v;
       if(v.startsWith("/escudos/")) return v;
       if(v.startsWith("escudos/")) return "/"+v;
       if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return "/escudos/"+v;
@@ -11280,7 +11306,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
   }
 
   async function handlePreviewClick(btn){
-    const data=await fetchJson("/api/data") || await fetchJson("data.json");
+    const data=await fetchJson("/api/data") || await fetchJson("/api/data");
     if(!data) return;
     const item=matchFromButton(data,btn);
     renderPreview(data,item);
@@ -11424,7 +11450,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       }).join('');
     }
   }
-  fetch('data.json').then(function(r){ return r.json(); }).then(renderSeasonInfo).catch(function(){});
+  fetch('/api/data').then(function(r){ return r.json(); }).then(renderSeasonInfo).catch(function(){});
 })();
 </script>
 
@@ -11582,6 +11608,8 @@ body.tel-all-matches-open{overflow:hidden!important}
       let v=item?.[k];
       if(typeof v!=='string'||!v.trim()) continue;
       v=v.trim().replaceAll('\\\\','/');
+      if(v.startsWith('/api/club-logo') || v.startsWith('/api/logo')) return v;
+      if(v.startsWith('api/club-logo') || v.startsWith('api/logo')) return '/' + v;
       if(v.startsWith('/escudos/')) return v;
       if(v.startsWith('escudos/')) return '/'+v;
       if(/^escudo-.*\.(png|jpg|jpeg|webp|gif)$/i.test(v)) return '/escudos/'+v;
@@ -11954,7 +11982,7 @@ body.tel-all-matches-open{overflow:hidden!important}
   }
   function render(){renderListOnly();}
   async function openFromButton(){
-    const data=window.__TEL_REAL_DATA__ || await fetchJson('/api/data') || await fetchJson('data.json');
+    const data=window.__TEL_REAL_DATA__ || await fetchJson('/api/data') || await fetchJson('/api/data');
     if(!data) return;
     window.__TEL_ALL_MATCHES_DATA__=data;
     ensureOverlay(); updateActiveTab(); openOverlay(); render();
@@ -12294,7 +12322,7 @@ body.tel-all-matches-open{overflow:hidden!important}
   }
   async function getAuthMe(){ return await fetchJson("/api/auth/me") || {authenticated:false}; }
   async function getAdminStatus(){ adminStatus = await fetchJson("/api/admin/status") || {admin:false}; return adminStatus; }
-  async function loadData(){ cachedData = await fetchJson("/api/data") || await fetchJson("data.json"); return cachedData; }
+  async function loadData(){ cachedData = await fetchJson("/api/data") || await fetchJson("/api/data"); return cachedData; }
   function getCompetitions(data){
     return (data?.competiciones || data?.ligas || data?.torneos || []).map((c,i)=>({
       ...c,id:String(c.id || c._id || c.nombre || c.name || `comp-${i+1}`),
@@ -12667,7 +12695,7 @@ body.tel-all-matches-open{overflow:hidden!important}
       const fresh = await fetchJson("/api/admin/data-fresh");
       if(fresh?.ok && fresh.data) return fresh.data;
     }
-    return await fetchJson("/api/data") || await fetchJson("data.json");
+    return await fetchJson("/api/data") || await fetchJson("/api/data");
   }
 
   function attachIdsToVisibleMatches(data){
@@ -12861,7 +12889,7 @@ body.tel-all-matches-open{overflow:hidden!important}
       const fresh = await fetchJson("/api/admin/data-fresh");
       if(fresh?.ok && fresh.data) return fresh.data;
     }
-    return await fetchJson("/api/data") || await fetchJson("data.json");
+    return await fetchJson("/api/data") || await fetchJson("/api/data");
   }
   async function isAdmin(){
     const st = await fetchJson("/api/admin/status");
@@ -15248,6 +15276,42 @@ body.tel-all-matches-open{overflow:hidden!important}
 })();
 </script>
 
+
+<script>
+/* TEL EQUIPOS OFICIALES EN VIVO — evita nombres/escudos de data.json antiguo */
+(function(){
+  let timer = null;
+  let running = false;
+
+  function schedule(delay){
+    clearTimeout(timer);
+    timer = setTimeout(refresh, Number(delay) || 0);
+  }
+
+  async function refresh(){
+    if(running) return;
+    running = true;
+    try{
+      if(typeof window.refreshFilteredTeamsByLeague === 'function'){
+        await window.refreshFilteredTeamsByLeague();
+      }else if(typeof window.refreshDynamicTeams === 'function'){
+        await window.refreshDynamicTeams();
+      }
+      if(typeof window.telApplyRealData === 'function') await window.telApplyRealData();
+      if(typeof window.applyEscudosLocalesFinal === 'function') await window.applyEscudosLocalesFinal();
+    }catch(error){
+      console.warn('[TEL equipos en vivo]', error);
+    }finally{
+      running = false;
+    }
+  }
+
+  window.telRefreshPublic = refresh;
+  window.addEventListener('tel:data-updated', function(){ schedule(60); });
+  document.addEventListener('DOMContentLoaded', function(){ schedule(100); });
+})();
+</script>
+
 </body>
 </html>
 
@@ -15333,4 +15397,4 @@ body.tel-admin-authorized .tel-panel-admin-link{display:inline-flex!important;}
 
 <link rel="stylesheet" href="/tel-public-fixes.css?v=20260714-global2">
 <script src="/tel-public-fixes.js?v=20260714-global2"></script>
-<script src="/tel-live-sync.js?v=20260716-noreload-cupfix1"></script>
+<script src="/tel-live-sync.js?v=20260720-live-clubs-logo-fix2"></script>
