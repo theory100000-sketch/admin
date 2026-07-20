@@ -4898,6 +4898,97 @@ body.tel-admin-authorized .tel-mobile-admin-link{display:flex!important}
 }
 </style>
 
+
+<style id="tel-mobile-menu-classification-fix-v3">
+/* Un único sistema de navegación móvil: se desactiva el cajón lateral antiguo. */
+@media (max-width:1180px){
+  .sidebar,
+  .mobile-nav-backdrop,
+  #mobileNavBackdrop{
+    display:none!important;
+    visibility:hidden!important;
+    pointer-events:none!important;
+  }
+  body.mobile-nav-open:not(.tel-mobile-sections-open){overflow:auto!important}
+  body.tel-mobile-sections-open{overflow:hidden!important}
+}
+@media (max-width:900px){
+  /* En móvil se usa únicamente la pestaña «Secciones» de la barra inferior. */
+  #mobileMenuButton{display:none!important}
+}
+
+/* Selectores nativos y táctiles para Clasificación. */
+.tel-mobile-class-native-box{display:none}
+@media (max-width:760px){
+  #clasificacion .clean-class-tabs{
+    overflow:visible!important;
+  }
+  #clasificacion .clean-class-filters{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:10px!important;
+    width:100%!important;
+    overflow:visible!important;
+    margin:0!important;
+    padding:0!important;
+  }
+  #clasificacion .tel-class-filter-wrap{
+    display:block!important;
+    position:relative!important;
+    width:100%!important;
+    min-width:0!important;
+    margin:0!important;
+  }
+  #clasificacion .tel-class-filter-btn,
+  #clasificacion .tel-class-filter-menu{
+    display:none!important;
+  }
+  #clasificacion .tel-mobile-class-native-box{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:6px;
+    width:100%;
+  }
+  #clasificacion .tel-mobile-class-native-box label{
+    color:#aeb7c8;
+    font-size:11px;
+    font-weight:1000;
+    letter-spacing:.65px;
+    text-transform:uppercase;
+  }
+  #clasificacion .tel-mobile-class-native{
+    display:block!important;
+    width:100%!important;
+    min-width:0!important;
+    min-height:56px!important;
+    padding:0 44px 0 15px!important;
+    border:1px solid rgba(181,78,255,.58)!important;
+    border-radius:14px!important;
+    color:#fff!important;
+    background-color:#090e18!important;
+    background-image:linear-gradient(145deg,rgba(151,51,255,.18),rgba(8,13,22,.94))!important;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.035),0 10px 28px rgba(0,0,0,.24)!important;
+    font:900 16px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif!important;
+    color-scheme:dark;
+    touch-action:manipulation;
+  }
+  #clasificacion .tel-mobile-class-native:focus{
+    outline:3px solid rgba(177,75,255,.24)!important;
+    outline-offset:2px!important;
+    border-color:#c578ff!important;
+  }
+  #clasificacion .tel-mobile-class-native option{
+    color:#fff;
+    background:#090e18;
+  }
+  #clasificacion .clean-class-tabs > button{
+    width:100%!important;
+    min-height:48px!important;
+    white-space:normal!important;
+  }
+}
+</style>
+
 </head>
 <body>
   <header class="topbar">
@@ -5743,7 +5834,7 @@ body.tel-admin-authorized .tel-mobile-admin-link{display:flex!important}
         <button class="active" data-clean-class-tab="general">CLASIFICACIÓN GENERAL</button>
         <button data-clean-class-tab="forma">FORMA</button>
         <div class="clean-class-filters">
-          <div class="league-select" id="leagueSelect"><button class="selector" type="button" id="leagueSelectBtn"><span class="left">🌐 <span id="leagueSelectLabel">Todas las ligas</span></span><span>⌄</span></button><div class="league-select-menu" id="leagueSelectMenu"></div></div>
+          <div class="league-select" id="classLegacyLeagueSelect"><button class="selector" type="button" id="classLegacyLeagueSelectBtn"><span class="left">🌐 <span id="classLegacyLeagueSelectLabel">Todas las ligas</span></span><span>⌄</span></button><div class="league-select-menu" id="classLegacyLeagueSelectMenu"></div></div>
           <button>📅 JORNADA 1 ⌄</button>
         </div>
       </div>
@@ -15056,6 +15147,104 @@ body.tel-all-matches-open{overflow:hidden!important}
   document.addEventListener('keydown',event=>{if(event.key==='Escape') openSheet(false)});
   document.addEventListener('DOMContentLoaded',syncActive);
   syncActive();
+})();
+</script>
+
+
+<script id="tel-mobile-menu-classification-controller-v3">
+(function(){
+  'use strict';
+
+  function disableLegacyMobileDrawer(){
+    document.body.classList.remove('mobile-nav-open');
+    const legacyBackdrop=document.getElementById('mobileNavBackdrop');
+    if(legacyBackdrop){
+      legacyBackdrop.setAttribute('aria-hidden','true');
+      legacyBackdrop.hidden=true;
+    }
+  }
+
+  function makeNativeFilter(wrap,labelText){
+    if(!wrap || wrap.querySelector('.tel-mobile-class-native-box')) return;
+    const sourceOptions=Array.from(wrap.querySelectorAll('.tel-class-filter-option'));
+    if(!sourceOptions.length) return;
+
+    const box=document.createElement('div');
+    box.className='tel-mobile-class-native-box';
+
+    const label=document.createElement('label');
+    const select=document.createElement('select');
+    const uid='telMobileClassSelect'+Math.random().toString(36).slice(2,9);
+    select.id=uid;
+    select.className='tel-mobile-class-native';
+    select.setAttribute('aria-label',labelText);
+    label.htmlFor=uid;
+    label.textContent=labelText;
+
+    sourceOptions.forEach(function(source){
+      const option=document.createElement('option');
+      option.value=source.dataset.value || '';
+      const mainText=source.querySelector('span:nth-of-type(2)')?.textContent?.trim() || source.textContent.trim();
+      option.textContent=mainText.replace(/\s+/g,' ');
+      option.selected=source.classList.contains('active');
+      select.appendChild(option);
+    });
+
+    select.addEventListener('change',function(){
+      const target=sourceOptions.find(function(source){
+        return String(source.dataset.value || '')===String(select.value);
+      });
+      if(target) target.click();
+    });
+
+    box.append(label,select);
+    wrap.prepend(box);
+  }
+
+  function enhanceClassificationFilters(){
+    const section=document.getElementById('clasificacion');
+    if(!section) return;
+    makeNativeFilter(section.querySelector('#telClassLeagueFilter'),'Elegir competición');
+    makeNativeFilter(section.querySelector('#telClassJornadaFilter'),'Elegir jornada');
+  }
+
+  let enhancementTimer=0;
+  function scheduleEnhancement(){
+    clearTimeout(enhancementTimer);
+    enhancementTimer=setTimeout(enhanceClassificationFilters,40);
+  }
+
+  function init(){
+    disableLegacyMobileDrawer();
+    enhanceClassificationFilters();
+
+    const section=document.getElementById('clasificacion');
+    if(section){
+      const observer=new MutationObserver(scheduleEnhancement);
+      observer.observe(section,{childList:true,subtree:true});
+    }
+
+    const bodyClassObserver=new MutationObserver(function(){
+      if(document.body.classList.contains('mobile-nav-open')) disableLegacyMobileDrawer();
+    });
+    bodyClassObserver.observe(document.body,{attributes:true,attributeFilter:['class']});
+  }
+
+  document.addEventListener('click',function(event){
+    if(event.target.closest('#mobileMenuButton,[data-mobile-sections-open]')){
+      setTimeout(disableLegacyMobileDrawer,0);
+      requestAnimationFrame(disableLegacyMobileDrawer);
+    }
+  },true);
+  window.addEventListener('resize',disableLegacyMobileDrawer);
+  window.addEventListener('hashchange',function(){
+    disableLegacyMobileDrawer();
+    if(location.hash==='#clasificacion') scheduleEnhancement();
+  });
+  window.addEventListener('tel:data-updated',scheduleEnhancement);
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true});
+  else init();
 })();
 </script>
 
