@@ -11115,18 +11115,61 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
     }
     return "";
   }
-  function srcLogo(item){
-    const u=pickLogo(item);
+  function normalizePreviewLogoUrl(value){
+    let u=String(value||"").trim().replaceAll("\\","/");
     if(!u) return "";
-    if(u.startsWith("/escudos/")||u.startsWith("escudos/")) return u.startsWith("/")?u:"/"+u;
-    return "/api/logo?url="+encodeURIComponent(u);
+    /* Estas rutas ya son endpoints finales. No deben pasar otra vez por /api/logo. */
+    if(u.startsWith("/api/club-logo") || u.startsWith("/api/logo") ||
+       u.startsWith("/escudos/") || u.startsWith("/assets/") ||
+       u.startsWith("data:") || u.startsWith("blob:")) return u;
+    if(u.startsWith("api/club-logo") || u.startsWith("api/logo") ||
+       u.startsWith("escudos/") || u.startsWith("assets/")) return "/"+u;
+    if(/^https?:\/\//i.test(u)) return "/api/logo?url="+encodeURIComponent(u);
+    return u.startsWith("/") ? u : "/"+u;
+  }
+  function previewLogoCandidates(item){
+    const candidates=[];
+    const direct=normalizePreviewLogoUrl(pickLogo(item));
+    if(direct) candidates.push(direct);
+
+    for(const value of [
+      item?.clubId,item?.id,item?._id,item?.rolId,item?.roleId,item?.discordRoleId,
+      item?.slotId,item?.clubNombre,item?.nombre,item?.nombreVisual
+    ]){
+      const key=String(value||"").trim();
+      if(!key) continue;
+      candidates.push("/api/club-logo?key="+encodeURIComponent(key));
+    }
+    return [...new Set(candidates.filter(Boolean))];
+  }
+  function srcLogo(item){
+    return previewLogoCandidates(item)[0] || "";
+  }
+  window.telPreviewNextLogo=function(img){
+    try{
+      const list=JSON.parse(decodeURIComponent(img.dataset.logoCandidates||"%5B%5D"));
+      const next=Number(img.dataset.logoIndex||0)+1;
+      if(next<list.length){
+        img.dataset.logoIndex=String(next);
+        img.src=list[next];
+        return;
+      }
+    }catch(error){}
+    const fallback=document.createTextNode(img.dataset.logoEmoji||"⚡");
+    img.replaceWith(fallback);
+  };
+  function previewLogoImg(item, extraClass=""){
+    const candidates=previewLogoCandidates(item);
+    if(!candidates.length) return "";
+    const emoji=String(item?.emoji||"⚡");
+    const name=esc(cleanName(item?.nombreVisual||item?.nombre||item?.clubNombre||"Equipo"));
+    const encoded=esc(encodeURIComponent(JSON.stringify(candidates)));
+    return `<img class="${esc(extraClass)}" loading="eager" decoding="async" src="${esc(candidates[0])}" alt="${name}" data-logo-candidates="${encoded}" data-logo-index="0" data-logo-emoji="${esc(emoji)}" onerror="window.telPreviewNextLogo(this)">`;
   }
   function crestImg(item){
-    const src=srcLogo(item);
-    const emoji=item?.emoji||"⚡";
-    const name=esc(cleanName(item?.nombreVisual||item?.nombre||item?.clubNombre||"Equipo"));
-    return src ? `<img loading="lazy" decoding="async" src="${esc(src)}" alt="${name}" onerror="this.outerHTML='${esc(emoji)}'">` : esc(emoji);
+    return previewLogoImg(item) || esc(item?.emoji||"⚡");
   }
+
 
   function competitions(data){
     return (data?.competiciones||[]).map((c,i)=>({
@@ -11298,7 +11341,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
       quick.innerHTML=standingsRows(data,comp).slice(0,6).map((r,i)=>`
         <div class="tel-po-quick-row">
           <span>${i+1}</span>
-          ${srcLogo(r)?`<img loading="lazy" decoding="async" src="${esc(srcLogo(r))}">`:`<span>${esc(r.emoji||"⚡")}</span>`}
+          ${previewLogoImg(r) || `<span>${esc(r.emoji||"⚡")}</span>`}
           <span>${esc(cleanName(r.nombreVisual||r.nombre||r.clubNombre))}</span>
           <b>${Number(r.pts||0)}</b>
         </div>
@@ -11312,7 +11355,7 @@ Se responderá o solicitarán más pruebas en doce horas.</div>
         .slice(0,4)
         .map(p=>{
           const l=teamForSlot(data,comp,p.localSlotId), v=teamForSlot(data,comp,p.visitanteSlotId);
-          return `<div class="tel-po-next-row">${srcLogo(l)?`<img loading="lazy" decoding="async" src="${esc(srcLogo(l))}">`:`<span>${esc(l.emoji||"⚡")}</span>`}<b>VS</b>${srcLogo(v)?`<img loading="lazy" decoding="async" src="${esc(srcLogo(v))}">`:`<span>${esc(v.emoji||"⚡")}</span>`}<small>${esc(p.fecha||"Por definir")}</small></div>`;
+          return `<div class="tel-po-next-row">${previewLogoImg(l) || `<span>${esc(l.emoji||"⚡")}</span>`}<b>VS</b>${previewLogoImg(v) || `<span>${esc(v.emoji||"⚡")}</span>`}<small>${esc(p.fecha||"Por definir")}</small></div>`;
         }).join("");
     }
   }
