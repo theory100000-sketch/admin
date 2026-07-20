@@ -629,16 +629,16 @@ function telFindClubByKey(data, rawKey){
   const key = String(rawKey || '').trim();
   const wanted = normalizeText(key);
   const clubs = findDataList(data || {}, ['clubes','equipos','teams']);
-  let club = clubs.find(item => [item.id,item._id,item.clubId,item.nombre,item.name,item.nombreVisual,item.clubNombre]
+  let club = clubs.find(item => [item.id,item._id,item.clubId,item.rolId,item.idClub,item.nombre,item.name,item.nombreVisual,item.clubNombre]
     .some(value => value && (String(value) === key || normalizeText(value) === wanted)));
   if(club) return club;
 
   for(const comp of findDataList(data || {}, ['competiciones','ligas','torneos'])){
-    const team = (comp.equipos || []).find(item => [item.slotId,item.id,item._id,item.clubId,item.nombre,item.name,item.nombreVisual,item.clubNombre]
+    const team = (comp.equipos || []).find(item => [item.slotId,item.id,item._id,item.clubId,item.rolId,item.idClub,item.nombre,item.name,item.nombreVisual,item.clubNombre]
       .some(value => value && (String(value) === key || normalizeText(value) === wanted)));
     if(!team) continue;
     const masterKey = team.clubId || team.idClub || team.clubNombre || team.nombre || team.nombreVisual;
-    club = clubs.find(item => [item.id,item._id,item.clubId,item.nombre,item.name,item.nombreVisual,item.clubNombre]
+    club = clubs.find(item => [item.id,item._id,item.clubId,item.rolId,item.idClub,item.nombre,item.name,item.nombreVisual,item.clubNombre]
       .some(value => value && normalizeText(value) === normalizeText(masterKey)));
     return club || team;
   }
@@ -671,7 +671,7 @@ function telResolveClubLogo(club){
 
 function telStableClubLogoUrl(club){
   if(!club) return '';
-  const key = club.id || club._id || club.clubId || club.rolId || club.nombre || club.clubNombre || club.nombreVisual || club.name;
+  const key = club.clubId || club.rolId || club.id || club._id || club.idClub || club.nombre || club.clubNombre || club.nombreVisual || club.name;
   /* El fichero puede vivir en el ordenador del bot y no en Vercel. La ruta API
      consulta primero Upstash, por lo que no debemos exigir que exista localmente. */
   return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : '';
@@ -742,12 +742,14 @@ function normalizeClubForWeb(club, data) {
   const jugadores = Array.isArray(data.jugadores) ? data.jugadores : [];
   const nombre = club.nombre || club.name || "Club sin nombre";
   const nombreVisual = club.nombreVisual || club.displayName || `${club.emoji || ""} ${nombre}`.trim();
-  const clubId = String(club.id || club._id || nombre);
+  const clubId = String(club.clubId || club.rolId || club.id || club._id || club.idClub || nombre);
   const plantilla = jugadores
     .filter(j => String(j.clubId || "") === clubId || normalizeText(j.club || j.equipo || j.clubNombre) === normalizeText(nombre))
     .map(j => normalizePlayerForWeb(j, club));
   return {
     id: clubId,
+    clubId,
+    rolId: club.rolId || clubId,
     nombre,
     nombreVisual,
     emoji: club.emoji || "⚡",
@@ -1204,16 +1206,25 @@ app.get("/api/comandos", (req, res) => {
 // Escudo estable por ID o nombre del club.
 app.get('/api/club-logo', async (req,res)=>{
   try{
-    const data = readJson(DATA_FILE, {clubes:[],competiciones:[]});
-    const club = telFindClubByKey(data, req.query.key);
-    if(!club) return res.status(404).send('Escudo no encontrado');
+    const requestedKey = String(req.query.key || '').trim();
+    if(!requestedKey){
+      res.set('Cache-Control','no-store');
+      return res.status(400).send('Falta la clave del escudo');
+    }
 
-    // Los escudos creados por Discord se guardan también en Upstash. De esta
-    // forma Vercel puede servirlos aunque el bot se ejecute en otro ordenador.
-    const clubKey = club.id || club._id || club.clubId || club.rolId || req.query.key;
-    if(telRedis && clubKey){
+    const data = readJson(DATA_FILE, {clubes:[],competiciones:[]});
+    const club = telFindClubByKey(data, requestedKey);
+
+    // Consulta primero la clave solicitada directamente. Esto permite mostrar el
+    // escudo de un club recién creado incluso durante los segundos en los que la
+    // lista de clubes de otra instancia serverless todavía se está actualizando.
+    if(telRedis){
       try{
-        for(const alias of telClubLogoRedisAliases(club, req.query.key)){
+        const aliases = club
+          ? telClubLogoRedisAliases(club, requestedKey)
+          : [...new Set([requestedKey, normalizeText(requestedKey), telLogoSlug(requestedKey)].filter(Boolean))];
+
+        for(const alias of aliases){
           const stored = await telRedis.get(telClubLogoRedisKey(alias));
           if(stored === null || stored === undefined) continue;
           let payload = stored;
@@ -1224,11 +1235,13 @@ app.get('/api/club-logo', async (req,res)=>{
             const buffer = Buffer.from(String(payload.base64), 'base64');
             if(buffer.length){
               res.set('Content-Type', String(payload.contentType || 'image/png'));
-              res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
+              res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+              res.set('X-TEL-Logo-Key', String(alias));
               return res.send(buffer);
             }
           }
           if(payload && /^https?:\/\//i.test(String(payload.remoteUrl || ''))){
+            res.set('Cache-Control','no-store');
             return res.redirect(302, '/api/logo?url=' + encodeURIComponent(String(payload.remoteUrl)));
           }
         }
@@ -1237,13 +1250,20 @@ app.get('/api/club-logo', async (req,res)=>{
       }
     }
 
-    const source = telResolveClubLogo(club);
-    if(!source) return res.status(404).send('Escudo no encontrado');
+    if(club){
+      const source = telResolveClubLogo(club);
+      if(source){
+        res.set('Cache-Control','no-store');
+        if(source.type === 'file') return res.sendFile(source.value);
+        return res.redirect(302, '/api/logo?url=' + encodeURIComponent(source.value));
+      }
+    }
+
     res.set('Cache-Control','no-store');
-    if(source.type === 'file') return res.sendFile(source.value);
-    return res.redirect(302, '/api/logo?url=' + encodeURIComponent(source.value));
+    return res.status(404).send('Escudo no encontrado');
   }catch(error){
     console.error('[club-logo]',error);
+    res.set('Cache-Control','no-store');
     return res.status(404).send('Escudo no encontrado');
   }
 });
