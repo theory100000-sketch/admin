@@ -14835,6 +14835,38 @@ body.tel-all-matches-open{overflow:hidden!important}
 </style>
 
 
+<style id="tel-team-card-overflow-fix-v1">
+/* Mantiene los tres datos de cada club dentro de su tarjeta. */
+.dynamic-team-card{min-width:0!important;overflow:hidden!important;box-sizing:border-box!important}
+.dynamic-team-top,.dynamic-team-top>div{min-width:0!important}
+.dynamic-team-meta{
+  width:100%!important;
+  min-width:0!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+}
+.dynamic-team-meta span{
+  min-width:0!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+  padding:8px 6px!important;
+  font-size:11px!important;
+  line-height:1.2!important;
+}
+.dynamic-team-meta b{
+  min-width:0!important;
+  max-width:100%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  font-size:13px!important;
+}
+@media(max-width:420px){
+  .dynamic-team-meta{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .dynamic-team-meta span:nth-child(3){grid-column:1/-1!important}
+}
+</style>
+
 <style id="tel-discord-team-profile-style">
 #telTeamProfile{position:fixed;inset:0;z-index:10000;display:none;overflow:auto;background:radial-gradient(circle at 82% 0%,rgba(82,35,174,.20),transparent 34%),linear-gradient(135deg,#050b16,#07111e 58%,#070b16);color:#f7f9ff;font-family:Inter,Arial,sans-serif}
 #telTeamProfile.open{display:block}
@@ -14870,14 +14902,47 @@ body.tel-all-matches-open{overflow:hidden!important}
   const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const norm=v=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
   const money=v=>(Number(v)||0).toLocaleString('es-ES')+'€';
-  const logoSrc=url=>!url?'':(url.startsWith('/escudos/')?url:'/api/logo?url='+encodeURIComponent(url));
+  function logoSrc(url){
+    const value=String(url||'').trim().replaceAll('\\','/');
+    if(!value) return '';
+    if(/^(?:data:|blob:)/i.test(value)) return value;
+    if(/^https?:\/\//i.test(value)) return '/api/logo?url='+encodeURIComponent(value);
+    /* Las rutas internas de la web deben abrirse directamente. En especial,
+       /api/club-logo ya es el endpoint final del escudo y no debe envolverse
+       otra vez dentro de /api/logo. */
+    if(value.startsWith('/')) return value;
+    if(/^(?:api\/|escudos\/|assets\/)/i.test(value)) return '/'+value;
+    if(/^escudo-.*\.(?:png|jpe?g|webp|gif|svg)$/i.test(value)) return '/escudos/'+value;
+    return '/api/logo?url='+encodeURIComponent(value);
+  }
   function playerAvatar(p){
     if(p.avatarUrl) return `<img class="tel-tp-avatar" src="${esc(logoSrc(p.avatarUrl))}" alt="" onerror="this.outerHTML='<span class=&quot;tel-tp-avatar-fallback&quot;>👤</span>'">`;
     return '<span class="tel-tp-avatar-fallback">👤</span>';
   }
+  window.telTeamProfileLogoFallback=function(img){
+    let remaining=[];
+    try{ remaining=JSON.parse(img.dataset.fallbacks||'[]'); }catch(error){}
+    const next=remaining.shift();
+    if(next){
+      img.dataset.fallbacks=JSON.stringify(remaining);
+      img.src=next;
+      return;
+    }
+    const replacement=document.createElement('span');
+    replacement.textContent=img.dataset.emoji||'⚡';
+    img.replaceWith(replacement);
+  };
   function logo(club){
-    const url=club.escudoUrl||'';
-    return url?`<img src="${esc(logoSrc(url))}" alt="${esc(club.nombre)}">`:`<span>${esc(club.emoji||'⚡')}</span>`;
+    const explicit=club.escudoUrl||club.logoUrl||club.logo||club.escudo||'';
+    const keys=[club.id,club.clubId,club.rolId,club.roleId,club.nombre,club.nombreVisual]
+      .filter(Boolean).map(value=>String(value).trim()).filter(Boolean);
+    const candidates=[
+      logoSrc(explicit),
+      ...keys.map(key=>'/api/club-logo?key='+encodeURIComponent(key))
+    ].filter((value,index,array)=>value&&array.indexOf(value)===index);
+    if(!candidates.length) return `<span>${esc(club.emoji||'⚡')}</span>`;
+    const first=candidates.shift();
+    return `<img src="${esc(first)}" alt="${esc(club.nombre||club.nombreVisual||'Equipo')}" data-fallbacks="${esc(JSON.stringify(candidates))}" data-emoji="${esc(club.emoji||'⚡')}" onerror="window.telTeamProfileLogoFallback(this)">`;
   }
   function winRate(stats){return stats.pj?((stats.pg/stats.pj)*100).toFixed(1)+'%':'0%'}
   function render(payload){
