@@ -11517,7 +11517,7 @@ body.tel-all-matches-open{overflow:hidden!important}
 #telAllMatchesOverlay .tel-am-team span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #telAllMatchesOverlay .tel-am-vs{font-size:28px;font-weight:1000;color:#9635ff;text-align:center}
 #telAllMatchesOverlay .tel-am-crest{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;overflow:hidden;background:rgba(147,51,255,.14);border:1px solid rgba(255,255,255,.08);flex:none}
-#telAllMatchesOverlay .tel-am-crest img{width:100%;height:100%;object-fit:cover}
+#telAllMatchesOverlay .tel-am-crest img{width:100%;height:100%;object-fit:contain;padding:2px;box-sizing:border-box}
 #telAllMatchesOverlay .tel-am-preview{display:flex;align-items:center;justify-content:center;height:46px;border-radius:12px;border:1px solid rgba(154,55,255,.7);background:rgba(119,31,231,.08);color:#c15bff;text-decoration:none;font-weight:1000;text-transform:uppercase;font-size:14px}
 #telAllMatchesOverlay .tel-am-empty{padding:32px 18px;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:14px;color:#b9c2cf;background:rgba(255,255,255,.018)}
 #telAllMatchesOverlay .tel-am-side{display:flex;flex-direction:column;gap:16px}
@@ -11530,7 +11530,7 @@ body.tel-all-matches-open{overflow:hidden!important}
 #telAllMatchesOverlay .tel-am-quick-rank,#telAllMatchesOverlay .tel-am-quick-pts{display:block;color:#fff;font-size:13px;font-weight:1000;line-height:1;text-align:center}
 #telAllMatchesOverlay .tel-am-quick-rank{opacity:.95}
 #telAllMatchesOverlay .tel-am-quick-pts{font-size:14px}
-#telAllMatchesOverlay .tel-am-quick-logo{width:36px;height:36px;border-radius:50%;object-fit:cover;display:block;flex:none;border:1px solid rgba(255,255,255,.1);background:rgba(147,51,255,.12)}
+#telAllMatchesOverlay .tel-am-quick-logo{width:36px;height:36px;border-radius:50%;object-fit:contain;padding:2px;box-sizing:border-box;display:block;flex:none;border:1px solid rgba(255,255,255,.1);background:rgba(147,51,255,.12)}
 #telAllMatchesOverlay .tel-am-quick-name{display:block;color:#fff;font-size:13px;font-weight:900;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
 #telAllMatchesOverlay .tel-am-quick-row:first-child{border-top:0;padding-top:0}
 #telAllMatchesOverlay .tel-am-quick-row img{width:36px;height:36px;border-radius:50%;object-fit:cover;display:block}
@@ -11629,7 +11629,24 @@ body.tel-all-matches-open{overflow:hidden!important}
     }
     return '';
   }
-  function srcLogo(item){const u=pickLogo(item); if(!u) return ''; return (u.startsWith('/escudos/')||u.startsWith('escudos/')) ? (u.startsWith('/')?u:'/'+u) : '/api/logo?url='+encodeURIComponent(u);}
+  function srcLogo(item){
+    const u=pickLogo(item);
+    if(u){
+      /* /api/club-logo y el resto de rutas internas ya son URLs finales.
+         No deben volver a envolverse dentro de /api/logo. */
+      if(/^(?:data:|blob:)/i.test(u)) return u;
+      if(u.startsWith('/api/club-logo') || u.startsWith('/api/logo') || u.startsWith('/escudos/') || u.startsWith('/assets/')) return u;
+      if(u.startsWith('api/club-logo') || u.startsWith('api/logo') || u.startsWith('escudos/') || u.startsWith('assets/')) return '/'+u;
+      if(/^https?:\/\//i.test(u)) return '/api/logo?url='+encodeURIComponent(u);
+      return u.startsWith('/') ? u : '/'+u;
+    }
+    /* Los partidos antiguos pueden no guardar escudoUrl, pero sí el ID o
+       nombre del club. El endpoint compartido puede resolverlo por cualquiera
+       de esas claves. */
+    const key=[item?.clubId,item?.id,item?.rolId,item?.roleId,item?.nombre,item?.nombreVisual,item?.clubNombre]
+      .map(v=>String(v||'').trim()).find(Boolean);
+    return key ? '/api/club-logo?key='+encodeURIComponent(key) : '';
+  }
   function crest(item){const src=srcLogo(item), emoji=item?.emoji||'⚡', name=esc(cleanName(item?.nombreVisual||item?.nombre||item?.clubNombre||'Equipo')); return src?`<span class="tel-am-crest"><img loading="lazy" decoding="async" src="${esc(src)}" alt="${name}"></span>`:`<span class="tel-am-crest">${esc(emoji)}</span>`;}
   function finished(p){return !!(p && ((String(p.estado||'').toLowerCase()==='finalizado')||(String(p.estado||'').toLowerCase()==='jugado')||(p.localGoles!==null&&p.localGoles!==undefined&&p.visitanteGoles!==null&&p.visitanteGoles!==undefined)));}
   function compList(data){return (data?.competiciones||[]).filter(c=>norm(c?.tipo)==='liga').map((c,i)=>({...c,id:String(c.id||c.nombre||('comp-'+i)),nombre:String(c.nombre||('Liga '+(i+1)))}));}
@@ -15389,6 +15406,51 @@ body.tel-all-matches-open{overflow:hidden!important}
 })();
 </script>
 
+
+<script id="tel-all-matches-logo-fallback-fix">
+(function(){
+  function directInternal(value){
+    try{
+      const parsed=new URL(value,location.origin);
+      if(parsed.pathname!=='/api/logo') return '';
+      const inner=parsed.searchParams.get('url')||'';
+      if(inner.startsWith('/api/club-logo')||inner.startsWith('/api/logo')||inner.startsWith('/escudos/')||inner.startsWith('/assets/')) return inner;
+      if(inner.startsWith('api/club-logo')||inner.startsWith('api/logo')||inner.startsWith('escudos/')||inner.startsWith('assets/')) return '/'+inner;
+    }catch(error){}
+    return '';
+  }
+  function repair(img){
+    if(!img || !img.closest('#telAllMatchesOverlay')) return;
+    const direct=directInternal(img.getAttribute('src')||img.src||'');
+    if(direct && img.dataset.telDirectLogo!==direct){
+      img.dataset.telDirectLogo=direct;
+      img.src=direct;
+    }
+  }
+  document.addEventListener('error',function(event){
+    const img=event.target;
+    if(!(img instanceof HTMLImageElement)||!img.closest('#telAllMatchesOverlay')) return;
+    const direct=directInternal(img.getAttribute('src')||img.src||'');
+    if(direct && img.dataset.telDirectLogo!==direct){
+      img.dataset.telDirectLogo=direct;
+      img.src=direct;
+      return;
+    }
+    if(img.dataset.telNameFallback) return;
+    const name=(img.getAttribute('alt')||'').trim();
+    if(name){
+      img.dataset.telNameFallback='1';
+      img.src='/api/club-logo?key='+encodeURIComponent(name);
+    }
+  },true);
+  const observer=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{
+    if(node.nodeType!==1) return;
+    if(node.matches?.('#telAllMatchesOverlay img')) repair(node);
+    node.querySelectorAll?.('#telAllMatchesOverlay img').forEach(repair);
+  })));
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
 </body>
 </html>
 
