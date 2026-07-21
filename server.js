@@ -1,19 +1,274 @@
 require("dotenv").config();
 
 const fs = require("fs");
-const express = require("express");
-
 const path = require('path');
 const crypto = require('crypto');
-const session = require('express-session');
+const { AsyncLocalStorage } = require('async_hooks');
+const express = require("express");
+const cookieSession = require('cookie-session');
 const app = express();
+const TEL_ADMIN_PAGES = require('./admin-pages');
 
-const WEB_SESSION_SECRET = process.env.WEB_SESSION_SECRET || 'thunder_elite_league_cambiar_en_env';
+/* ============================================================
+   COMPATIBILIDAD CON VERCEL
+   - Vercel solo permite escribir de forma temporal dentro de /tmp.
+   - Los archivos editables se copian allí al arrancar.
+   - Si hay una base Upstash Redis conectada, se cargan y guardan
+     automáticamente para que los cambios sean persistentes.
+   ============================================================ */
+const TEL_IS_VERCEL = Boolean(process.env.VERCEL);
+const TEL_MUTABLE_FILE_NAMES = new Set([
+  'data.json',
+  'web_accounts.json',
+  'contact_messages.json'
+]);
+const TEL_RUNTIME_DIR = TEL_IS_VERCEL
+  ? path.join('/tmp', 'thunder-elite-league')
+  : __dirname;
+const telRequestStorage = new AsyncLocalStorage();
+const telNativeFs = {
+  readFileSync: fs.readFileSync.bind(fs),
+  writeFileSync: fs.writeFileSync.bind(fs),
+  existsSync: fs.existsSync.bind(fs),
+  statSync: fs.statSync.bind(fs),
+  watchFile: fs.watchFile.bind(fs),
+  mkdirSync: fs.mkdirSync.bind(fs),
+  copyFileSync: fs.copyFileSync.bind(fs)
+};
+
+function telMutableFileName(filePath){
+  try{
+    const absolute = path.resolve(String(filePath || ''));
+    if(path.dirname(absolute) !== path.resolve(__dirname)) return '';
+    const name = path.basename(absolute);
+    return TEL_MUTABLE_FILE_NAMES.has(name) ? name : '';
+  }catch(error){
+    return '';
+  }
+}
+
+function telRuntimePath(filePath){
+  const mutableName = telMutableFileName(filePath);
+  return mutableName ? path.join(TEL_RUNTIME_DIR, mutableName) : filePath;
+}
+
+if(TEL_IS_VERCEL){
+  telNativeFs.mkdirSync(TEL_RUNTIME_DIR, {recursive:true});
+  for(const name of TEL_MUTABLE_FILE_NAMES){
+    const source = path.join(__dirname, name);
+    const target = path.join(TEL_RUNTIME_DIR, name);
+    if(telNativeFs.existsSync(source) && !telNativeFs.existsSync(target)){
+      telNativeFs.copyFileSync(source, target);
+    }
+  }
+}
+
+const telRedisUrl = String(
+  process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || ''
+).trim();
+const telRedisToken = String(
+  process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || ''
+).trim();
+function telNormalizeRedisPrefix(value){
+  let prefix = String(value || 'tel:web:v1:').trim();
+  // Corrige automáticamente el error común de guardar la clave completa
+  // (tel:web:v1:data:live) en TEL_REDIS_PREFIX. La variable debe ser solo
+  // el prefijo (tel:web:v1:), igual que en el bot de Discord.
+  prefix = prefix.replace(/(?::)?(?:data:live|data\.json|data)$/i, '');
+  return `${prefix.replace(/:+$/, '')}:`;
+}
+const TEL_REDIS_PREFIX_RAW = String(process.env.TEL_REDIS_PREFIX || 'tel:web:v1:');
+const TEL_REDIS_SAFE_PREFIX = telNormalizeRedisPrefix(TEL_REDIS_PREFIX_RAW);
+const TEL_REDIS_PREFIX = TEL_REDIS_SAFE_PREFIX;
+function telClubLogoRedisKey(clubKey){
+  return `${TEL_REDIS_SAFE_PREFIX}club-logo:${String(clubKey || '').trim()}`;
+}
+let telRedis = null;
+if(telRedisUrl && telRedisToken){
+  try{
+    const { Redis } = require('@upstash/redis');
+    telRedis = new Redis({url:telRedisUrl, token:telRedisToken});
+  }catch(error){
+    console.error('[vercel-storage] No se pudo iniciar Upstash Redis:', error);
+  }
+}
+
+let telPersistentLoadPromise = null;
+let telPersistentStateLoaded = false;
+let telPersistentLastCheck = 0;
+let telPersistentRemoteVersion = '';
+let telPersistQueue = Promise.resolve();
+/*
+   DATA EN VIVO COMPARTIDA ENTRE DISCORD Y VERCEL
+   ------------------------------------------------
+   Discord y la web leen y escriben SIEMPRE la misma clave estable. El
+   data.json del repositorio solo se usa para inicializar una base vacía.
+   Así cualquier comando de Discord aparece automáticamente en la web.
+*/
+const TEL_REPO_DATA_PATH = path.join(__dirname, 'data.json');
+const TEL_REPO_DATA_CONTENT = telNativeFs.existsSync(TEL_REPO_DATA_PATH)
+  ? telNativeFs.readFileSync(TEL_REPO_DATA_PATH, 'utf8')
+  : '';
+const TEL_REPO_DATA_HASH = TEL_REPO_DATA_CONTENT
+  ? crypto.createHash('sha256').update(TEL_REPO_DATA_CONTENT).digest('hex')
+  : '';
+const TEL_REPO_DATA_REVISION = TEL_REPO_DATA_HASH
+  ? TEL_REPO_DATA_HASH.slice(0, 24)
+  : 'sin-data-repo';
+const TEL_LIVE_DATA_KEY = `${TEL_REDIS_SAFE_PREFIX}data:live`;
+
+function telRedisKey(name){
+  if(name === 'data.json') return TEL_LIVE_DATA_KEY;
+  return `${TEL_REDIS_SAFE_PREFIX}${name}`;
+}
+function telRedisVersionKey(){
+  return `${TEL_REDIS_SAFE_PREFIX}__version`;
+}
+function telRedisActiveDataKey(){
+  return `${TEL_REDIS_SAFE_PREFIX}__active_data_key`;
+}
+function telRedisRepoDataHashKey(){
+  return `${TEL_REDIS_SAFE_PREFIX}__active_repo_data_hash`;
+}
+
+async function telLoadPersistentFiles(force=false){
+  if(!TEL_IS_VERCEL || !telRedis) return;
+  const now = Date.now();
+  if(!force && telPersistentStateLoaded && now - telPersistentLastCheck < 2000) return;
+  telPersistentLastCheck = now;
+
+  let remoteVersionRaw = await telRedis.get(telRedisVersionKey());
+  let remoteVersion = String(remoteVersionRaw || '');
+  const currentDataKey = telRedisKey('data.json');
+
+  /* La clave en vivo se inicializa desde GitHub únicamente si está vacía. */
+  let storedCurrentData = await telRedis.get(currentDataKey);
+  if(storedCurrentData === null || storedCurrentData === undefined){
+    if(!TEL_REPO_DATA_CONTENT){
+      throw new Error('El despliegue no contiene un data.json válido.');
+    }
+    const version = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    await telRedis.set(currentDataKey, TEL_REPO_DATA_CONTENT);
+    await telRedis.set(telRedisActiveDataKey(), currentDataKey);
+    await telRedis.set(telRedisRepoDataHashKey(), TEL_REPO_DATA_HASH);
+    await telRedis.set(telRedisVersionKey(), version);
+    storedCurrentData = TEL_REPO_DATA_CONTENT;
+    remoteVersion = version;
+    console.log(`[vercel-storage] Data en vivo inicializada desde GitHub: ${TEL_REPO_DATA_REVISION}`);
+  }else{
+    /* Publica la clave canónica para que el bot la descubra incluso si usa una versión anterior. */
+    await Promise.all([
+      telRedis.set(telRedisActiveDataKey(), currentDataKey),
+      telRedis.set(telRedisRepoDataHashKey(), TEL_REPO_DATA_HASH)
+    ]);
+  }
+
+  if(telPersistentStateLoaded && remoteVersion === telPersistentRemoteVersion && !force) return;
+
+  /* La data siempre procede de la clave en vivo compartida con Discord. */
+  const dataContent = typeof storedCurrentData === 'string'
+    ? storedCurrentData
+    : JSON.stringify(storedCurrentData, null, 2);
+  telNativeFs.writeFileSync(path.join(TEL_RUNTIME_DIR, 'data.json'), dataContent, 'utf8');
+
+  /* Las cuentas y los mensajes siguen siendo persistentes entre versiones. */
+  for(const name of TEL_MUTABLE_FILE_NAMES){
+    if(name === 'data.json') continue;
+    const stored = await telRedis.get(telRedisKey(name));
+    if(stored === null || stored === undefined) continue;
+    const content = typeof stored === 'string' ? stored : JSON.stringify(stored, null, 2);
+    telNativeFs.writeFileSync(path.join(TEL_RUNTIME_DIR, name), content, 'utf8');
+  }
+
+  telPersistentStateLoaded = true;
+  telPersistentRemoteVersion = remoteVersion;
+  try{
+    if(typeof telDataHash === 'function'){
+      const hash = telDataHash();
+      if(hash) telLastDataHash = hash;
+    }
+  }catch(error){}
+}
+
+function telEnsurePersistentFiles(){
+  if(!TEL_IS_VERCEL || !telRedis) return Promise.resolve();
+  if(!telPersistentLoadPromise){
+    telPersistentLoadPromise = telLoadPersistentFiles().catch(error=>{
+      console.error('[vercel-storage] No se pudieron cargar los datos persistentes:', error);
+    }).finally(()=>{
+      telPersistentLoadPromise = null;
+    });
+  }
+  return telPersistentLoadPromise;
+}
+function telQueuePersistentWrite(fileName, content){
+  if(!TEL_IS_VERCEL || !telRedis || !fileName) return null;
+  const payload = Buffer.isBuffer(content) ? content.toString('utf8') : String(content);
+  const version = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  telPersistQueue = telPersistQueue
+    .catch(()=>{})
+    .then(async()=>{
+      await telRedis.set(telRedisKey(fileName), payload);
+      await telRedis.set(telRedisVersionKey(), version);
+      telPersistentStateLoaded = true;
+      telPersistentRemoteVersion = version;
+      telPersistentLastCheck = Date.now();
+      return version;
+    })
+    .catch(error=>{
+      console.error(`[vercel-storage] No se pudo guardar ${fileName}:`, error);
+      throw error;
+    });
+  const store = telRequestStorage.getStore();
+  if(store && Array.isArray(store.pending)) store.pending.push(telPersistQueue);
+  return telPersistQueue;
+}
+
+if(TEL_IS_VERCEL){
+  fs.readFileSync = function(filePath, ...args){
+    return telNativeFs.readFileSync(telRuntimePath(filePath), ...args);
+  };
+  fs.existsSync = function(filePath){
+    return telNativeFs.existsSync(telRuntimePath(filePath));
+  };
+  fs.statSync = function(filePath, ...args){
+    return telNativeFs.statSync(telRuntimePath(filePath), ...args);
+  };
+  fs.watchFile = function(filePath, ...args){
+    return telNativeFs.watchFile(telRuntimePath(filePath), ...args);
+  };
+  fs.writeFileSync = function(filePath, data, ...args){
+    const mutableName = telMutableFileName(filePath);
+    const result = telNativeFs.writeFileSync(telRuntimePath(filePath), data, ...args);
+    if(mutableName) telQueuePersistentWrite(mutableName, data);
+    return result;
+  };
+}
+
+const TEL_ADMIN_PASSWORD_CONFIGURED = Boolean(process.env.ADMIN_PASSWORD || process.env.WEB_ADMIN_PASSWORD);
+const TEL_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || process.env.WEB_ADMIN_PASSWORD ||
+  (TEL_IS_VERCEL ? crypto.randomBytes(32).toString('hex') : 'admin123');
+const WEB_SESSION_SECRET = process.env.WEB_SESSION_SECRET ||
+  crypto.createHash('sha256')
+    .update(`tel-session-v1:${TEL_ADMIN_PASSWORD}:thunder-elite-league`)
+    .digest('hex');
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/auth/discord/callback';
 
 const AUTH_DB_PATH = path.join(__dirname, 'web_accounts.json');
+
+/* El acceso de administrador se concede exclusivamente mediante el login por correo.
+   Las cuentas de Discord nunca reciben permisos de administrador automáticamente. */
+function telNormalizeDiscordAdminValue(value){
+  return String(value || '').trim();
+}
+function telDiscordUserIsAuthorizedAdmin(){
+  return false;
+}
+function telPromoteDiscordAdminSession(req){
+  return !!(req && req.session && req.session.isAdmin === true);
+}
 
 
 function discordRedirectUri(req){
@@ -83,19 +338,119 @@ function requireWebLogin(req, res, next){
   });
 }
 
-app.use(session({
-  secret: WEB_SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 1000 * 60 * 60 * 24 * 30
+app.set('trust proxy', 1);
+
+/*
+   Mantiene la web alineada con la clave que escribe el bot.
+   Las rutas que muestran o modifican datos fuerzan una lectura directa de
+   Upstash. De este modo una instancia serverless no puede seguir sirviendo
+   durante minutos su copia temporal antigua.
+*/
+function telRequestNeedsFreshLiveData(req){
+  const pathname = String(req.path || req.url || '').split('?')[0];
+  const method = String(req.method || 'GET').toUpperCase();
+  if(pathname === '/data.json') return true;
+  if(/^\/api\/(?:data(?:-|$)|clubes$|raw-clubes$|ligas$|sync-status$|sync-debug$|data-version$)/.test(pathname)) return true;
+  if(pathname.startsWith('/api/tel-panel/')) return true;
+  if(pathname.startsWith('/api/admin/')) return true;
+  if(!['GET','HEAD','OPTIONS'].includes(method) && pathname.startsWith('/api/')) return true;
+  return false;
+}
+app.use(async (req,res,next)=>{
+  try{
+    if(telRequestNeedsFreshLiveData(req)) await telLoadPersistentFiles(true);
+    else await telEnsurePersistentFiles();
+    next();
+  }catch(error){
+    console.error('[vercel-storage] Error refrescando la data en vivo:', error);
+    if(String(req.path || '').startsWith('/api/')){
+      return res.status(503).json({ok:false,message:'No se pudo leer la data en vivo de Upstash.'});
+    }
+    next();
   }
+});
+
+/* Espera los guardados en Redis antes de cerrar la respuesta. */
+app.use((req,res,next)=>{
+  const store = {pending:[]};
+  telRequestStorage.run(store, ()=>{
+    const nativeEnd = res.end.bind(res);
+    let endScheduled = false;
+    res.end = function(...args){
+      if(endScheduled) return res;
+      const pending = store.pending.splice(0);
+      if(!pending.length) return nativeEnd(...args);
+      endScheduled = true;
+      Promise.allSettled(pending).then(results=>{
+        const failed = results.some(item=>item.status === 'rejected');
+        if(failed && !res.headersSent){
+          const payload = JSON.stringify({
+            ok:false,
+            message:'No se pudo guardar el cambio de forma persistente. Inténtalo de nuevo.'
+          });
+          res.statusCode = 503;
+          res.setHeader('Content-Type','application/json; charset=utf-8');
+          res.setHeader('Content-Length',Buffer.byteLength(payload));
+          return nativeEnd(payload);
+        }
+        return nativeEnd(...args);
+      });
+      return res;
+    };
+    next();
+  });
+});
+
+/* Sesión firmada en cookie: funciona entre distintas instancias serverless. */
+app.use(cookieSession({
+  name: 'tel_session',
+  keys: [WEB_SESSION_SECRET],
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: TEL_IS_VERCEL || process.env.NODE_ENV === 'production',
+  maxAge: 1000 * 60 * 60 * 24 * 30
 }));
 
-app.use(express.static(path.join(__dirname, "public")));
-app.use("/escudos", express.static(path.join(__dirname, "public", "escudos")));
+/* Compatibilidad con las llamadas save()/destroy() del código existente. */
+app.use((req,res,next)=>{
+  if(req.session){
+    Object.defineProperty(req.session, 'save', {
+      enumerable:false,
+      configurable:true,
+      value(callback){ if(typeof callback === 'function') callback(); }
+    });
+    Object.defineProperty(req.session, 'destroy', {
+      enumerable:false,
+      configurable:true,
+      value(callback){
+        req.session = null;
+        if(typeof callback === 'function') callback();
+      }
+    });
+  }
+  next();
+});
+
+const telStaticOptions = {
+  etag: true,
+  lastModified: true,
+  maxAge: 0,
+  setHeaders(res, filePath){
+    const name = path.basename(String(filePath || '')).toLowerCase();
+    if(/\.(?:html?|json)$/i.test(filePath) || name === 'tel-live-sync.js' || name === 'tel-public-fixes.js'){
+      res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma','no-cache');
+      res.setHeader('Expires','0');
+    }else if(/\.(?:png|jpe?g|webp|gif|svg|ico|woff2?)$/i.test(filePath)){
+      res.setHeader('Cache-Control','public, max-age=2592000, immutable');
+    }else if(/\.(?:css|js)$/i.test(filePath)){
+      res.setHeader('Cache-Control','public, max-age=300, must-revalidate');
+    }
+  }
+};
+
+app.use(express.static(path.join(__dirname, "public"), telStaticOptions));
+app.use("/escudos", express.static(path.join(__dirname, "public", "escudos"), telStaticOptions));
 
 const PORT = process.env.PORT || 3000;
 
@@ -103,8 +458,52 @@ const DATA_FILE = path.join(__dirname, "data.json");
 const COMMANDS_FILE = path.join(__dirname, "commands.json");
 
 app.use(express.json({ limit: "2mb" }));
-app.use(express.static(__dirname));
 
+/* PANEL ADMIN PROTEGIDO: los HTML de administración no se sirven sin sesión admin. */
+function telHasAdminSession(req){
+  const expected = String(process.env.ADMIN_EMAIL || 'roleplayserver007@gmail.com').toLowerCase();
+  return !!(req.session && req.session.isAdmin === true && String(req.session.adminEmail || '').toLowerCase() === expected);
+}
+const telProtectedAdminRoutes = new Set(Object.keys(TEL_ADMIN_PAGES));
+app.use((req,res,next)=>{
+  if(telProtectedAdminRoutes.has(req.path) && !telHasAdminSession(req)){
+    return res.redirect('/?admin_login=1#login');
+  }
+  next();
+});
+
+/*
+ * Los HTML privados se envían desde admin-pages.js.
+ * Así Vercel los incluye dentro del bundle de Express y no quedan
+ * publicados directamente en public/.
+ */
+app.get([...telProtectedAdminRoutes], (req,res)=>{
+  const html = TEL_ADMIN_PAGES[req.path];
+  if(!html) return res.status(404).type('text/plain').send('Not Found');
+  res.set({
+    'Cache-Control':'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma':'no-cache',
+    'Expires':'0'
+  });
+  return res.status(200).type('html').send(html);
+});
+
+
+/* Diagnóstico del despliegue: confirma que Express y los paneles privados están cargados. */
+app.get('/api/tel-health', (req,res)=>{
+  res.set('Cache-Control','no-store');
+  res.json({
+    ok:true,
+    express:true,
+    adminPages:Object.keys(TEL_ADMIN_PAGES),
+    adminSession:telHasAdminSession(req),
+    redisConnected:Boolean(telRedis),
+    dataStorageMode:'repo-hash-versioned-shared-with-discord',
+    activeDataKey:telRedisActiveDataKey()
+  });
+});
+
+/* No se expone la raíz del proyecto: evita publicar código, JSON y configuración. */
 function readJson(file, fallback) {
   try {
     if (!fs.existsSync(file)) return fallback;
@@ -188,10 +587,12 @@ function clubBelongsToLeague(club, liga) {
 
 function pickLogoUrl(club) {
   const candidates = [
+    // La URL original de Discord se prueba antes que una ruta local del ordenador del bot.
+    club.escudoDiscordUrl, club.attachmentUrl, club.archivoUrl,
     club.escudoUrl, club.logoUrl, club.logo, club.escudo,
     club.imagen, club.imagenUrl, club.image, club.imageUrl,
     club.avatar, club.avatarUrl, club.icon, club.iconUrl,
-    club.attachmentUrl, club.archivoUrl, club.escudoPath, club.escudoFilename
+    club.escudoPath, club.escudoFilename
   ];
 
   for (let value of candidates) {
@@ -214,23 +615,158 @@ function pickLogoUrl(club) {
   return "";
 }
 
+
+function telLogoSlug(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function telFindClubByKey(data, rawKey){
+  const key = String(rawKey || '').trim();
+  const wanted = normalizeText(key);
+  const clubs = findDataList(data || {}, ['clubes','equipos','teams']);
+  let club = clubs.find(item => [item.id,item._id,item.clubId,item.rolId,item.idClub,item.nombre,item.name,item.nombreVisual,item.clubNombre]
+    .some(value => value && (String(value) === key || normalizeText(value) === wanted)));
+  if(club) return club;
+
+  for(const comp of findDataList(data || {}, ['competiciones','ligas','torneos'])){
+    const team = (comp.equipos || []).find(item => [item.slotId,item.id,item._id,item.clubId,item.rolId,item.idClub,item.nombre,item.name,item.nombreVisual,item.clubNombre]
+      .some(value => value && (String(value) === key || normalizeText(value) === wanted)));
+    if(!team) continue;
+    const masterKey = team.clubId || team.idClub || team.clubNombre || team.nombre || team.nombreVisual;
+    club = clubs.find(item => [item.id,item._id,item.clubId,item.rolId,item.idClub,item.nombre,item.name,item.nombreVisual,item.clubNombre]
+      .some(value => value && normalizeText(value) === normalizeText(masterKey)));
+    return club || team;
+  }
+  return null;
+}
+
+function telResolveClubLogo(club){
+  if(!club) return null;
+  const publicEscudos = path.join(__dirname, 'public', 'escudos');
+  const direct = pickLogoUrl(club);
+  if(direct){
+    if(/^https?:\/\//i.test(direct)) return {type:'remote', value:direct};
+    if(direct.startsWith('/api/club-logo')) return null;
+    const localName = path.basename(String(direct).replaceAll('\\','/'));
+    const localPath = path.join(publicEscudos, localName);
+    if(localName && fs.existsSync(localPath)) return {type:'file', value:localPath, filename:localName};
+  }
+
+  const slug = telLogoSlug(club.nombre || club.clubNombre || club.nombreVisual || club.name);
+  if(slug && fs.existsSync(publicEscudos)){
+    try{
+      const files = fs.readdirSync(publicEscudos)
+        .filter(name => new RegExp(`^escudo-${slug}(?:-|\\.)`, 'i').test(name) && /\.(?:png|jpe?g|webp|gif|svg)$/i.test(name))
+        .sort((a,b)=>b.localeCompare(a));
+      if(files[0]) return {type:'file', value:path.join(publicEscudos, files[0]), filename:files[0]};
+    }catch(error){}
+  }
+  return null;
+}
+
+function telStableClubLogoUrl(club){
+  if(!club) return '';
+  const key = club.clubId || club.rolId || club.id || club._id || club.idClub || club.nombre || club.clubNombre || club.nombreVisual || club.name;
+  /* El fichero puede vivir en el ordenador del bot y no en Vercel. La ruta API
+     consulta primero Upstash, por lo que no debemos exigir que exista localmente. */
+  return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : '';
+}
+
+function telClubLogoRedisAliases(club, requestedKey){
+  const values = [
+    requestedKey,
+    club?.id, club?._id, club?.clubId, club?.rolId,
+    club?.nombre, club?.nombreVisual, club?.clubNombre, club?.name
+  ].filter(Boolean);
+  const seen = new Set();
+  const aliases = [];
+  for(const value of values){
+    const raw = String(value).trim();
+    const normalized = normalizeText(raw);
+    const slug = telLogoSlug(raw);
+    for(const alias of [raw, normalized, slug]){
+      if(!alias || seen.has(alias)) continue;
+      seen.add(alias);
+      aliases.push(alias);
+    }
+  }
+  return aliases;
+}
+
+function telCanonicalTeam(data, team){
+  if(!team || typeof team !== 'object') return team;
+  const master = telFindClubByKey(data, team.clubId || team.idClub || team.clubNombre || team.nombre || team.nombreVisual || team.name);
+  if(!master || master === team) return team;
+  return {
+    ...team,
+    clubId: master.id || master._id || master.clubId || team.clubId || '',
+    clubNombre: master.nombre || master.clubNombre || master.name || team.clubNombre || '',
+    nombre: master.nombreVisual || master.nombre || master.name || team.nombre || '',
+    nombreVisual: master.nombreVisual || master.nombre || master.name || team.nombreVisual || '',
+    emoji: master.emoji || team.emoji || '⚡',
+    presidenteTag: master.presidenteTag || master.presidente || team.presidenteTag || '',
+    escudoUrl: telStableClubLogoUrl(master) || pickLogoUrl(master) || pickLogoUrl(team) || ''
+  };
+}
+
+function normalizePlayerForWeb(player, club) {
+  const discordId = String(player.usuarioId || player.discordId || player.idJugador || player.id || "");
+  const tag = player.usuarioTag || player.discord || player.discordTag || discordId || "Jugador";
+  return {
+    id: player.id || discordId,
+    usuarioId: discordId,
+    discordId,
+    nombre: player.nombre || player.nombreJugador || String(tag).split("#")[0] || "Jugador",
+    nombreJugador: player.nombreJugador || player.nombre || String(tag).split("#")[0] || "Jugador",
+    idJugador: player.idJugador || discordId,
+    idEaPsn: player.idEaPsn || player.eaPsnId || player.idEA || player.psnId || "",
+    eaPsnId: player.eaPsnId || player.idEaPsn || player.idEA || player.psnId || "",
+    discord: player.discord || tag,
+    usuarioTag: tag,
+    avatarUrl: player.avatarUrl || player.avatar || "",
+    estado: player.estado || "activo",
+    clubId: player.clubId || club?.id || "",
+    club: club?.nombre || player.club || player.clubNombre || "",
+    agregadoComoDirectiva: player.agregadoComoDirectiva === true,
+    registradoEn: player.registradoEn || "",
+    actualizadoEn: player.actualizadoEn || ""
+  };
+}
+
 function normalizeClubForWeb(club, data) {
   const jugadores = Array.isArray(data.jugadores) ? data.jugadores : [];
   const nombre = club.nombre || club.name || "Club sin nombre";
   const nombreVisual = club.nombreVisual || club.displayName || `${club.emoji || ""} ${nombre}`.trim();
+  const clubId = String(club.clubId || club.rolId || club.id || club._id || club.idClub || nombre);
+  const plantilla = jugadores
+    .filter(j => String(j.clubId || "") === clubId || normalizeText(j.club || j.equipo || j.clubNombre) === normalizeText(nombre))
+    .map(j => normalizePlayerForWeb(j, club));
   return {
-    id: club.id || club._id || nombre,
+    id: clubId,
+    clubId,
+    rolId: club.rolId || clubId,
     nombre,
     nombreVisual,
     emoji: club.emoji || "⚡",
-    escudoUrl: pickLogoUrl(club),
+    escudoUrl: telStableClubLogoUrl(club) || pickLogoUrl(club),
     colorHex: club.colorHex || club.color || "",
-    presupuesto: club.presupuesto || club.budget || 0,
+    presupuesto: Number(club.presupuesto || club.budget || 0),
     presidenteId: club.presidenteId || null,
     presidenteTag: club.presidenteTag || club.presidente || "",
+    vicepresidentes: Array.isArray(club.vicepresidentes) ? club.vicepresidentes : [],
     ligaId: club.ligaId || club.liga || club.competicionId || club.competicion || club.conferencia || "",
     conferencia: club.conferencia || club.liga || club.competicion || "TEL",
-    jugadores: jugadores.filter(j => normalizeText(j.club || j.equipo || j.clubNombre) === normalizeText(nombre)).length
+    jugadores: plantilla.length,
+    jugadoresRegistrados: plantilla.length,
+    maxJugadores: Number(club.maxJugadores || 18),
+    plantilla,
+    creadoEn: club.creadoEn || "",
+    actualizadoEn: club.actualizadoEn || data.sync?.updatedAt || ""
   };
 }
 
@@ -238,8 +774,215 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     name: "Thunder Elite League",
+    runtime: TEL_IS_VERCEL ? 'vercel' : 'node',
+    persistentStorage: telRedis ? 'upstash-redis' : (TEL_IS_VERCEL ? 'temporary-only' : 'local-files'),
+    adminPasswordConfigured: TEL_ADMIN_PASSWORD_CONFIGURED || !TEL_IS_VERCEL,
+    sessionSecretConfigured: Boolean(process.env.WEB_SESSION_SECRET) || !TEL_IS_VERCEL,
+    dataRevision: TEL_REPO_DATA_REVISION,
+    dataStorageMode: 'shared-live-discord-vercel',
+    liveDataKey: TEL_LIVE_DATA_KEY,
     guildId: process.env.GUILD_ID || null,
     clientId: process.env.CLIENT_ID || null
+  });
+});
+
+
+/* ============================================================
+   DATOS OFICIALES CONSISTENTES PARA WEB, CLASIFICACIÓN Y COPAS
+   - Completa nombres y escudos usando la lista maestra de clubes.
+   - Resuelve participantes por slotId, id, clubId o nombre.
+   - Evita que las rondas posteriores pierdan el escudo.
+   ============================================================ */
+function telClientNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telClientCleanName(value){
+  return String(value || '')
+    .replace(/^(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+/u,'')
+    .trim();
+}
+function telClientLogo(item){
+  let value = String(
+    item?.escudoUrl || item?.logoUrl || item?.escudoPath || item?.escudoFilename ||
+    item?.logo || item?.escudo || item?.imagenUrl || item?.imagen || ''
+  ).trim().replaceAll('\\','/');
+  if(!value) return '';
+  if(value.startsWith('/escudos/')) return value;
+  if(value.startsWith('escudos/')) return '/' + value;
+  if(/^escudo-.*\.(?:png|jpe?g|webp|gif|svg)$/i.test(value)) return '/escudos/' + value;
+  return value;
+}
+function telHydrateDataForClient(rawData){
+  const data = rawData && typeof rawData === 'object'
+    ? JSON.parse(JSON.stringify(rawData))
+    : {clubes:[],competiciones:[]};
+  const clubs = Array.isArray(data.clubes) ? data.clubes : (Array.isArray(data.equipos) ? data.equipos : []);
+  const clubIndex = new Map();
+  function indexObject(map,obj,values){
+    values.filter(Boolean).forEach(value=>{
+      const raw=String(value);
+      const normalized=telClientNorm(raw);
+      if(raw && !map.has(raw)) map.set(raw,obj);
+      if(normalized && !map.has(normalized)) map.set(normalized,obj);
+    });
+  }
+  clubs.forEach(club=>{
+    const logo = telStableClubLogoUrl(club) || telClientLogo(club);
+    if(logo) club.escudoUrl=logo;
+    indexObject(clubIndex,club,[club.id,club._id,club.clubId,club.nombre,club.nombreVisual,club.clubNombre,club.name]);
+  });
+  function findClub(source){
+    if(!source) return null;
+    const values = typeof source === 'string' ? [source] : [
+      source.clubId,source.idClub,source.id,source._id,source.slotId,source.clubNombre,
+      source.nombre,source.nombreVisual,source.name,source.equipo,source.club
+    ];
+    for(const value of values){
+      if(!value) continue;
+      const found=clubIndex.get(String(value)) || clubIndex.get(telClientNorm(value));
+      if(found) return found;
+    }
+    return null;
+  }
+  function hydrateTeam(source){
+    const input = source && typeof source === 'object' ? source : {};
+    const base = findClub(input) || (typeof source === 'string' ? findClub(source) : null);
+    if(base){
+      const canonicalName = base.nombre || base.clubNombre || base.name || telClientCleanName(base.nombreVisual) || 'Equipo';
+      const canonicalVisual = base.nombreVisual || base.nombre || base.name || canonicalName;
+      return {
+        ...input,
+        clubId: base.id || base._id || base.clubId || input.clubId || '',
+        clubNombre: canonicalName,
+        nombre: canonicalVisual,
+        nombreVisual: canonicalVisual,
+        emoji: base.emoji || input.emoji || '⚡',
+        presidenteTag: base.presidenteTag || base.presidente || input.presidenteTag || '',
+        escudoUrl: telStableClubLogoUrl(base) || telClientLogo(base) || telClientLogo(input) || ''
+      };
+    }
+    const canonical = telClientCleanName(
+      input.clubNombre || input.nombreVisual || input.nombre || input.name ||
+      (typeof source === 'string' ? source : '') || 'Equipo'
+    ) || 'Equipo';
+    return {
+      ...input,
+      clubNombre: input.clubNombre || canonical,
+      nombre: input.nombre || input.nombreVisual || canonical,
+      nombreVisual: input.nombreVisual || input.nombre || canonical,
+      escudoUrl: telClientLogo(input)
+    };
+  }
+  const comps = Array.isArray(data.competiciones) ? data.competiciones : [];
+  comps.forEach(comp=>{
+    comp.equipos = Array.isArray(comp.equipos) ? comp.equipos.map(hydrateTeam) : [];
+    const teamIndex = new Map();
+    comp.equipos.forEach((team,index)=>{
+      indexObject(teamIndex,team,[team.slotId,team.id,team._id,team.clubId,team.clubNombre,team.nombre,team.nombreVisual,team.name,`slot-${index+1}`]);
+    });
+    function resolveParticipant(reference,embeddedName){
+      for(const value of [reference,embeddedName]){
+        if(!value) continue;
+        const found=teamIndex.get(String(value)) || teamIndex.get(telClientNorm(value));
+        if(found) return found;
+      }
+      const club=findClub(embeddedName || reference);
+      return club ? hydrateTeam(club) : (embeddedName ? hydrateTeam({clubNombre:embeddedName,nombre:embeddedName}) : null);
+    }
+    if(Array.isArray(comp.clasificacion)){
+      comp.clasificacion = comp.clasificacion.map(row=>{
+        const base=resolveParticipant(row?.slotId || row?.clubId || row?.id,row?.clubNombre || row?.nombre || row?.nombreVisual);
+        return hydrateTeam({...row,...(base || {}),slotId:row?.slotId || base?.slotId || ''});
+      });
+    }
+    if(Array.isArray(comp.partidos)){
+      comp.partidos = comp.partidos.map(match=>{
+        const local=resolveParticipant(match.localSlotId || match.localClubId || match.localId,match.localNombre || match.nombreLocal || match.equipoLocal);
+        const away=resolveParticipant(match.visitanteSlotId || match.visitanteClubId || match.visitanteId,match.visitanteNombre || match.nombreVisitante || match.equipoVisitante);
+        if(local){
+          match.localNombre=telClientCleanName(local.clubNombre || local.nombre || local.nombreVisual) || 'Por definir';
+          match.localLogo=telClientLogo(local);
+          match.localEscudo=match.localLogo;
+          match.localClubId=local.clubId || '';
+          if(!match.localSlotId) match.localSlotId=local.slotId || local.id || local.clubId || '';
+        }
+        if(away){
+          match.visitanteNombre=telClientCleanName(away.clubNombre || away.nombre || away.nombreVisual) || 'Por definir';
+          match.visitanteLogo=telClientLogo(away);
+          match.visitanteEscudo=match.visitanteLogo;
+          match.visitanteClubId=away.clubId || '';
+          if(!match.visitanteSlotId) match.visitanteSlotId=away.slotId || away.id || away.clubId || '';
+        }
+        return match;
+      });
+    }
+  });
+  return data;
+}
+
+
+app.get('/api/sync-status', async (req,res)=>{
+  res.set('Cache-Control','no-store');
+  let data={clubes:[],jugadores:[],competiciones:[]};
+  try{ data=readJson(DATA_FILE,data); }catch(error){}
+  let redisHost='';
+  try{ redisHost=new URL(telRedisUrl).host; }catch(error){}
+  let remoteVersion='';
+  let remoteExists=false;
+  try{
+    if(telRedis){
+      remoteVersion=String(await telRedis.get(telRedisVersionKey()) || '');
+      remoteExists=(await telRedis.get(TEL_LIVE_DATA_KEY)) !== null;
+    }
+  }catch(error){}
+  res.json({
+    ok:true,
+    redisConnected:Boolean(telRedis),
+    redisHost,
+    prefix:TEL_REDIS_SAFE_PREFIX,
+    dataKey:TEL_LIVE_DATA_KEY,
+    remoteExists,
+    remoteVersion,
+    source:data?.sync?.source || 'repo',
+    updatedAt:data?.sync?.updatedAt || '',
+    clubs:Array.isArray(data?.clubes)?data.clubes.length:0,
+    players:Array.isArray(data?.jugadores)?data.jugadores.length:0
+  });
+});
+
+
+app.get('/api/sync-debug', async (req,res)=>{
+  res.set('Cache-Control','no-store');
+  let remoteData=null;
+  let remoteVersion='';
+  let remoteError='';
+  try{
+    if(telRedis){
+      const stored = await telRedis.get(TEL_LIVE_DATA_KEY);
+      remoteData = typeof stored === 'string' ? JSON.parse(stored) : stored;
+      remoteVersion = String(await telRedis.get(telRedisVersionKey()) || '');
+    }
+  }catch(error){ remoteError=String(error?.message || error); }
+  let runtimeData={};
+  try{ runtimeData=readJson(DATA_FILE,{}); }catch(error){}
+  const count = value => Array.isArray(value?.clubes) ? value.clubes.length : (Array.isArray(value?.equipos) ? value.equipos.length : 0);
+  res.json({
+    ok:!remoteError,
+    redisConnected:Boolean(telRedis),
+    configuredPrefix:TEL_REDIS_PREFIX_RAW,
+    normalizedPrefix:TEL_REDIS_SAFE_PREFIX,
+    dataKey:TEL_LIVE_DATA_KEY,
+    remoteClubs:count(remoteData),
+    runtimeClubs:count(runtimeData),
+    remoteUpdatedAt:remoteData?._sync?.updatedAt || remoteData?.sync?.updatedAt || '',
+    runtimeUpdatedAt:runtimeData?._sync?.updatedAt || runtimeData?.sync?.updatedAt || '',
+    remoteVersion,
+    remoteError
   });
 });
 
@@ -254,7 +997,7 @@ app.get("/api/data", (req, res) => {
     config: {}
   });
 
-  res.json(data);
+  res.json(telHydrateDataForClient(data));
 });
 
 app.get("/api/ligas", (req, res) => {
@@ -286,9 +1029,158 @@ app.get("/api/clubes", (req, res) => {
 
   const clubes = rawClubes
     .filter(club => clubBelongsToLeague(club, selectedLeague))
-    .map(club => normalizeClubForWeb(club, data));
+    .map(rawClub => {
+      const club = normalizeClubForWeb(rawClub, data);
+      const calculated = telClubStatsForProfile(rawClub, club, data);
+      return {...club, stats:calculated.stats, league:calculated.league};
+    });
 
   res.json(clubes);
+});
+
+
+function telClubStatsIsLeague(comp){
+  const raw = normalizeText(`${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(raw.includes('copa') || raw.includes('torneo') || raw.includes('elimin')) return false;
+  if(raw.includes('liga')) return true;
+  return !(comp?.partidos || []).some(match => {
+    const phase = normalizeText(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+
+function telClubStatsPlayed(match){
+  if(!match) return false;
+  const hasDirectScores =
+    match.localGoles !== null && match.localGoles !== undefined &&
+    match.visitanteGoles !== null && match.visitanteGoles !== undefined;
+  const hasLegacyScores =
+    match.golesLocal !== null && match.golesLocal !== undefined &&
+    match.golesVisitante !== null && match.golesVisitante !== undefined;
+  return match.finalizado === true ||
+    ['finalizado','jugado'].includes(String(match.estado || '').toLowerCase()) ||
+    hasDirectScores || hasLegacyScores || /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''));
+}
+
+function telClubStatsGoals(match){
+  let local = match?.localGoles ?? match?.golesLocal;
+  let away = match?.visitanteGoles ?? match?.golesVisitante;
+  if((local === null || local === undefined || away === null || away === undefined) && match?.resultado){
+    const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+    if(parsed){ local = Number(parsed[1]); away = Number(parsed[2]); }
+  }
+  return {local:Number(local ?? 0), away:Number(away ?? 0)};
+}
+
+function telClubStatsTeamKey(team, index){
+  return String(team?.slotId || team?.id || team?.clubId || team?.nombre || team?.clubNombre || `slot-${index+1}`);
+}
+
+function telClubStatsMatchesClub(team, rawClub, normalizedClub){
+  if(!team) return false;
+  const rawId = String(rawClub?.id || rawClub?._id || '').trim();
+  const teamClubId = String(team.clubId || team.idClub || '').trim();
+  if(rawId && teamClubId && rawId === teamClubId) return true;
+  const candidates = [team.clubNombre, team.nombre, team.nombreVisual, team.name]
+    .filter(Boolean).map(normalizeText);
+  return candidates.includes(normalizeText(normalizedClub.nombre));
+}
+
+function telClubStatsTable(comp){
+  const rows = new Map();
+  (comp?.equipos || []).forEach((team,index)=>{
+    const slotId = telClubStatsTeamKey(team,index);
+    rows.set(slotId, {
+      slotId,
+      clubId:String(team?.clubId || ''),
+      nombre:team?.clubNombre || team?.nombre || team?.nombreVisual || `Equipo ${index+1}`,
+      pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,dg:0,pts:0
+    });
+  });
+
+  (comp?.partidos || []).forEach(match=>{
+    if(!telClubStatsPlayed(match)) return;
+    const local = rows.get(String(match.localSlotId || ''));
+    const away = rows.get(String(match.visitanteSlotId || ''));
+    if(!local || !away) return;
+    const goals = telClubStatsGoals(match);
+    local.pj += 1; away.pj += 1;
+    local.gf += goals.local; local.gc += goals.away;
+    away.gf += goals.away; away.gc += goals.local;
+    if(goals.local > goals.away){ local.pg += 1; local.pts += 3; away.pp += 1; }
+    else if(goals.local < goals.away){ away.pg += 1; away.pts += 3; local.pp += 1; }
+    else { local.pe += 1; away.pe += 1; local.pts += 1; away.pts += 1; }
+    local.dg = local.gf - local.gc;
+    away.dg = away.gf - away.gc;
+  });
+
+  return [...rows.values()].sort((a,b)=>
+    (b.pts-a.pts) || (b.dg-a.dg) || (b.gf-a.gf) || String(a.nombre).localeCompare(String(b.nombre),'es')
+  );
+}
+
+function telClubStatsForProfile(rawClub, normalizedClub, data){
+  const competitions = findDataList(data, ['competiciones','ligas','leagues'])
+    .filter(telClubStatsIsLeague);
+  const candidates = [];
+
+  competitions.forEach((comp,index)=>{
+    const teams = comp.equipos || [];
+    const team = teams.find(item=>telClubStatsMatchesClub(item,rawClub,normalizedClub));
+    if(!team) return;
+    const slotId = telClubStatsTeamKey(team,teams.indexOf(team));
+    const table = telClubStatsTable(comp);
+    const rowIndex = table.findIndex(row=>String(row.slotId) === String(slotId));
+    const row = rowIndex >= 0 ? table[rowIndex] : {pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,dg:0,pts:0};
+    const state = normalizeText(comp.estado || '');
+    candidates.push({
+      priority:state.includes('activa') ? 0 : state.includes('final') ? 1 : 2,
+      index,
+      stats:{
+        pj:Number(row.pj || 0), pg:Number(row.pg || 0), pe:Number(row.pe || 0), pp:Number(row.pp || 0),
+        gf:Number(row.gf || 0), gc:Number(row.gc || 0), dg:Number(row.dg || 0), pts:Number(row.pts || 0)
+      },
+      league:{
+        id:String(comp.id || comp.nombre || `liga-${index+1}`),
+        nombre:String(comp.nombre || 'Liga'),
+        posicion:rowIndex >= 0 ? rowIndex + 1 : 0,
+        totalEquipos:table.length,
+        puntos:Number(row.pts || 0)
+      }
+    });
+  });
+
+  candidates.sort((a,b)=>a.priority-b.priority || a.index-b.index);
+  return candidates[0] || {
+    stats:{pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,dg:0,pts:0},
+    league:{id:'',nombre:'Sin liga',posicion:0,totalEquipos:0,puntos:0}
+  };
+}
+
+app.get("/api/clubes/:clubId", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const data = readJson(DATA_FILE, { clubes: [], jugadores: [], competiciones: [] });
+  const rawClubes = findDataList(data, ["clubes", "equipos", "teams"]);
+  const wanted = normalizeText(req.params.clubId);
+  const rawClub = rawClubes.find(club =>
+    normalizeText(club.id || club._id || "") === wanted ||
+    normalizeText(club.nombre || club.name || "") === wanted ||
+    normalizeText(club.nombreVisual || "") === wanted
+  );
+  if (!rawClub) return res.status(404).json({ ok:false, message:"Equipo no encontrado." });
+
+  const club = normalizeClubForWeb(rawClub, data);
+  const calculated = telClubStatsForProfile(rawClub, club, data);
+  let fileUpdatedAt = new Date().toISOString();
+  try{ fileUpdatedAt = fs.statSync(DATA_FILE).mtime.toISOString(); }catch(error){}
+  res.json({
+    ok:true,
+    club,
+    plantilla:club.plantilla,
+    stats:calculated.stats,
+    league:calculated.league,
+    sync:{...(data.sync || {}), updatedAt:fileUpdatedAt}
+  });
 });
 
 app.get("/api/competiciones", (req, res) => {
@@ -309,6 +1201,71 @@ app.get("/api/sanciones", (req, res) => {
 
 app.get("/api/comandos", (req, res) => {
   res.json(readJson(COMMANDS_FILE, []));
+});
+
+// Escudo estable por ID o nombre del club.
+app.get('/api/club-logo', async (req,res)=>{
+  try{
+    const requestedKey = String(req.query.key || '').trim();
+    if(!requestedKey){
+      res.set('Cache-Control','no-store');
+      return res.status(400).send('Falta la clave del escudo');
+    }
+
+    const data = readJson(DATA_FILE, {clubes:[],competiciones:[]});
+    const club = telFindClubByKey(data, requestedKey);
+
+    // Consulta primero la clave solicitada directamente. Esto permite mostrar el
+    // escudo de un club recién creado incluso durante los segundos en los que la
+    // lista de clubes de otra instancia serverless todavía se está actualizando.
+    if(telRedis){
+      try{
+        const aliases = club
+          ? telClubLogoRedisAliases(club, requestedKey)
+          : [...new Set([requestedKey, normalizeText(requestedKey), telLogoSlug(requestedKey)].filter(Boolean))];
+
+        for(const alias of aliases){
+          const stored = await telRedis.get(telClubLogoRedisKey(alias));
+          if(stored === null || stored === undefined) continue;
+          let payload = stored;
+          if(typeof payload === 'string'){
+            try{ payload = JSON.parse(payload); }catch(error){ payload = null; }
+          }
+          if(payload && payload.base64){
+            const buffer = Buffer.from(String(payload.base64), 'base64');
+            if(buffer.length){
+              res.set('Content-Type', String(payload.contentType || 'image/png'));
+              res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+              res.set('X-TEL-Logo-Key', String(alias));
+              return res.send(buffer);
+            }
+          }
+          if(payload && /^https?:\/\//i.test(String(payload.remoteUrl || ''))){
+            res.set('Cache-Control','no-store');
+            return res.redirect(302, '/api/logo?url=' + encodeURIComponent(String(payload.remoteUrl)));
+          }
+        }
+      }catch(error){
+        console.warn('[club-logo] No se pudo leer el escudo de Upstash:', error.message || error);
+      }
+    }
+
+    if(club){
+      const source = telResolveClubLogo(club);
+      if(source){
+        res.set('Cache-Control','no-store');
+        if(source.type === 'file') return res.sendFile(source.value);
+        return res.redirect(302, '/api/logo?url=' + encodeURIComponent(source.value));
+      }
+    }
+
+    res.set('Cache-Control','no-store');
+    return res.status(404).send('Escudo no encontrado');
+  }catch(error){
+    console.error('[club-logo]',error);
+    res.set('Cache-Control','no-store');
+    return res.status(404).send('Escudo no encontrado');
+  }
 });
 
 // Proxy local de escudos/logos.
@@ -554,7 +1511,7 @@ app.get('/api/auth/discord-links', requireWebLogin, (req, res) => {
 
 /* ADMIN RESULTADOS MANUALES + CLASIFICACIÓN AUTOMÁTICA */
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'roleplayserver007@gmail.com').toLowerCase();
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const ADMIN_PASSWORD = TEL_ADMIN_PASSWORD;
 
 function requireAdmin(req, res, next){
   if(req.session && req.session.isAdmin === true && String(req.session.adminEmail || '').toLowerCase() === ADMIN_EMAIL){
@@ -831,7 +1788,16 @@ app.post('/api/admin/login', express.json(), (req, res) => {
   req.session.discordId = null;
   req.session.discordUser = null;
 
-  res.json({ok:true, admin:true, email:ADMIN_EMAIL});
+  // Guardar la sesión antes de responder evita que el navegador cambie de página
+  // antes de que la cookie/sesión de administrador esté persistida.
+  req.session.save((error)=>{
+    if(error){
+      console.error('[admin-login-session-save]', error);
+      return res.status(500).json({ok:false,error:'session_save_failed',message:'No se pudo guardar la sesión. Inténtalo de nuevo.'});
+    }
+    res.set('Cache-Control','no-store');
+    res.json({ok:true, admin:true, email:ADMIN_EMAIL});
+  });
 });
 
 app.post('/api/admin/logout', (req, res) => {
@@ -2779,7 +3745,10 @@ app.get('/data.json', (req,res)=>{
   res.set('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
   res.set('Pragma','no-cache');
   res.set('Expires','0');
-  res.sendFile(telFinalAdminDataPath());
+  const data = readJson(DATA_FILE, {clubes:[],jugadores:[],competiciones:[]});
+  // La web pública recibe los clubes hidratados con su ID y una ruta estable
+  // de escudo, igual que /api/data. No se expone la ruta local del ordenador del bot.
+  res.json(telHydrateDataForClient(data));
 });
 app.get('/api/data-live', (req,res)=>{
   try{
@@ -2796,7 +3765,7 @@ app.post('/api/admin/final-login', express.json(), (req,res)=>{
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   const adminEmail = String(process.env.ADMIN_EMAIL || 'roleplayserver007@gmail.com').toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminPassword = TEL_ADMIN_PASSWORD;
 
   if(email !== adminEmail) return res.status(403).json({ok:false,message:'Ese correo no es admin.'});
   if(password !== adminPassword) return res.status(403).json({ok:false,message:'Contraseña admin incorrecta.'});
@@ -2804,7 +3773,11 @@ app.post('/api/admin/final-login', express.json(), (req,res)=>{
   req.session.isAdmin = true;
   req.session.adminEmail = adminEmail;
   req.session.webAccountId = 'admin-local';
-  res.json({ok:true,admin:true,email:adminEmail});
+  req.session.save((error)=>{
+    if(error) return res.status(500).json({ok:false,message:'No se pudo guardar la sesión.'});
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,admin:true,email:adminEmail});
+  });
 });
 app.get('/api/admin/final-lista', requireAdmin, (req,res)=>{
   try{
@@ -3273,7 +4246,7 @@ function telDirectRecalcAll(data){
 }
 function telDirectPasswordOk(req){
   const pass = String(req.body?.adminPassword || req.query?.adminPassword || '');
-  return pass === String(process.env.ADMIN_PASSWORD || 'admin123') || (req.session && req.session.isAdmin === true);
+  return pass === String(TEL_ADMIN_PASSWORD) || (req.session && req.session.isAdmin === true);
 }
 app.get('/api/admin/direct-lista', (req,res)=>{
   try{
@@ -3615,7 +4588,7 @@ app.post('/api/admin/login-normal', express.json(), (req,res)=>{
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   const adminEmail = String(process.env.ADMIN_EMAIL || 'roleplayserver007@gmail.com').toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminPassword = TEL_ADMIN_PASSWORD;
 
   if(email !== adminEmail) return res.status(403).json({ok:false,message:'Ese correo no es la cuenta admin.'});
   if(password !== adminPassword) return res.status(403).json({ok:false,message:'Contraseña admin incorrecta.'});
@@ -3623,7 +4596,11 @@ app.post('/api/admin/login-normal', express.json(), (req,res)=>{
   req.session.isAdmin = true;
   req.session.adminEmail = adminEmail;
   req.session.webAccountId = 'admin-local';
-  res.json({ok:true,admin:true,email:adminEmail});
+  req.session.save((error)=>{
+    if(error) return res.status(500).json({ok:false,message:'No se pudo guardar la sesión.'});
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,admin:true,email:adminEmail});
+  });
 });
 app.get('/api/admin/resultados-normal-lista', telAdminRequire, (req,res)=>{
   try{
@@ -3875,13 +4852,17 @@ app.post('/api/admin/inline-login', express.json(), (req,res)=>{
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   const adminEmail = String(process.env.ADMIN_EMAIL || 'roleplayserver007@gmail.com').toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminPassword = TEL_ADMIN_PASSWORD;
   if(email !== adminEmail) return res.status(403).json({ok:false,message:'Ese correo no es admin.'});
   if(password !== adminPassword) return res.status(403).json({ok:false,message:'Contraseña admin incorrecta.'});
   req.session.isAdmin = true;
   req.session.adminEmail = adminEmail;
   req.session.webAccountId = 'admin-local';
-  res.json({ok:true,admin:true,email:adminEmail});
+  req.session.save((error)=>{
+    if(error) return res.status(500).json({ok:false,message:'No se pudo guardar la sesión.'});
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,admin:true,email:adminEmail});
+  });
 });
 app.get('/api/admin/inline-lista', telInlineRequire, (req,res)=>{
   try{
@@ -3946,7 +4927,7 @@ app.post('/api/admin/desbloqueo-login', express.json(), (req,res)=>{
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
     const adminEmail = String(process.env.ADMIN_EMAIL || 'roleplayserver007@gmail.com').toLowerCase();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminPassword = TEL_ADMIN_PASSWORD;
 
     if(email !== adminEmail){
       return res.status(403).json({ok:false,message:'Ese correo no es la cuenta admin.'});
@@ -4139,7 +5120,7 @@ app.post('/api/tel-final/admin-login', express.json(), (req,res)=>{
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   const adminEmail = String(process.env.ADMIN_EMAIL || 'roleplayserver007@gmail.com').toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminPassword = TEL_ADMIN_PASSWORD;
   if(email !== adminEmail) return res.status(403).json({ok:false,message:'Correo admin incorrecto.'});
   if(password !== adminPassword) return res.status(403).json({ok:false,message:'Contraseña admin incorrecta.'});
   if(req.session){
@@ -4380,11 +5361,36 @@ function telPanelName(t,fallback){
     .trim();
 }
 function telPanelLogo(t){
-  return t?.escudoUrl || t?.logoUrl || t?.escudo || t?.logo || t?.escudoPath || '';
+  if(!t) return '';
+  const key=t.clubId || t.idClub || t.clubNombre || t.nombre || t.nombreVisual || t.name || t.id;
+  return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : telClientLogo(t);
 }
-function telPanelTeam(comp,slot){
-  if(!slot) return null;
-  return (comp.equipos || []).find((t,i)=>telPanelSlot(t,i) === String(slot)) || null;
+function telPanelTeam(comp,slot,data,match,side){
+  const teams = comp?.equipos || [];
+  const raw = String(slot || '').trim();
+  const target = telPanelNorm(raw);
+  let found = teams.find((t,i)=>telPanelSlot(t,i) === raw) || teams.find((t,i)=>{
+    const values=[telPanelSlot(t,i),t.id,t.clubId,t.clubNombre,t.nombre,t.nombreVisual,t.name];
+    return values.some(value=>value && telPanelNorm(value) === target);
+  }) || null;
+  const directName = side === 'local'
+    ? (match?.localNombre || match?.nombreLocal || match?.equipoLocal || '')
+    : (match?.visitanteNombre || match?.nombreVisitante || match?.equipoVisitante || '');
+  if(!found && directName){
+    const wanted=telPanelNorm(directName);
+    found=teams.find(t=>[t.clubNombre,t.nombre,t.nombreVisual,t.name].some(value=>value && telPanelNorm(value)===wanted)) || null;
+  }
+  const clubs = data?.clubes || data?.equipos || [];
+  if(!found){
+    const wanted=telPanelNorm(directName || raw);
+    const club=clubs.find(t=>[t.id,t.clubId,t.clubNombre,t.nombre,t.nombreVisual,t.name].some(value=>value && telPanelNorm(value)===wanted));
+    if(club) found=club;
+  }
+  if(found) return telCanonicalTeam(data, found);
+  const embeddedLogo = side === 'local'
+    ? (match?.localLogo || match?.localEscudo || '')
+    : (match?.visitanteLogo || match?.visitanteEscudo || '');
+  return directName ? {nombre:directName,clubNombre:directName,escudoUrl:embeddedLogo} : null;
 }
 function telPanelIsCup(comp){
   const txt = telPanelNorm(`${comp.tipo||''} ${comp.formato||''} ${comp.formatoNombre||''} ${comp.formatoDescripcion||''} ${comp.nombre||''}`);
@@ -4505,7 +5511,7 @@ app.post('/api/tel-panel/login', express.json(), (req,res)=>{
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   const adminEmail = String(process.env.ADMIN_EMAIL || 'roleplayserver007@gmail.com').toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminPassword = TEL_ADMIN_PASSWORD;
   if(email !== adminEmail) return res.status(403).json({ok:false,message:'Correo admin incorrecto.'});
   if(password !== adminPassword) return res.status(403).json({ok:false,message:'Contraseña admin incorrecta.'});
   if(req.session){
@@ -4531,8 +5537,8 @@ app.get('/api/tel-panel/matches', (req,res)=>{
       const isCup=telPanelIsCup(comp);
       (comp.partidos || []).forEach((m,mi)=>{
         const id=telPanelMatchId(comp,m,mi);
-        const local=telPanelTeam(comp,m.localSlotId);
-        const away=telPanelTeam(comp,m.visitanteSlotId);
+        const local=telPanelTeam(comp,m.localSlotId,data,m,'local');
+        const away=telPanelTeam(comp,m.visitanteSlotId,data,m,'away');
         const localG = m.localGoles ?? m.golesLocal ?? null;
         const awayG = m.visitanteGoles ?? m.golesVisitante ?? null;
         const played = telPanelPlayed(m);
@@ -4543,10 +5549,10 @@ app.get('/api/tel-panel/matches', (req,res)=>{
           id,
           jornada: m.jornada || '',
           ronda: m.rondaNombre || m.fase || '',
-          localNombre: telPanelName(local,m.localSlotId || 'Por definir'),
-          visitanteNombre: telPanelName(away,m.visitanteSlotId || 'Por definir'),
-          localLogo: telPanelLogo(local),
-          visitanteLogo: telPanelLogo(away),
+          localNombre: telPanelName(local,m.localNombre || m.localSlotId || 'Por definir'),
+          visitanteNombre: telPanelName(away,m.visitanteNombre || m.visitanteSlotId || 'Por definir'),
+          localLogo: telPanelLogo(local) || telClientLogo({escudoUrl:m.localLogo || m.localEscudo || ''}),
+          visitanteLogo: telPanelLogo(away) || telClientLogo({escudoUrl:m.visitanteLogo || m.visitanteEscudo || ''}),
           localGoles: localG,
           visitanteGoles: awayG,
           finalizado: played,
@@ -4573,6 +5579,7 @@ app.post('/api/tel-panel/save', express.json(), (req,res)=>{
     const fecha=String(req.body?.fecha || '').trim();
     const hora=String(req.body?.hora || '').trim();
     const clear = req.body?.clear === true;
+    const dateOnly = req.body?.dateOnly === true;
     if(!compId || !matchId) return res.status(400).json({ok:false,message:'Falta partido.'});
 
     const data=telPanelRead();
@@ -4584,7 +5591,7 @@ app.post('/api/tel-panel/save', express.json(), (req,res)=>{
 
     if(clear){
       telPanelReset(match);
-    }else{
+    }else if(!dateOnly){
       const lg=Number(lgRaw);
       const vg=Number(vgRaw);
       if(!Number.isInteger(lg) || !Number.isInteger(vg) || lg<0 || vg<0) return res.status(400).json({ok:false,message:'Pon goles válidos.'});
@@ -4592,14 +5599,14 @@ app.post('/api/tel-panel/save', express.json(), (req,res)=>{
       match.localGoles=lg; match.visitanteGoles=vg; match.golesLocal=lg; match.golesVisitante=vg;
       match.resultado=`${lg}-${vg}`; match.estado='finalizado'; match.finalizado=true;
     }
-    if(fecha) { match.fecha=fecha; match.date=fecha; }
-    if(hora) { match.hora=hora; match.time=hora; }
+    if(Object.prototype.hasOwnProperty.call(req.body || {},'fecha')) { match.fecha=fecha; match.date=fecha; }
+    if(Object.prototype.hasOwnProperty.call(req.body || {},'hora')) { match.hora=hora; match.time=hora; }
     match.actualizadoPor='admin-panel'; match.actualizadoEn=new Date().toISOString();
 
     telPanelRecalcAll(data);
     telPanelWrite(data);
     res.set('Cache-Control','no-store');
-    res.json({ok:true,message:clear?'Resultado borrado.':'Resultado guardado.',data});
+    res.json({ok:true,message:clear?'Resultado borrado.':dateOnly?'Fecha guardada.':'Resultado guardado.',data});
   }catch(e){
     console.error('[tel-panel/save]',e);
     res.status(500).json({ok:false,message:String(e.message || e)});
@@ -4608,189 +5615,924 @@ app.post('/api/tel-panel/save', express.json(), (req,res)=>{
 
 
 
-/* TEL PANEL COPAS LOCALHOST SYNC */
-function telSyncNorm(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,' ').trim();}
-function telSyncDataPath(){return path.join(__dirname,'data.json');}
-function telSyncRead(){return JSON.parse(fs.readFileSync(telSyncDataPath(),'utf8'));}
-function telSyncWrite(data){fs.writeFileSync(telSyncDataPath(),JSON.stringify(data,null,2),'utf8');}
-function telSyncComps(data){return data.competiciones || data.ligas || data.torneos || [];}
-function telSyncCompId(c,i){
-  if(!c.id){c.id=String(c.nombre||c.name||`competicion-${i+1}`).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,'');}
-  return String(c.id);
+
+/* ============================================================
+   ADMIN TEL · GESTOR DE COMPETICIONES
+   ============================================================ */
+function telCompManagerNorm(value){
+  return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,' ').trim();
 }
-function telSyncMatchId(c,m,i){
-  if(!m.id){const cid=String(c.id||c.nombre||'comp').toLowerCase().replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,'');m.id=`${cid}-partido-${i+1}`;}
-  return String(m.id);
+function telCompManagerId(comp,index){
+  return String(comp?.id || comp?._id || comp?.nombre || `COMP-${index+1}`);
 }
-function telSyncSlot(t,i){return String(t?.slotId || t?.id || t?.clubId || t?.nombre || t?.clubNombre || `slot-${i+1}`);}
-function telSyncName(t,fallback){return String(t?.nombre || t?.clubNombre || t?.nombreVisual || t?.name || fallback || 'Por definir').replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+/u,'').trim();}
-function telSyncLogo(t){return t?.escudoUrl || t?.logoUrl || t?.escudo || t?.logo || t?.escudoPath || '';}
-function telSyncTeam(c,slot){return (c.equipos||[]).find((t,i)=>telSyncSlot(t,i)===String(slot)) || null;}
-function telSyncIsCup(c){
-  const txt=telSyncNorm(`${c.tipo||''} ${c.formato||''} ${c.formatoNombre||''} ${c.formatoDescripcion||''} ${c.nombre||''}`);
-  return txt.includes('copa') || txt.includes('elimin') || txt.includes('torneo') || (c.partidos||[]).some(p=>{
-    const r=telSyncNorm(`${p.rondaNombre||''} ${p.fase||''}`);
-    return r.includes('cuarto') || r.includes('semi') || r.includes('final');
-  });
+function telCompManagerIsCup(comp){
+  const text = telCompManagerNorm(`${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  return text.includes('copa') || text.includes('elimin');
 }
-function telSyncRound(m){
-  const txt=telSyncNorm(`${m.rondaNombre||''} ${m.fase||''} ${m.nombreRonda||''}`);
-  const r=Number(m.ronda || m.round || 0);
-  if(txt.includes('cuarto') || r===1) return 1;
-  if(txt.includes('semi') || r===2) return 2;
-  if(txt.includes('final') || r>=3) return 3;
+function telCompManagerClubName(item){
+  return String(item?.clubNombre || item?.nombre || item?.nombreVisual || '').replace(/^[^\p{L}\p{N}]+/u,'').trim();
+}
+function telCompManagerClubLogo(item){
+  return item?.escudoUrl || item?.logoUrl || item?.escudo || item?.logo || '';
+}
+function telCompManagerNaturalLeagueRounds(teamCount,idaVuelta){
+  let teams=Math.max(2,Number(teamCount||2));
+  if(teams%2)teams+=1;
+  return Math.max(1,(teams-1)*(idaVuelta?2:1));
+}
+function telCompManagerConfiguredRounds(comp,teamCount){
+  const idaVuelta=comp?.configFormato?.idaVuelta!==false && !String(comp?.formato||'').includes('solo_ida');
+  const configured=Number(comp?.numeroJornadas ?? comp?.jornadas ?? comp?.configFormato?.numeroJornadas);
+  if(Number.isFinite(configured)&&configured>0)return Math.max(1,Math.min(100,Math.floor(configured)));
+  const matchRounds=(comp?.partidos||[]).map(m=>Number(m?.jornada||0)).filter(v=>Number.isFinite(v)&&v>0);
+  if(matchRounds.length)return Math.max(...matchRounds);
+  return telCompManagerNaturalLeagueRounds(teamCount,idaVuelta);
+}
+function telCompManagerSummary(comp,index){
+  const teams = Array.isArray(comp?.equipos) ? comp.equipos : [];
+  const matches = Array.isArray(comp?.partidos) ? comp.partidos : [];
+  const finished = matches.filter(m => m?.finalizado === true || m?.estado === 'finalizado' || (m?.localGoles !== null && m?.localGoles !== undefined && m?.visitanteGoles !== null && m?.visitanteGoles !== undefined)).length;
+  return {
+    id: telCompManagerId(comp,index),
+    nombre: comp?.nombre || comp?.name || `Competición ${index+1}`,
+    temporada: comp?.temporada || comp?.season || 'Temporada 1',
+    tipo: telCompManagerIsCup(comp) ? 'copa' : (telCompManagerNorm(comp?.tipo).includes('grupo') ? 'grupos' : 'liga'),
+    estado: comp?.estado || 'activa',
+    formato: comp?.formato || (telCompManagerIsCup(comp) ? 'eliminacion_directa' : 'liga_ida_vuelta'),
+    idaVuelta: comp?.configFormato?.idaVuelta !== false && !String(comp?.formato || '').includes('solo_ida'),
+    maxEquipos: Number(comp?.maxEquipos || comp?.numeroMaxEquipos || Math.max(teams.length, 8)),
+    numeroJornadas: telCompManagerIsCup(comp) ? null : telCompManagerConfiguredRounds(comp,teams.length || Number(comp?.maxEquipos || 8)),
+    inscripcionesAbiertas: comp?.inscripcionesAbiertas !== false,
+    fechaInicio: comp?.fechaInicio || comp?.inicio || '',
+    fechaFin: comp?.fechaFin || comp?.fin || '',
+    equipos: teams.length,
+    participantes: teams.map(t => ({nombre:telCompManagerClubName(t),nombreVisual:t?.nombre || t?.nombreVisual || telCompManagerClubName(t),logo:telCompManagerClubLogo(t)})),
+    partidos: matches.length,
+    resultados: finished,
+    hasResults: finished > 0
+  };
+}
+function telCompManagerFormat(tipo, idaVuelta){
+  if(tipo === 'copa') return {
+    formato:'eliminacion_directa',
+    formatoNombre:'Eliminación directa',
+    formatoDescripcion:'Cuartos de final, semifinales y final.',
+    configFormato:{idaVuelta:false,generaCalendario:'eliminatoria'}
+  };
+  if(tipo === 'grupos') return {
+    formato:'grupos_playoffs',
+    formatoNombre:'Grupos + Playoffs',
+    formatoDescripcion:'Fase de grupos y eliminatorias.',
+    configFormato:{idaVuelta:!!idaVuelta,generaCalendario:'grupos_playoffs'}
+  };
+  return {
+    formato:idaVuelta ? 'liga_ida_vuelta' : 'liga_solo_ida',
+    formatoNombre:idaVuelta ? 'Liga ida y vuelta' : 'Liga solo ida',
+    formatoDescripcion:idaVuelta ? 'Todos contra todos, una vez como local y otra como visitante.' : 'Todos contra todos a una sola vuelta.',
+    configFormato:{idaVuelta:!!idaVuelta,puntosVictoria:3,puntosEmpate:1,puntosDerrota:0,generaCalendario:'liga'}
+  };
+}
+function telCompManagerSlot(team,index){
+  return String(team?.slotId || team?.id || team?.clubId || `EQ-${Date.now()}-${index}-${Math.floor(Math.random()*9000+1000)}`);
+}
+function telCompManagerTeamFromClub(club,index,existing){
+  return {
+    ...(existing || {}),
+    slotId: existing?.slotId || `EQ-${Date.now()}-${index}-${Math.floor(Math.random()*9000+1000)}`,
+    clubNombre: club.nombre,
+    nombre: club.nombreVisual || club.nombre,
+    escudoUrl: club.escudoUrl || club.logoUrl || club.escudo || '',
+    escudoPath: club.escudoPath || existing?.escudoPath || '',
+    escudoFilename: club.escudoFilename || existing?.escudoFilename || '',
+    activo: true,
+    grupo: existing?.grupo ?? null,
+    historialSustituciones: existing?.historialSustituciones || [],
+    creadoEn: existing?.creadoEn || new Date().toISOString()
+  };
+}
+function telCompManagerEmptyTable(teams){
+  return teams.map(t => ({...t,pj:0,pg:0,pe:0,pp:0,v:0,e:0,d:0,gf:0,gc:0,golesFavor:0,golesContra:0,dg:0,pts:0,puntos:0}));
+}
+function telCompManagerMatch(base,jornada,localSlotId,visitanteSlotId,extra){
+  return {
+    id:`${base}-partido-${String(jornada).padStart(2,'0')}-${Math.floor(Math.random()*900000+100000)}`,
+    jornada,
+    ronda:jornada,
+    fase:'liga',
+    grupo:null,
+    fecha:'',
+    hora:'',
+    localSlotId,
+    visitanteSlotId,
+    localGoles:null,
+    visitanteGoles:null,
+    ganadorSlotId:null,
+    estado:'pendiente',
+    finalizado:false,
+    creadoEn:new Date().toISOString(),
+    ...(extra || {})
+  };
+}
+function telCompManagerLeagueSchedule(comp){
+  const original=(comp.equipos||[]).map((t,i)=>telCompManagerSlot(t,i));
+  if(original.length<2)return [];
+  const slots=[...original];
+  if(slots.length%2)slots.push(null);
+  const total=slots.length;
+  const baseRounds=[];
+  let rotation=[...slots];
+  const base=String(comp.id||'competicion').toLowerCase().replace(/[^\w]+/g,'-');
+
+  for(let round=1;round<total;round++){
+    const fixtures=[];
+    for(let i=0;i<total/2;i++){
+      let home=rotation[i];
+      let away=rotation[total-1-i];
+      if(!home||!away)continue;
+      if(round%2===0&&i===0){const temp=home;home=away;away=temp;}
+      fixtures.push({home,away});
+    }
+    baseRounds.push(fixtures);
+    rotation=[rotation[0],rotation[total-1],...rotation.slice(1,total-1)];
+  }
+
+  const targetRounds=telCompManagerConfiguredRounds(comp,original.length);
+  const schedule=[];
+  for(let jornada=1;jornada<=targetRounds;jornada++){
+    const sourceIndex=(jornada-1)%baseRounds.length;
+    const cycle=Math.floor((jornada-1)/baseRounds.length);
+    const reverse=cycle%2===1;
+    baseRounds[sourceIndex].forEach(pair=>{
+      const local=reverse?pair.away:pair.home;
+      const visitante=reverse?pair.home:pair.away;
+      schedule.push(telCompManagerMatch(base,jornada,local,visitante,{rondaNombre:`Jornada ${jornada}`}));
+    });
+  }
+  return schedule;
+}
+function telCompManagerCupSchedule(comp){
+  const teams = comp.equipos || [];
+  if(teams.length !== 8) return [];
+  const slots = teams.map((t,i)=>telCompManagerSlot(t,i));
+  const pairs = [[0,7],[3,4],[1,6],[2,5]];
+  const base = String(comp.id || 'copa').toLowerCase().replace(/[^\w]+/g,'-');
+  return pairs.map((pair,index)=>({
+    id:`${base}-cuartos-${index+1}`,
+    jornada:1,
+    ronda:1,
+    rondaNombre:'Cuartos de final',
+    fase:'eliminatoria',
+    eliminatoria:true,
+    idaVuelta:false,
+    orden:index+1,
+    grupo:null,
+    fecha:'',
+    hora:'',
+    localSlotId:slots[pair[0]],
+    visitanteSlotId:slots[pair[1]],
+    localGoles:null,
+    visitanteGoles:null,
+    ganadorSlotId:null,
+    estado:'pendiente',
+    finalizado:false,
+    creadoEn:new Date().toISOString()
+  }));
+}
+function telCompManagerGenerate(comp){
+  if(telCompManagerIsCup(comp)) return telCompManagerCupSchedule(comp);
+  if(telCompManagerNorm(comp.tipo).includes('grupo')) return [];
+  return telCompManagerLeagueSchedule(comp);
+}
+
+app.get('/api/admin/competitions-manager', requireAdmin, (req,res)=>{
+  try{
+    const data = telPanelRead();
+    const competitions = telPanelComps(data).map(telCompManagerSummary);
+    const clubs = (data.clubes || data.equipos || []).map((club,index)=>({
+      id:String(club.id || club.clubId || club.nombre || `club-${index+1}`),
+      nombre:String(club.nombre || club.clubNombre || `Equipo ${index+1}`),
+      nombreVisual:String(club.nombreVisual || club.nombre || club.clubNombre || `Equipo ${index+1}`),
+      logo:telCompManagerClubLogo(club)
+    }));
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,competitions,clubs});
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+app.post('/api/admin/competitions-manager/save', express.json(), requireAdmin, (req,res)=>{
+  try{
+    const data = telPanelRead();
+    data.competiciones = Array.isArray(data.competiciones) ? data.competiciones : telPanelComps(data);
+    const id = String(req.body?.id || '').trim();
+    const nombre = String(req.body?.nombre || '').trim();
+    if(!nombre) return res.status(400).json({ok:false,message:'Escribe el nombre de la competición.'});
+    const tipo = ['liga','copa','grupos'].includes(String(req.body?.tipo)) ? String(req.body.tipo) : 'liga';
+    const idaVuelta = req.body?.idaVuelta !== false;
+    const requestedRounds = tipo==='liga' ? Math.max(1,Math.min(100,Math.floor(Number(req.body?.numeroJornadas||1)))) : null;
+    const format = telCompManagerFormat(tipo,idaVuelta);
+    let comp = data.competiciones.find((c,i)=>telCompManagerId(c,i) === id);
+    const isNew = !comp;
+    if(isNew){
+      comp = {id:`COMP-${Date.now()}`,equipos:[],sustituciones:[],partidos:[],clasificacion:[],grupos:[],creadaEn:new Date().toISOString()};
+      data.competiciones.push(comp);
+    }
+    const previousType = telCompManagerNorm(`${comp.tipo || ''} ${comp.formato || ''}`);
+    const nextType = telCompManagerNorm(`${tipo} ${format.formato}`);
+    const previousIdaVuelta = comp?.configFormato?.idaVuelta !== false && !String(comp?.formato || '').includes('solo_ida');
+    const previousRounds = telCompManagerIsCup(comp) ? null : telCompManagerConfiguredRounds(comp,(comp.equipos||[]).length || Number(comp.maxEquipos||8));
+    const calendarConfigChanged = !isNew && (
+      previousType !== nextType ||
+      (tipo==='liga' && (previousIdaVuelta !== idaVuelta || Number(previousRounds) !== Number(requestedRounds)))
+    );
+    const hasResults = (comp.partidos || []).some(m=>m?.finalizado===true || m?.estado==='finalizado' || (m?.localGoles!==null && m?.localGoles!==undefined && m?.visitanteGoles!==null && m?.visitanteGoles!==undefined));
+    if(calendarConfigChanged && hasResults && req.body?.force !== true){
+      return res.status(409).json({ok:false,needsConfirmation:true,message:'Cambiar el formato o el número de jornadas reiniciará el calendario y los resultados de esta liga.'});
+    }
+    comp.nombre = nombre;
+    comp.temporada = String(req.body?.temporada || 'Temporada 1').trim() || 'Temporada 1';
+    comp.tipo = tipo === 'grupos' ? 'grupos_playoffs' : tipo;
+    Object.assign(comp,format);
+    comp.numeroJornadas = tipo==='liga' ? requestedRounds : null;
+    comp.configFormato = {...(comp.configFormato||{}),numeroJornadas:tipo==='liga'?requestedRounds:null};
+    comp.estado = String(req.body?.estado || 'activa');
+    comp.maxEquipos = Math.max(2,Math.min(32,Number(req.body?.maxEquipos || 8)));
+    comp.inscripcionesAbiertas = req.body?.inscripcionesAbiertas !== false;
+    comp.fechaInicio = String(req.body?.fechaInicio || '');
+    comp.fechaFin = String(req.body?.fechaFin || '');
+    comp.actualizadaEn = new Date().toISOString();
+    if(calendarConfigChanged){
+      comp.clasificacion = telCompManagerEmptyTable(comp.equipos || []);
+      comp.partidos = telCompManagerGenerate(comp);
+      comp.calendarioGenerado = comp.partidos.length > 0;
+      comp.calendarioGeneradoEn = comp.calendarioGenerado ? new Date().toISOString() : null;
+      comp.campeon = null;
+      telPanelRecalcAll(data);
+    }
+    telPanelWrite(data);
+    res.json({ok:true,id:comp.id,message:isNew?'Competición creada.':'Competición actualizada.'});
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+app.post('/api/admin/competitions-manager/participants', express.json(), requireAdmin, (req,res)=>{
+  try{
+    const data = telPanelRead();
+    const compId = String(req.body?.compId || '').trim();
+    const comp = telPanelComps(data).find((c,i)=>telCompManagerId(c,i) === compId);
+    if(!comp) return res.status(404).json({ok:false,message:'Competición no encontrada.'});
+    const names = Array.isArray(req.body?.clubNames) ? req.body.clubNames.map(v=>String(v).trim()).filter(Boolean) : [];
+    if(names.length > Number(comp.maxEquipos || 32)) return res.status(400).json({ok:false,message:`El máximo es ${comp.maxEquipos} equipos.`});
+    const clubs = data.clubes || data.equipos || [];
+    const clubMap = new Map(clubs.map(c=>[telCompManagerNorm(c.nombre || c.clubNombre),c]));
+    const existingMap = new Map((comp.equipos || []).map(t=>[telCompManagerNorm(telCompManagerClubName(t)),t]));
+    const teams = names.map((name,index)=>{
+      const club = clubMap.get(telCompManagerNorm(name));
+      if(!club) return null;
+      return telCompManagerTeamFromClub(club,index,existingMap.get(telCompManagerNorm(name)));
+    }).filter(Boolean);
+    const oldNames = (comp.equipos || []).map(t=>telCompManagerNorm(telCompManagerClubName(t)));
+    const newNames = teams.map(t=>telCompManagerNorm(telCompManagerClubName(t)));
+    const changed = JSON.stringify(oldNames) !== JSON.stringify(newNames);
+    const hasResults = (comp.partidos || []).some(m=>m?.finalizado === true || m?.estado === 'finalizado');
+    if(changed && hasResults && req.body?.force !== true){
+      return res.status(409).json({ok:false,needsConfirmation:true,message:'Cambiar los participantes reiniciará el calendario y los resultados de esta competición.'});
+    }
+    comp.equipos = teams;
+    comp.clasificacion = telCompManagerEmptyTable(teams);
+    const needsSchedule = changed || (teams.length >= 2 && !(comp.partidos || []).length && !telCompManagerNorm(comp.tipo).includes('grupo'));
+    if(needsSchedule){
+      comp.partidos = telCompManagerGenerate(comp);
+      comp.calendarioGenerado = comp.partidos.length > 0;
+      comp.calendarioGeneradoEn = comp.calendarioGenerado ? new Date().toISOString() : null;
+      comp.campeon = null;
+    }
+    telPanelRecalcAll(data);
+    telPanelWrite(data);
+    let message = 'Participantes guardados.';
+    if(telCompManagerIsCup(comp) && teams.length !== 8) message += ' La copa necesita exactamente 8 equipos para generar el cuadro.';
+    if(telCompManagerNorm(comp.tipo).includes('grupo')) message += ' El calendario de grupos se configurará desde Partidos.';
+    res.json({ok:true,message});
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+app.post('/api/admin/competitions-manager/delete', express.json(), requireAdmin, (req,res)=>{
+  try{
+    const data = telPanelRead();
+    data.competiciones = Array.isArray(data.competiciones) ? data.competiciones : telPanelComps(data);
+    const compId = String(req.body?.compId || '').trim();
+    const before = data.competiciones.length;
+    data.competiciones = data.competiciones.filter((c,i)=>telCompManagerId(c,i) !== compId);
+    if(data.competiciones.length === before) return res.status(404).json({ok:false,message:'Competición no encontrada.'});
+    telPanelWrite(data);
+    res.json({ok:true,message:'Competición eliminada.'});
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+/* Fin: gestor de competiciones */
+
+/* ============================================================
+   COPAS TEL - AVANCE AUTOMÁTICO AUTORITATIVO
+   - QF1 + QF2 -> SF1
+   - QF3 + QF4 -> SF2
+   - SF1 + SF2 -> Final
+   - Si cambia o se borra un resultado anterior, limpia la fase dependiente.
+   ============================================================ */
+function telCupAutoNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^\w]+/g,' ')
+    .trim();
+}
+function telCupAutoRound(match){
+  const text = telCupAutoNorm(`${match?.rondaNombre || ''} ${match?.fase || ''} ${match?.nombreRonda || ''}`);
+  const round = Number(match?.ronda || match?.round || 0);
+  if(text.includes('cuarto') || text.includes('quarter') || round === 1) return 1;
+  if(text.includes('semi') || round === 2) return 2;
+  if(text.includes('final') || round >= 3) return 3;
   return 1;
 }
-function telSyncPlayed(m){return !!m && (m.estado==='finalizado' || m.estado==='jugado' || m.finalizado===true || (m.localGoles!==null && m.localGoles!==undefined && m.visitanteGoles!==null && m.visitanteGoles!==undefined));}
-function telSyncWinner(m){
-  if(!telSyncPlayed(m)) return null;
-  const a=Number(m.localGoles??0), b=Number(m.visitanteGoles??0);
-  if(a===b) return null;
-  return String(a>b ? m.localSlotId : m.visitanteSlotId);
+function telCupAutoPlayed(match){
+  return !!match && (
+    match.estado === 'finalizado' ||
+    match.estado === 'jugado' ||
+    match.finalizado === true ||
+    (match.localGoles !== null && match.localGoles !== undefined &&
+     match.visitanteGoles !== null && match.visitanteGoles !== undefined) ||
+    (match.golesLocal !== null && match.golesLocal !== undefined &&
+     match.golesVisitante !== null && match.golesVisitante !== undefined)
+  );
 }
-function telSyncReset(m){if(!m)return;m.localGoles=null;m.visitanteGoles=null;m.golesLocal=null;m.golesVisitante=null;m.resultado='';m.estado='pendiente';m.finalizado=false;}
-function telSyncEnsureIds(data){
-  telSyncComps(data).forEach((c,ci)=>{telSyncCompId(c,ci);(c.partidos||[]).forEach((m,mi)=>telSyncMatchId(c,m,mi));});
+function telCupAutoGoals(match){
+  let local = match?.localGoles;
+  let away = match?.visitanteGoles;
+  if(local === null || local === undefined) local = match?.golesLocal;
+  if(away === null || away === undefined) away = match?.golesVisitante;
+  if((local === null || local === undefined || away === null || away === undefined) && match?.resultado){
+    const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+    if(parsed){ local = Number(parsed[1]); away = Number(parsed[2]); }
+  }
+  return {local:Number(local ?? 0), away:Number(away ?? 0)};
 }
-function telSyncEnsureCup(c){
-  c.partidos=c.partidos||[];
-  const qf=c.partidos.filter(m=>telSyncRound(m)===1), sf=c.partidos.filter(m=>telSyncRound(m)===2), fi=c.partidos.filter(m=>telSyncRound(m)===3);
-  const cid=String(c.id||c.nombre||'copa').toLowerCase().replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,'');
-  while(qf.length>=4 && sf.length<2){const n=sf.length+1; const m={id:`${cid}-semifinal-${n}`,jornada:2,ronda:2,rondaNombre:'Semifinales',fase:'Semifinales',localSlotId:'',visitanteSlotId:'',localGoles:null,visitanteGoles:null,estado:'pendiente',finalizado:false}; c.partidos.push(m); sf.push(m);}
-  while(sf.length>=2 && fi.length<1){const m={id:`${cid}-final-1`,jornada:3,ronda:3,rondaNombre:'Final',fase:'Final',localSlotId:'',visitanteSlotId:'',localGoles:null,visitanteGoles:null,estado:'pendiente',finalizado:false}; c.partidos.push(m); fi.push(m);}
+function telCupAutoWinner(match){
+  if(!telCupAutoPlayed(match)) return '';
+  const goals = telCupAutoGoals(match);
+  if(goals.local === goals.away) return '';
+  return String(goals.local > goals.away ? (match.localSlotId || '') : (match.visitanteSlotId || ''));
 }
-function telSyncAdvanceCup(c){
-  telSyncEnsureCup(c);
-  const by={qf:[],sf:[],final:[]};
-  (c.partidos||[]).forEach((m,i)=>{m.__i=i; const r=telSyncRound(m); if(r===1)by.qf.push(m); else if(r===2)by.sf.push(m); else by.final.push(m);});
-  Object.values(by).forEach(a=>a.sort((x,y)=>Number(x.orden??x.order??x.posicion??x.__i)-Number(y.orden??y.order??y.posicion??y.__i)));
-  const qfw=by.qf.map(telSyncWinner), sfw=by.sf.map(telSyncWinner);
-  const setTeams=(m,a,b)=>{if(!m)return; let ch=false; if(String(m.localSlotId||'')!==String(a||'')){m.localSlotId=a||'';ch=true;} if(String(m.visitanteSlotId||'')!==String(b||'')){m.visitanteSlotId=b||'';ch=true;} if(ch) telSyncReset(m);};
-  if(by.sf[0]) setTeams(by.sf[0], qfw[0]||'', qfw[1]||'');
-  if(by.sf[1]) setTeams(by.sf[1], qfw[2]||'', qfw[3]||'');
-  if(by.final[0]) setTeams(by.final[0], sfw[0]||'', sfw[1]||'');
-  (c.partidos||[]).forEach(m=>delete m.__i);
+function telCupAutoResetScore(match){
+  if(!match) return;
+  match.localGoles = null;
+  match.visitanteGoles = null;
+  match.golesLocal = null;
+  match.golesVisitante = null;
+  match.resultado = '';
+  match.estado = 'pendiente';
+  match.finalizado = false;
+  match.ganadorSlotId = null;
 }
-function telSyncRecalcLeague(c){
-  const rows=new Map();
-  (c.equipos||[]).forEach((t,i)=>{const s=telSyncSlot(t,i); rows.set(s,{...t,slotId:s,nombre:telSyncName(t,`Equipo ${i+1}`),pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,dg:0,pts:0,puntos:0});});
-  (c.partidos||[]).forEach(m=>{
-    if(!telSyncPlayed(m))return;
-    const l=rows.get(String(m.localSlotId||'')), v=rows.get(String(m.visitanteSlotId||'')); if(!l||!v)return;
-    const a=Number(m.localGoles??0), b=Number(m.visitanteGoles??0);
-    l.pj++;v.pj++;l.gf+=a;l.gc+=b;v.gf+=b;v.gc+=a;l.dg=l.gf-l.gc;v.dg=v.gf-v.gc;
-    l.golesFavor=l.gf;l.golesContra=l.gc;v.golesFavor=v.gf;v.golesContra=v.gc;
-    if(a>b){l.pg++;l.pts+=3;l.puntos=l.pts;v.pp++;v.puntos=v.pts;}
-    else if(a<b){v.pg++;v.pts+=3;v.puntos=v.pts;l.pp++;l.puntos=l.pts;}
-    else{l.pe++;v.pe++;l.pts++;v.pts++;l.puntos=l.pts;v.puntos=v.pts;}
+function telCupAutoBaseId(comp){
+  return String(comp?.id || comp?.nombre || 'copa')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^\w]+/g,'-')
+    .replace(/^-+|-+$/g,'');
+}
+function telCupAutoEnsureRounds(comp){
+  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
+  const qf = comp.partidos.filter(m => telCupAutoRound(m) === 1);
+  const sf = comp.partidos.filter(m => telCupAutoRound(m) === 2);
+  const final = comp.partidos.filter(m => telCupAutoRound(m) === 3);
+  const base = telCupAutoBaseId(comp);
+
+  while(qf.length >= 4 && sf.length < 2){
+    const number = sf.length + 1;
+    const match = {
+      id:`${base}-semifinal-${number}`,
+      jornada:2,
+      ronda:2,
+      rondaNombre:'Semifinales',
+      fase:'Semifinales',
+      orden:number,
+      localSlotId:'',
+      visitanteSlotId:'',
+      localGoles:null,
+      visitanteGoles:null,
+      estado:'pendiente',
+      finalizado:false,
+      fecha:'',
+      hora:''
+    };
+    comp.partidos.push(match);
+    sf.push(match);
+  }
+
+  while(sf.length >= 2 && final.length < 1){
+    const match = {
+      id:`${base}-final-1`,
+      jornada:3,
+      ronda:3,
+      rondaNombre:'Final',
+      fase:'Final',
+      orden:1,
+      localSlotId:'',
+      visitanteSlotId:'',
+      localGoles:null,
+      visitanteGoles:null,
+      estado:'pendiente',
+      finalizado:false,
+      fecha:'',
+      hora:''
+    };
+    comp.partidos.push(match);
+    final.push(match);
+  }
+}
+function telCupAutoSetParticipants(match, localSlotId, visitanteSlotId){
+  if(!match) return;
+  const nextLocal = String(localSlotId || '');
+  const nextAway = String(visitanteSlotId || '');
+  const changed = String(match.localSlotId || '') !== nextLocal || String(match.visitanteSlotId || '') !== nextAway;
+  if(!changed) return;
+  match.localSlotId = nextLocal;
+  match.visitanteSlotId = nextAway;
+  telCupAutoResetScore(match);
+}
+function telCupAutoTeamSlot(team, index){
+  return String(team?.slotId || team?.id || team?.clubId || team?.nombre || team?.clubNombre || `slot-${index+1}`);
+}
+function telCupAutoSeedMap(comp){
+  const map = new Map();
+  const base = Array.isArray(comp?.clasificacion) && comp.clasificacion.length ? comp.clasificacion : (comp?.equipos || []);
+  base.forEach((team,index)=>{
+    const slotId = telCupAutoTeamSlot(team,index);
+    if(slotId && !map.has(slotId)) map.set(slotId, index + 1);
   });
-  c.clasificacion=Array.from(rows.values()).sort((a,b)=>(Number(b.pts||0)-Number(a.pts||0))||(Number(b.dg||0)-Number(a.dg||0))||(Number(b.gf||0)-Number(a.gf||0)));
+  (comp?.equipos || []).forEach((team,index)=>{
+    const slotId = telCupAutoTeamSlot(team,index);
+    if(slotId && !map.has(slotId)) map.set(slotId, index + 1);
+  });
+  return map;
 }
-function telSyncRecalcAll(data){telSyncEnsureIds(data); telSyncComps(data).forEach(c=>telSyncIsCup(c)?telSyncAdvanceCup(c):telSyncRecalcLeague(c));}
+function telCupAutoMinSeed(match, seedMap){
+  const local = seedMap.get(String(match?.localSlotId || '').trim()) || 999;
+  const away = seedMap.get(String(match?.visitanteSlotId || '').trim()) || 999;
+  return Math.min(local, away);
+}
+function telCupAutoSecondSeed(match, seedMap){
+  const values = [
+    seedMap.get(String(match?.localSlotId || '').trim()) || 999,
+    seedMap.get(String(match?.visitanteSlotId || '').trim()) || 999
+  ].sort((a,b)=>a-b);
+  return values[1] || 999;
+}
+function telCupAutoSideOrder(match){
+  const raw = String(match?.id || match?.matchId || match?.partidoId || '').toLowerCase();
+  const order = Number(match?.orden ?? match?.order ?? match?.posicion);
+  if(Number.isFinite(order) && order > 0) return order;
+  const sem = raw.match(/semifinal-(\d+)/);
+  if(sem) return Number(sem[1]);
+  const fin = raw.match(/final-(\d+)/);
+  if(fin) return Number(fin[1]);
+  return 999;
+}
 
-app.get('/api/tel-panel/matches',(req,res)=>{
+function telCupAutoResolveTeam(comp,reference,embeddedName){
+  const raw=String(reference || '').trim();
+  const target=telClientNorm(raw || embeddedName);
+  const teams=comp?.equipos || [];
+  return teams.find((team,index)=>{
+    const values=[telCupAutoTeamSlot(team,index),team.id,team.clubId,team.clubNombre,team.nombre,team.nombreVisual,team.name];
+    return values.some(value=>value && (String(value)===raw || telClientNorm(value)===target));
+  }) || null;
+}
+function telCupAutoDecorateMatch(comp,match){
+  if(!match) return;
+  const local=telCupAutoResolveTeam(comp,match.localSlotId,match.localNombre);
+  const away=telCupAutoResolveTeam(comp,match.visitanteSlotId,match.visitanteNombre);
+  if(local){
+    match.localNombre=telClientCleanName(local.clubNombre || local.nombre || local.nombreVisual) || 'Por definir';
+    match.localLogo=telClientLogo(local);
+    match.localEscudo=match.localLogo;
+  }
+  if(away){
+    match.visitanteNombre=telClientCleanName(away.clubNombre || away.nombre || away.nombreVisual) || 'Por definir';
+    match.visitanteLogo=telClientLogo(away);
+    match.visitanteEscudo=match.visitanteLogo;
+  }
+}
+function telCupAdvanceAuthoritative(comp){
+  if(!comp) return;
+  telCupAutoEnsureRounds(comp);
+  const grouped = {qf:[], sf:[], final:[]};
+
+  (comp.partidos || []).forEach((match,index)=>{
+    match.__telAutoIndex = index;
+    const rank = telCupAutoRound(match);
+    if(rank === 1) grouped.qf.push(match);
+    else if(rank === 2) grouped.sf.push(match);
+    else grouped.final.push(match);
+  });
+
+  const seedMap = telCupAutoSeedMap(comp);
+
+  grouped.qf.sort((a,b)=>{
+    const minA = telCupAutoMinSeed(a, seedMap);
+    const minB = telCupAutoMinSeed(b, seedMap);
+    if(minA !== minB) return minA - minB;
+    const secondA = telCupAutoSecondSeed(a, seedMap);
+    const secondB = telCupAutoSecondSeed(b, seedMap);
+    if(secondA !== secondB) return secondA - secondB;
+    return Number(a.__telAutoIndex) - Number(b.__telAutoIndex);
+  });
+
+  grouped.sf.sort((a,b)=>{
+    const orderA = telCupAutoSideOrder(a);
+    const orderB = telCupAutoSideOrder(b);
+    if(orderA !== orderB) return orderA - orderB;
+    return Number(a.__telAutoIndex) - Number(b.__telAutoIndex);
+  });
+
+  grouped.final.sort((a,b)=>{
+    const orderA = telCupAutoSideOrder(a);
+    const orderB = telCupAutoSideOrder(b);
+    if(orderA !== orderB) return orderA - orderB;
+    return Number(a.__telAutoIndex) - Number(b.__telAutoIndex);
+  });
+
+  if(grouped.sf[0]) grouped.sf[0].orden = 1;
+  if(grouped.sf[1]) grouped.sf[1].orden = 2;
+  if(grouped.final[0]) grouped.final[0].orden = 1;
+
+  // Guardar ganador explícito en cada partido ya finalizado.
+  (comp.partidos || []).forEach(match=>{
+    match.ganadorSlotId = telCupAutoWinner(match) || null;
+  });
+
+  const qfWinners = grouped.qf.map(telCupAutoWinner);
+  telCupAutoSetParticipants(grouped.sf[0], qfWinners[0], qfWinners[1]);
+  telCupAutoSetParticipants(grouped.sf[1], qfWinners[2], qfWinners[3]);
+
+  const sfWinners = grouped.sf.map(telCupAutoWinner);
+  telCupAutoSetParticipants(grouped.final[0], sfWinners[0], sfWinners[1]);
+
+  const championSlot = grouped.final[0] ? telCupAutoWinner(grouped.final[0]) : '';
+  if(championSlot){
+    const champion = (comp.equipos || []).find((team,index)=>telCupAutoTeamSlot(team,index) === championSlot);
+    comp.campeon = champion ? {
+      slotId:championSlot,
+      nombre:champion.nombre || champion.clubNombre || champion.nombreVisual || 'Campeón',
+      escudoUrl:champion.escudoUrl || champion.logoUrl || champion.escudo || champion.logo || ''
+    } : null;
+  }else{
+    comp.campeon = null;
+  }
+
+  (comp.partidos || []).forEach(match=>{
+    telCupAutoDecorateMatch(comp,match);
+    delete match.__telAutoIndex;
+  });
+}
+
+// Todas las pantallas de administración usan la misma lógica de avance.
+if(typeof telPanelAdvanceCup === 'function') telPanelAdvanceCup = telCupAdvanceAuthoritative;
+if(typeof telFinalAdminAdvanceCup === 'function') telFinalAdminAdvanceCup = telCupAdvanceAuthoritative;
+if(typeof telDirectAdvanceCup === 'function') telDirectAdvanceCup = telCupAdvanceAuthoritative;
+if(typeof telAdminAdvanceCup2 === 'function') telAdminAdvanceCup2 = telCupAdvanceAuthoritative;
+if(typeof telSimpleAdvanceCup === 'function') telSimpleAdvanceCup = telCupAdvanceAuthoritative;
+if(typeof telInlineAdvanceCup === 'function') telInlineAdvanceCup = telCupAdvanceAuthoritative;
+if(typeof telAdvanceCupDef === 'function') telAdvanceCupDef = telCupAdvanceAuthoritative;
+if(typeof telAdvanceCup === 'function') telAdvanceCup = telCupAdvanceAuthoritative;
+if(typeof advanceCupAdmin === 'function') advanceCupAdmin = telCupAdvanceAuthoritative;
+
+/* Fin: avance automático autoritativo de copas */
+
+/* ============================================================
+   SINCRONIZACIÓN EN TIEMPO REAL ENTRE NAVEGADORES
+   - Vigila cambios reales en data.json (por contenido, no solo mtime).
+   - Avisa a todos los navegadores conectados mediante SSE.
+   ============================================================ */
+const telLiveClients = new Set();
+let telLastDataHash = '';
+
+function telDataHash(){
   try{
-    const data=telSyncRead(); telSyncRecalcAll(data); telSyncWrite(data);
-    const competiciones=telSyncComps(data).map((c,ci)=>({id:telSyncCompId(c,ci),nombre:c.nombre||c.name||telSyncCompId(c,ci),isCup:telSyncIsCup(c)}));
-    const matches=[];
-    telSyncComps(data).forEach((c,ci)=>{
-      const compId=telSyncCompId(c,ci), isCup=telSyncIsCup(c);
-      (c.partidos||[]).forEach((m,mi)=>{
-        const id=telSyncMatchId(c,m,mi), l=telSyncTeam(c,m.localSlotId), v=telSyncTeam(c,m.visitanteSlotId);
-        matches.push({compId,compNombre:c.nombre||c.name||compId,isCup,id,jornada:m.jornada||'',ronda:m.rondaNombre||m.fase||'',rondaRaw:m.ronda||m.round||'',rondaNombre:m.rondaNombre||'',fase:m.fase||'',nombreRonda:m.nombreRonda||'',localNombre:telSyncName(l,m.localSlotId||'Por definir'),visitanteNombre:telSyncName(v,m.visitanteSlotId||'Por definir'),localLogo:telSyncLogo(l),visitanteLogo:telSyncLogo(v),localGoles:m.localGoles??m.golesLocal??null,visitanteGoles:m.visitanteGoles??m.golesVisitante??null,finalizado:telSyncPlayed(m),estado:telSyncPlayed(m)?'finalizado':'pendiente',fecha:m.fecha||m.date||'',hora:m.hora||m.time||'',localSlotId:m.localSlotId||'',visitanteSlotId:m.visitanteSlotId||''});
-      });
+    const raw = fs.readFileSync(DATA_FILE);
+    return crypto.createHash('sha256').update(raw).digest('hex');
+  }catch(error){
+    return '';
+  }
+}
+
+function telBroadcastDataUpdate(version){
+  const currentVersion = String(version || telLastDataHash || telDataHash() || Date.now());
+  const payload = JSON.stringify({
+    type:'data-updated',
+    version:currentVersion
+  });
+  for(const client of [...telLiveClients]){
+    try{ client.write(`id: ${currentVersion}\nevent: data-updated\ndata: ${payload}\n\n`); }
+    catch(error){ telLiveClients.delete(client); }
+  }
+}
+
+function telDetectAndBroadcastDataWrite(){
+  setImmediate(()=>{
+    const nextHash = telDataHash();
+    if(!nextHash || nextHash === telLastDataHash) return;
+    telLastDataHash = nextHash;
+    telBroadcastDataUpdate(nextHash);
+  });
+}
+
+telLastDataHash = telDataHash();
+
+/* Notificación inmediata para todas las rutas que escriben data.json. */
+if(!fs.__telLiveWriteWrapped){
+  const telNativeWriteFileSync = fs.writeFileSync.bind(fs);
+  fs.writeFileSync = function(filePath, ...args){
+    const result = telNativeWriteFileSync(filePath, ...args);
+    try{
+      if(path.resolve(String(filePath)) === path.resolve(DATA_FILE)) telDetectAndBroadcastDataWrite();
+    }catch(error){}
+    return result;
+  };
+  fs.__telLiveWriteWrapped = true;
+}
+
+/* Respaldo para modificaciones externas del archivo. */
+fs.watchFile(DATA_FILE, {interval:300, persistent:false}, () => {
+  const nextHash = telDataHash();
+  if(!nextHash || nextHash === telLastDataHash) return;
+  telLastDataHash = nextHash;
+  telBroadcastDataUpdate(nextHash);
+});
+
+app.get('/api/live-updates', (req,res)=>{
+  res.set({
+    'Content-Type':'text/event-stream',
+    'Cache-Control':'no-cache, no-transform',
+    'Connection':'keep-alive',
+    'X-Accel-Buffering':'no'
+  });
+  res.flushHeaders?.();
+  res.write(`event: connected\ndata: ${JSON.stringify({ok:true,version:Date.now()})}\n\n`);
+  telLiveClients.add(res);
+  const heartbeat = setInterval(()=>{
+    try{ res.write(': keep-alive\n\n'); }catch(error){}
+  },25000);
+  req.on('close',()=>{
+    clearInterval(heartbeat);
+    telLiveClients.delete(res);
+  });
+});
+
+app.get('/api/data-version', async (req,res)=>{
+  res.set('Cache-Control','no-store');
+  /*
+     La versión pública se basa en el contenido real de data.json.
+     El bot puede renovar la clave auxiliar de versión aunque los datos no
+     cambien; usar ese valor provocaba refrescos visuales periódicos.
+  */
+  const contentHash = telDataHash();
+  if(contentHash) telLastDataHash = contentHash;
+  res.json({ok:true,version:contentHash || telLastDataHash || 'sin-datos'});
+});
+
+/* ============================================================
+   CONTACTO -> DISCORD
+   Usa, por orden:
+   1) DISCORD_CONTACT_WEBHOOK_URL
+   2) TOKEN/DISCORD_BOT_TOKEN + DISCORD_CONTACT_CHANNEL_ID
+      (si no se define canal, usa TICKETS_LOGS_CHANNEL_ID)
+   ============================================================ */
+const TEL_CONTACT_FILE = path.join(__dirname,'contact_messages.json');
+const telContactRate = new Map();
+
+function telContactClean(value,max){
+  return String(value || '').replace(/\u0000/g,'').trim().slice(0,max);
+}
+function telContactEscapeDiscord(value){
+  return telContactClean(value,1900).replace(/@/g,'@\u200b');
+}
+function telContactStore(entry){
+  let current=[];
+  try{
+    if(fs.existsSync(TEL_CONTACT_FILE)){
+      const parsed=JSON.parse(fs.readFileSync(TEL_CONTACT_FILE,'utf8') || '[]');
+      if(Array.isArray(parsed)) current=parsed;
+    }
+  }catch(error){}
+  current.push(entry);
+  if(current.length>1000) current=current.slice(-1000);
+  fs.writeFileSync(TEL_CONTACT_FILE,JSON.stringify(current,null,2),'utf8');
+}
+function telContactRateAllowed(ip){
+  const now=Date.now();
+  const windowMs=15*60*1000;
+  const recent=(telContactRate.get(ip)||[]).filter(ts=>now-ts<windowMs);
+  if(recent.length>=5){ telContactRate.set(ip,recent); return false; }
+  recent.push(now); telContactRate.set(ip,recent); return true;
+}
+async function telSendContactToDiscord(entry){
+  const webhook=String(
+    process.env.DISCORD_CONTACT_WEBHOOK_URL ||
+    process.env.CONTACT_DISCORD_WEBHOOK_URL ||
+    process.env.DISCORD_WEBHOOK_URL ||
+    process.env.CONTACT_WEBHOOK_URL ||
+    ''
+  ).trim();
+  const channelId=String(
+    process.env.DISCORD_CONTACT_CHANNEL_ID ||
+    process.env.CONTACT_DISCORD_CHANNEL_ID ||
+    process.env.TICKETS_LOGS_CHANNEL_ID ||
+    process.env.TICKETS_LOG_CHANNEL_ID ||
+    process.env.DISCORD_CHANNEL_ID ||
+    ''
+  ).trim();
+  const token=String(
+    process.env.DISCORD_BOT_TOKEN ||
+    process.env.TOKEN ||
+    process.env.BOT_TOKEN ||
+    ''
+  ).trim();
+  const embed={
+    title:'📩 Nuevo mensaje desde la web TEL',
+    color:0x9633ff,
+    fields:[
+      {name:'Nombre',value:telContactEscapeDiscord(entry.nombre)||'No indicado',inline:true},
+      {name:'Correo',value:telContactEscapeDiscord(entry.email)||'No indicado',inline:true},
+      {name:'Categoría',value:telContactEscapeDiscord(entry.categoria)||'General',inline:true},
+      {name:'Asunto',value:telContactEscapeDiscord(entry.asunto)||'Sin asunto',inline:false},
+      {name:'Mensaje',value:telContactEscapeDiscord(entry.mensaje)||'Sin mensaje',inline:false}
+    ],
+    footer:{text:`TEL Web · ${entry.id}`},
+    timestamp:entry.fecha
+  };
+  let response;
+  if(webhook){
+    response=await fetch(webhook,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:'Thunder Elite League · Contacto',embeds:[embed],allowed_mentions:{parse:[]}})
     });
-    res.set('Cache-Control','no-store'); res.json({ok:true,competiciones,matches});
-  }catch(e){console.error(e);res.status(500).json({ok:false,message:String(e.message||e)});}
-});
-app.post('/api/tel-panel/login', express.json(), (req,res)=>res.json({ok:true,admin:true,email:'roleplayserver007@gmail.com'}));
-app.post('/api/tel-panel/save', express.json(), (req,res)=>{
-  try{
-    const compId=String(req.body?.compId||''), matchId=String(req.body?.matchId||''), clear=req.body?.clear===true;
-    const data=telSyncRead(); telSyncEnsureIds(data);
-    const comp=telSyncComps(data).find((c,i)=>telSyncCompId(c,i)===compId); if(!comp) return res.status(404).json({ok:false,message:'Competición no encontrada'});
-    const match=(comp.partidos||[]).find((m,i)=>telSyncMatchId(comp,m,i)===matchId); if(!match) return res.status(404).json({ok:false,message:'Partido no encontrado'});
-    if(clear){ telSyncReset(match); }
-    else{
-      const lg=Number(req.body?.localGoles), vg=Number(req.body?.visitanteGoles);
-      if(!Number.isInteger(lg)||!Number.isInteger(vg)||lg<0||vg<0) return res.status(400).json({ok:false,message:'Pon goles válidos'});
-      if(telSyncIsCup(comp) && lg===vg) return res.status(400).json({ok:false,message:'En copas no puede haber empate'});
-      match.localGoles=lg; match.visitanteGoles=vg; match.golesLocal=lg; match.golesVisitante=vg; match.resultado=`${lg}-${vg}`; match.estado='finalizado'; match.finalizado=true;
-    }
-    if(req.body?.fecha){match.fecha=String(req.body.fecha);match.date=String(req.body.fecha);}
-    if(req.body?.hora){match.hora=String(req.body.hora);match.time=String(req.body.hora);}
-    telSyncRecalcAll(data); telSyncWrite(data);
-    res.set('Cache-Control','no-store'); res.json({ok:true,message:clear?'Resultado borrado':'Resultado guardado'});
-  }catch(e){console.error(e);res.status(500).json({ok:false,message:String(e.message||e)});}
-});
-
-
-
-/* TEL ROUTE FALLBACK LOCALHOST */
-app.get('/', (req,res)=>res.sendFile(path.join(__dirname,'index.html')));
-app.get('/panel-copas', (req,res)=>res.sendFile(path.join(__dirname,'panel-copas.html')));
-app.get('/panel-resultados', (req,res)=>res.sendFile(path.join(__dirname,'panel-resultados.html')));
-
-
-
-/* TEL CAMBIO EQUIPO HISTORIAL */
-function ceNorm(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,' ').trim();}
-function ceSlug(v){return String(v||'equipo').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,'')||'equipo';}
-function ceRead(){return JSON.parse(fs.readFileSync(path.join(__dirname,'data.json'),'utf8'));}
-function ceWrite(d){fs.writeFileSync(path.join(__dirname,'data.json'),JSON.stringify(d,null,2),'utf8');}
-function ceComps(d){return d.competiciones||d.ligas||d.torneos||[];}
-function ceName(t){return String(t?.nombre||t?.clubNombre||t?.name||t?.nombreVisual||'').trim();}
-function ceSlot(t){if(!t.slotId)t.slotId=String(t.id||t.clubId||ceSlug(ceName(t)));return String(t.slotId);}
-function cePlayed(m){return m&&(m.finalizado===true||m.estado==='finalizado'||m.estado==='jugado'||(m.localGoles!==null&&m.localGoles!==undefined&&m.visitanteGoles!==null&&m.visitanteGoles!==undefined));}
-function ceFindTeam(d,name){
-  const n=ceNorm(name);
-  for(const k of ['clubes','equipos','teams']) for(const t of (d[k]||[])) if(ceNorm(ceName(t))===n) return JSON.parse(JSON.stringify(t));
-  for(const c of ceComps(d)) for(const t of (c.equipos||[])) if(ceNorm(ceName(t))===n) return JSON.parse(JSON.stringify(t));
-  return null;
+  }else if(token && channelId){
+    response=await fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bot ${token}`},
+      body:JSON.stringify({embeds:[embed],allowed_mentions:{parse:[]}})
+    });
+  }else{
+    const error=new Error('Discord no está configurado en Vercel. Añade DISCORD_CONTACT_WEBHOOK_URL, o bien TOKEN/DISCORD_BOT_TOKEN junto con TICKETS_LOGS_CHANNEL_ID.');
+    error.code='discord_not_configured';
+    throw error;
+  }
+  if(!response.ok){
+    const detail=(await response.text()).slice(0,600);
+    throw new Error(`Discord respondió ${response.status}: ${detail}`);
+  }
 }
-function ceMakeTeam(d,name){
-  let t=ceFindTeam(d,name)||{id:ceSlug(name),slotId:ceSlug(name),nombre:name,clubNombre:name,escudoUrl:`/escudos/${ceSlug(name)}.png`,escudoPath:`escudos/${ceSlug(name)}.png`,escudoFilename:`${ceSlug(name)}.png`};
-  t.nombre=name;t.clubNombre=name;if(!t.id)t.id=ceSlug(name);if(!t.slotId)t.slotId=String(t.id||ceSlug(name));return t;
+
+function telContactDiscordConfig(){
+  const webhook=String(
+    process.env.DISCORD_CONTACT_WEBHOOK_URL || process.env.CONTACT_DISCORD_WEBHOOK_URL ||
+    process.env.DISCORD_WEBHOOK_URL || process.env.CONTACT_WEBHOOK_URL || ''
+  ).trim();
+  const channelId=String(
+    process.env.DISCORD_CONTACT_CHANNEL_ID || process.env.CONTACT_DISCORD_CHANNEL_ID ||
+    process.env.TICKETS_LOGS_CHANNEL_ID || process.env.TICKETS_LOG_CHANNEL_ID ||
+    process.env.DISCORD_CHANNEL_ID || ''
+  ).trim();
+  const token=String(process.env.DISCORD_BOT_TOKEN || process.env.TOKEN || process.env.BOT_TOKEN || '').trim();
+  return {
+    configured:Boolean(webhook || (token && channelId)),
+    mode:webhook ? 'webhook' : (token && channelId ? 'bot-rest' : 'none'),
+    channelConfigured:Boolean(channelId)
+  };
 }
-app.post('/api/admin/cambiar-equipo-competicion', express.json(), (req,res)=>{
+
+app.get('/api/contact/status', (req,res)=>{
+  const config=telContactDiscordConfig();
+  res.set('Cache-Control','no-store');
+  res.json({ok:true,...config});
+});
+
+app.post('/api/contact', express.json({limit:'100kb'}), async (req,res)=>{
   try{
-    const d=ceRead();
-    const compId=String(req.body?.compId||'').trim();
-    const sale=String(req.body?.equipoSale||req.body?.sale||'').trim();
-    const entra=String(req.body?.equipoEntra||req.body?.entra||'').trim();
-    if(!sale||!entra)return res.status(400).json({ok:false,message:'Falta equipo que sale o entra.'});
-    const comps=ceComps(d);
-    const comp=comps.find((c,i)=>!compId||String(c.id||ceSlug(c.nombre||`competicion-${i+1}`))===compId);
-    if(!comp)return res.status(404).json({ok:false,message:'Competición no encontrada.'});
-    comp.equipos=comp.equipos||[];comp.partidos=comp.partidos||[];comp.historialCambiosEquipos=comp.historialCambiosEquipos||[];
-    const old=comp.equipos.find(t=>ceNorm(ceName(t))===ceNorm(sale));
-    if(!old)return res.status(404).json({ok:false,message:'El equipo que sale no está en la competición.'});
-    const oldSlot=ceSlot(old);
-    const nt=ceMakeTeam(d,entra);
-    const oldSnapshot=JSON.parse(JSON.stringify(old));
-    old.nombre=entra;old.clubNombre=entra;old.name=entra;old.reemplazaA=sale;old.slotId=oldSlot;old.equipoOriginalHistorico=oldSnapshot;
-    for(const k of ['escudoUrl','logoUrl','escudoPath','escudoFilename','logo']) if(nt[k]) old[k]=nt[k];
-    let played=0,future=0;
-    for(const m of comp.partidos){
-      const l=String(m.localSlotId||'')===oldSlot, v=String(m.visitanteSlotId||'')===oldSlot;
-      if(!l&&!v)continue;
-      if(cePlayed(m)){
-        if(l){m.localNombre=sale;m.localEquipoHistorico=sale;}
-        if(v){m.visitanteNombre=sale;m.visitanteEquipoHistorico=sale;}
-        m.historicoCambioEquipo=true;m.equipoOriginal=sale;m.equipoNuevo=entra;played++;
-      }else{
-        if(l)m.localNombre=entra;
-        if(v)m.visitanteNombre=entra;
-        m.equipoReemplazado=sale;m.equipoNuevo=entra;future++;
-      }
-    }
-    const cambio={fecha:new Date().toISOString(),compId:String(comp.id||''),equipoSale:sale,equipoEntra:entra,slotId:oldSlot,partidosJugadosConservados:played,partidosFuturosActualizados:future};
-    comp.historialCambiosEquipos.push(cambio);d.historialCambiosEquipos=d.historialCambiosEquipos||[];d.historialCambiosEquipos.push(cambio);
-    ceWrite(d);res.json({ok:true,message:'Equipo cambiado sin borrar historial.',cambio});
-  }catch(e){console.error(e);res.status(500).json({ok:false,message:String(e.message||e)});}
+    const ip=String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+    if(!telContactRateAllowed(ip)) return res.status(429).json({ok:false,message:'Has enviado demasiados mensajes. Inténtalo de nuevo en unos minutos.'});
+    // Campo trampa para bots.
+    if(String(req.body?.website || '').trim()) return res.json({ok:true,message:'Mensaje enviado.'});
+    const entry={
+      id:`TEL-${Date.now().toString(36).toUpperCase()}`,
+      fecha:new Date().toISOString(),
+      nombre:telContactClean(req.body?.nombre,100),
+      email:telContactClean(req.body?.email,180),
+      asunto:telContactClean(req.body?.asunto,180),
+      categoria:telContactClean(req.body?.categoria,80) || 'General',
+      mensaje:telContactClean(req.body?.mensaje,1800),
+      ip
+    };
+    if(entry.nombre.length<2) return res.status(400).json({ok:false,message:'Escribe tu nombre.'});
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry.email)) return res.status(400).json({ok:false,message:'Escribe un correo electrónico válido.'});
+    if(entry.asunto.length<3) return res.status(400).json({ok:false,message:'Escribe el asunto.'});
+    if(entry.mensaje.length<10) return res.status(400).json({ok:false,message:'El mensaje debe tener al menos 10 caracteres.'});
+    await telSendContactToDiscord(entry);
+    entry.entregadoDiscord = true;
+    entry.entregadoEn = new Date().toISOString();
+    telContactStore(entry);
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,message:'Mensaje enviado correctamente a la administración por Discord.',id:entry.id});
+  }catch(error){
+    console.error('[contacto-discord]',error);
+    const status=error.code==='discord_not_configured'?503:502;
+    res.status(status).json({ok:false,message:error.message || 'No se pudo enviar el mensaje a Discord.'});
+  }
 });
 
 
-app.listen(PORT, () => {
-  console.log(`🌐 Web Thunder Elite League lista en http://localhost:${PORT}`);
+/* ============================================================
+   NOTICIAS ADMINISTRABLES
+   - La web pública solo muestra noticias guardadas en data.json.
+   - Crear, editar y borrar requiere sesión de administrador.
+   ============================================================ */
+function telNewsClean(value,max=5000){
+  return String(value || '').replace(/\u0000/g,'').trim().slice(0,max);
+}
+function telNewsList(data){
+  return Array.isArray(data?.noticias) ? data.noticias : [];
+}
+function telNewsSort(list){
+  return [...list].sort((a,b)=>{
+    const da = Date.parse(a.fecha || a.creadoEn || 0) || 0;
+    const db = Date.parse(b.fecha || b.creadoEn || 0) || 0;
+    return db-da;
+  });
+}
+app.get('/api/noticias',(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const data=readLeagueData();
+  res.json({ok:true,noticias:telNewsSort(telNewsList(data))});
 });
+app.post('/api/admin/noticias',express.json({limit:'300kb'}),requireAdmin,(req,res)=>{
+  try{
+    const data=readLeagueData();
+    data.noticias=telNewsList(data);
+    const id=telNewsClean(req.body?.id,120) || `NOT-${Date.now().toString(36).toUpperCase()}`;
+    const titulo=telNewsClean(req.body?.titulo,180);
+    const categoria=telNewsClean(req.body?.categoria,60) || 'Anuncios';
+    const resumen=telNewsClean(req.body?.resumen,500);
+    const contenido=telNewsClean(req.body?.contenido,6000);
+    const imagen=telNewsClean(req.body?.imagen,800);
+    const fecha=telNewsClean(req.body?.fecha,30) || new Date().toISOString().slice(0,10);
+    if(titulo.length<3) return res.status(400).json({ok:false,message:'Escribe un título de al menos 3 caracteres.'});
+    if(resumen.length<5) return res.status(400).json({ok:false,message:'Escribe un resumen de al menos 5 caracteres.'});
+    const now=new Date().toISOString();
+    const index=data.noticias.findIndex(n=>String(n.id)===id);
+    const existing=index>=0?data.noticias[index]:null;
+    const item={
+      id,titulo,categoria,resumen,
+      contenido:contenido || resumen,
+      imagen,fecha,
+      creadoEn:existing?.creadoEn || now,
+      actualizadoEn:now,
+      autor:String(req.session?.adminEmail || process.env.ADMIN_EMAIL || 'Admin TEL')
+    };
+    if(index>=0) data.noticias[index]=item; else data.noticias.push(item);
+    writeLeagueData(data);
+    res.json({ok:true,message:index>=0?'Noticia actualizada.':'Noticia publicada.',noticia:item,noticias:telNewsSort(data.noticias)});
+  }catch(error){
+    console.error('[admin-noticias-save]',error);
+    res.status(500).json({ok:false,message:'No se pudo guardar la noticia.'});
+  }
+});
+app.delete('/api/admin/noticias/:id',requireAdmin,(req,res)=>{
+  try{
+    const data=readLeagueData();
+    const before=telNewsList(data);
+    data.noticias=before.filter(n=>String(n.id)!==String(req.params.id));
+    if(data.noticias.length===before.length) return res.status(404).json({ok:false,message:'Noticia no encontrada.'});
+    writeLeagueData(data);
+    res.json({ok:true,message:'Noticia eliminada.'});
+  }catch(error){
+    console.error('[admin-noticias-delete]',error);
+    res.status(500).json({ok:false,message:'No se pudo eliminar la noticia.'});
+  }
+});
+
+if(require.main === module){
+  app.listen(PORT, () => {
+    console.log(`🌐 Web Thunder Elite League lista en http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
