@@ -1616,6 +1616,222 @@ app.get('/api/admin/fijar-jornadas-fotos-exacto', requireAdmin, (req,res)=>{
 });
 
 
+
+
+/* ============================================================
+   TEL FIX SLOT HISTÓRICO JORNADAS 1 Y 2
+   Arregla que el calendario cambie BLACK MECANIC/Coral Springs
+   por otros clubes cuando esos equipos ya no están activos.
+   ============================================================ */
+function telHistSlotNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telHistSlotSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telHistSlotTeamName(team){
+  return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || '').trim();
+}
+function telHistSlotIsActiveTeam(team, wantedName){
+  if(!team) return false;
+  const same = telHistSlotNorm(telHistSlotTeamName(team)) === telHistSlotNorm(wantedName);
+  if(!same) return false;
+  if(team.historico === true || team.equipoHistorico === true) return false;
+  if(team.excluidoClasificacion === true || team.eliminadoDeCompeticion === true || team.sacadoDeCompeticion === true) return false;
+  if(team.activo === false || team.active === false) return false;
+  return true;
+}
+function telHistSlotEnsureFixtureTeam(comp, name){
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+  const wanted = telHistSlotNorm(name);
+
+  // Si el equipo sigue activo exactamente con ese nombre, usa su slot real.
+  const active = comp.equipos.find(team => telHistSlotIsActiveTeam(team, name));
+  if(active){
+    if(!active.slotId) active.slotId = String(active.id || active.clubId || active.idClub || telHistSlotSlug(name));
+    active.nombre = name;
+    active.clubNombre = name;
+    active.nombreVisual = name;
+    return String(active.slotId);
+  }
+
+  // Si ya no está activo, crea/usa un slot histórico que NO entra en clasificación.
+  const histSlot = `hist-jornada-${telHistSlotSlug(name)}`;
+  let hist = comp.equipos.find(team => String(team.slotId || '') === histSlot);
+
+  if(!hist){
+    hist = {
+      id: histSlot,
+      slotId: histSlot,
+      nombre: name,
+      clubNombre: name,
+      nombreVisual: name,
+      name: name,
+      historico: true,
+      equipoHistorico: true,
+      excluidoClasificacion: true,
+      eliminadoDeCompeticion: true,
+      fixtureHistorico: true
+    };
+    comp.equipos.push(hist);
+  }
+
+  hist.nombre = name;
+  hist.clubNombre = name;
+  hist.nombreVisual = name;
+  hist.name = name;
+  hist.historico = true;
+  hist.equipoHistorico = true;
+  hist.excluidoClasificacion = true;
+  hist.eliminadoDeCompeticion = true;
+  hist.fixtureHistorico = true;
+
+  return histSlot;
+}
+function telHistSlotApplyToFixedJornadas(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const jornadas = {
+    1: [
+      ['Catalunya Lliure', 'Ghost Unit'],
+      ['Alegria FCA', 'Unió catalana'],
+      ['COVAYERS FC', 'BLACK MECANIC'],
+      ['Fuzeteam FC B', 'Hamoods CF'],
+      ['Billar FC', 'Coral Springs A']
+    ],
+    2: [
+      ['Unió catalana', 'Catalunya Lliure'],
+      ['BLACK MECANIC', 'Ghost Unit'],
+      ['Hamoods CF', 'Alegria FCA'],
+      ['Coral Springs A', 'COVAYERS FC'],
+      ['Billar FC', 'Fuzeteam FC B']
+    ]
+  };
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+
+  const target = comps.find(comp => {
+    const text = `${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''}`.toLowerCase();
+    if(text.includes('copa') || text.includes('elimin')) return false;
+    const names = JSON.stringify(comp?.partidos || []) + JSON.stringify(comp?.equipos || []);
+    return ['Catalunya Lliure','Ghost Unit','Alegria FCA','Unió catalana','COVAYERS FC','BLACK MECANIC','Fuzeteam FC B','Hamoods CF','Billar FC','Coral Springs A']
+      .filter(name => names.toLowerCase().includes(name.toLowerCase())).length >= 4;
+  }) || comps.find(comp => {
+    const text = `${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''}`.toLowerCase();
+    return !text.includes('copa') && !text.includes('elimin');
+  });
+
+  if(!target) return data;
+
+  target.partidos = Array.isArray(target.partidos) ? target.partidos : [];
+
+  // Mapa de resultados existentes por cruce exacto.
+  const old = target.partidos.slice();
+  const keyOf = (j,l,v) => `${Number(j)}|${telHistSlotNorm(l)}|${telHistSlotNorm(v)}`;
+  const oldByKey = new Map();
+  old.forEach(match => {
+    const j = Number(match.jornada || match.round || 0);
+    const l = match.localNombre || match.nombreLocal || match.equipoLocal || '';
+    const v = match.visitanteNombre || match.nombreVisitante || match.equipoVisitante || '';
+    oldByKey.set(keyOf(j,l,v), match);
+  });
+
+  const future = old.filter(match => {
+    const j = Number(match.jornada || match.round || 0);
+    return j !== 1 && j !== 2;
+  });
+
+  const fixed = [];
+  for(const [jornada, games] of Object.entries(jornadas)){
+    games.forEach(([local, visitante], index) => {
+      const previous = oldByKey.get(keyOf(jornada, local, visitante)) || {};
+      const localSlotId = telHistSlotEnsureFixtureTeam(target, local);
+      const visitanteSlotId = telHistSlotEnsureFixtureTeam(target, visitante);
+
+      const localGoles = previous.localGoles ?? previous.golesLocal ?? null;
+      const visitanteGoles = previous.visitanteGoles ?? previous.golesVisitante ?? null;
+      const hasScore = localGoles !== null && localGoles !== undefined && visitanteGoles !== null && visitanteGoles !== undefined;
+
+      fixed.push({
+        ...previous,
+        id: `${target.id || target.nombre || 'liga'}-j${jornada}-p${index+1}`,
+        jornada: Number(jornada),
+        round: Number(jornada),
+        ordenJornada: index + 1,
+        localSlotId,
+        visitanteSlotId,
+        localNombre: local,
+        nombreLocal: local,
+        equipoLocal: local,
+        visitanteNombre: visitante,
+        nombreVisitante: visitante,
+        equipoVisitante: visitante,
+        localGoles,
+        visitanteGoles,
+        golesLocal: localGoles,
+        golesVisitante: visitanteGoles,
+        resultado: hasScore ? `${localGoles}-${visitanteGoles}` : (previous.resultado || ''),
+        estado: hasScore || previous.finalizado === true ? 'finalizado' : (previous.estado || 'pendiente'),
+        finalizado: hasScore || previous.finalizado === true,
+        fixtureOriginalFoto: true
+      });
+    });
+  }
+
+  target.partidos = [...fixed, ...future].sort((a,b) => {
+    const ja = Number(a.jornada || 9999);
+    const jb = Number(b.jornada || 9999);
+    if(ja !== jb) return ja - jb;
+    return Number(a.ordenJornada || 9999) - Number(b.ordenJornada || 9999);
+  });
+
+  if(typeof telCompTableApply === 'function'){
+    telCompTableApply(data);
+  }
+
+  return data;
+}
+app.get('/api/admin/arreglar-jornadas-slot-historico', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telHistSlotApplyToFixedJornadas(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Jornadas 1 y 2 arregladas con slots históricos para que no cambien nombres.',
+      jornada1:[
+        ['Catalunya Lliure','Ghost Unit'],
+        ['Alegria FCA','Unió catalana'],
+        ['COVAYERS FC','BLACK MECANIC'],
+        ['Fuzeteam FC B','Hamoods CF'],
+        ['Billar FC','Coral Springs A']
+      ],
+      jornada2:[
+        ['Unió catalana','Catalunya Lliure'],
+        ['BLACK MECANIC','Ghost Unit'],
+        ['Hamoods CF','Alegria FCA'],
+        ['Coral Springs A','COVAYERS FC'],
+        ['Billar FC','Fuzeteam FC B']
+      ]
+    });
+  }catch(error){
+    console.error('[arreglar-jornadas-slot-historico]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -1627,7 +1843,7 @@ app.get("/api/data", (req, res) => {
     config: {}
   });
 
-  telFotoExactApply(data);
+  telHistSlotApplyToFixedJornadas(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -1818,7 +2034,7 @@ app.get("/api/clubes/:clubId", (req, res) => {
 app.get("/api/competiciones", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, { competiciones: [] });
-  telFotoExactApply(data);
+  telHistSlotApplyToFixedJornadas(data);
   res.json(data.competiciones || []);
 });
 
