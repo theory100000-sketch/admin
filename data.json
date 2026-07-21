@@ -27,26 +27,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-07T18:35:34.745Z",
       "escudoPath": "escudos/escudo-catalunya-lliure-1783647001899.png",
-      "escudoFilename": "escudo-catalunya-lliure-1783647001899.png",
-      "id": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 12,
-      "plantillaIds": [
-        "727582475181752402",
-        "484731143577403393",
-        "689543579542093868",
-        "1350099909889626203",
-        "695298792341372999",
-        "656517073035591710",
-        "543912651743428630",
-        "1102023576879628358",
-        "1061381499590545418",
-        "1138050928902164540",
-        "452086067890356224",
-        "484361323996512256"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-catalunya-lliure-1783647001899.png"
     },
     {
       "nombre": "Alegria FCA",
@@ -80,16 +61,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-07T19:38:11.133Z",
       "escudoPath": "escudos/escudo-alegria-fca-1783675814661.png",
-      "escudoFilename": "escudo-alegria-fca-1783675814661.png",
-      "id": "CLUB-1524137481388167462",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 2,
-      "plantillaIds": [
-        "654002868948566016",
-        "1439325258942386359"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-alegria-fca-1783675814661.png"
     },
     {
       "nombre": "COVAYERS FC",
@@ -127,18 +99,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-07T19:43:04.232Z",
       "escudoPath": "escudos/escudo-covayers-fc-1783651704382.png",
-      "escudoFilename": "escudo-covayers-fc-1783651704382.png",
-      "id": "CLUB-1524138705080684784",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 4,
-      "plantillaIds": [
-        "772912205888225310",
-        "676532731194114071",
-        "1054476149155188828",
-        "1345436915549212776"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-covayers-fc-1783651704382.png"
     },
     {
       "nombre": "Fuzeteam FC B",
@@ -167,24 +128,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-07T19:46:42.155Z",
       "escudoPath": "escudos/escudo-fuzeteam-fc-b-1783647040206.png",
-      "escudoFilename": "escudo-fuzeteam-fc-b-1783647040206.png",
-      "id": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 10,
-      "plantillaIds": [
-        "1524031600256618536",
-        "859119320193171467",
-        "1429555146924494910",
-        "1509200990128046175",
-        "1479528092111343809",
-        "1513193906139824150",
-        "1524154841847304453",
-        "1494349760948338801",
-        "1524140893601530078",
-        "839911418161528922"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-fuzeteam-fc-b-1783647040206.png"
     },
     {
       "nombre": "Coolegas CF",
@@ -213,15 +157,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-07T20:27:53.809Z",
       "escudoPath": "escudos/escudo-coolegas-cf-1783675755990.png",
-      "escudoFilename": "escudo-coolegas-cf-1783675755990.png",
-      "id": "CLUB-1524149993303310416",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 1,
-      "plantillaIds": [
-        "1459177295641055375"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-coolegas-cf-1783675755990.png"
     },
     {
       "nombre": "Club Élite XL",
@@ -250,15 +186,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-07T20:29:48.581Z",
       "escudoPath": "escudos/escudo-club-elite-xl-1783676596552.png",
-      "escudoFilename": "escudo-club-elite-xl-1783676596552.png",
-      "id": "CLUB-1524150474578723020",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 1,
-      "plantillaIds": [
-        "1520502299833663620"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-club-elite-xl-1783676596552.png"
     },
     {
       "nombre": "Ghost Unit",
@@ -287,24 +215,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-08T09:27:15.313Z",
       "escudoPath": "escudos/escudo-ghost-unit-1783676845645.png",
-      "escudoFilename": "escudo-ghost-unit-1783676845645.png",
-      "id": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 10,
-      "plantillaIds": [
-        "1474508120855150745",
-        "1514404620921868308",
-        "1472330724219682974",
-        "1044679459145527297",
-        "1494997574015258736",
-        "776054545095589918",
-        "1222909424985833596",
-        "1282851819235577899",
-        "1383767352897835101",
-        "1524733992073564261"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-ghost-unit-1783676845645.png"
     },
     {
       "nombre": "Tllres Mazeta",
@@ -333,15 +244,7 @@
       "creadoPorTag": "ryzex_15",
       "creadoEn": "2026-07-08T17:11:41.261Z",
       "escudoPath": "escudos/escudo-tllres-mazeta-1783676878355.png",
-      "escudoFilename": "escudo-tllres-mazeta-1783676878355.png",
-      "id": "CLUB-1524463014105972871",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 1,
-      "plantillaIds": [
-        "1250558249371963512"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-tllres-mazeta-1783676878355.png"
     },
     {
       "nombre": "TEIDE CITY",
@@ -370,15 +273,7 @@
       "creadoPorTag": "ryzex_15",
       "creadoEn": "2026-07-08T17:13:06.439Z",
       "escudoPath": "escudos/escudo-teide-city-1783676899833.png",
-      "escudoFilename": "escudo-teide-city-1783676899833.png",
-      "id": "CLUB-1524463370508566679",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 1,
-      "plantillaIds": [
-        "1469424281200099348"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-teide-city-1783676899833.png"
     },
     {
       "nombre": "Billar FC",
@@ -407,15 +302,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-08T20:54:13.431Z",
       "escudoPath": "escudos/escudo-billar-fc-1783676951341.png",
-      "escudoFilename": "escudo-billar-fc-1783676951341.png",
-      "id": "CLUB-1524519016541061222",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 1,
-      "plantillaIds": [
-        "1485354629817438402"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-billar-fc-1783676951341.png"
     },
     {
       "nombre": "Samba do Espana",
@@ -449,21 +336,7 @@
       "creadoPorTag": "ryzex_15",
       "creadoEn": "2026-07-08T22:53:41.436Z",
       "escudoPath": "escudos/escudo-samba-do-espana-1783676980274.png",
-      "escudoFilename": "escudo-samba-do-espana-1783676980274.png",
-      "id": "CLUB-1524549056389582919",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 7,
-      "plantillaIds": [
-        "1434323287915368562",
-        "1127979341918261248",
-        "1351545060126359616",
-        "1261655774606659665",
-        "1239924012868702269",
-        "1197209429175705743",
-        "1496185889108529275"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-samba-do-espana-1783676980274.png"
     },
     {
       "nombre": "Coral Springs A",
@@ -497,16 +370,7 @@
       "creadoPorTag": "ryzex_15",
       "creadoEn": "2026-07-09T00:32:47.469Z",
       "escudoPath": "escudos/escudo-coral-springs-a-1783677983588.png",
-      "escudoFilename": "escudo-coral-springs-a-1783677983588.png",
-      "id": "CLUB-1524573993552707665",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 2,
-      "plantillaIds": [
-        "1435447968156352693",
-        "1222976083276595332"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-coral-springs-a-1783677983588.png"
     },
     {
       "nombre": "Hamoods CF",
@@ -540,16 +404,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-09T11:39:24.720Z",
       "escudoPath": "escudos/escudo-hamoods-cf-1783676688723.png",
-      "escudoFilename": "escudo-hamoods-cf-1783676688723.png",
-      "id": "CLUB-1524741754807652385",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 2,
-      "plantillaIds": [
-        "1408437339667300415",
-        "1296563505838817333"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-hamoods-cf-1783676688723.png"
     },
     {
       "nombre": "BLACK MECANIC",
@@ -578,15 +433,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-09T14:14:04.138Z",
       "escudoPath": "escudos/escudo-black-mecanic-1783677032034.png",
-      "escudoFilename": "escudo-black-mecanic-1783677032034.png",
-      "id": "CLUB-1524780678745423963",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 1,
-      "plantillaIds": [
-        "1266863253120876657"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-black-mecanic-1783677032034.png"
     },
     {
       "nombre": "Naeva FC",
@@ -615,15 +462,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-09T14:27:46.034Z",
       "escudoPath": "escudos/escudo-naeva-fc-1783678142172.png",
-      "escudoFilename": "escudo-naeva-fc-1783678142172.png",
-      "id": "CLUB-1524784125721051178",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 1,
-      "plantillaIds": [
-        "1322935196508622849"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-naeva-fc-1783678142172.png"
     },
     {
       "nombre": "Uniò catalana",
@@ -661,17 +500,7 @@
       "creadoPorTag": "ryzex_15",
       "creadoEn": "2026-07-09T15:04:58.047Z",
       "escudoPath": "escudos/escudo-unio-catalana-1783676740841.png",
-      "escudoFilename": "escudo-unio-catalana-1783676740841.png",
-      "id": "CLUB-1524793480340049920",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 3,
-      "plantillaIds": [
-        "1260991762424664195",
-        "880393019663216650",
-        "1281213328722497609"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-unio-catalana-1783676740841.png"
     },
     {
       "nombre": "Los Futniteros",
@@ -700,15 +529,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-09T15:46:30.550Z",
       "escudoPath": "escudos/escudo-los-futniteros-1783678089288.png",
-      "escudoFilename": "escudo-los-futniteros-1783678089288.png",
-      "id": "CLUB-1524803942461210775",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 1,
-      "plantillaIds": [
-        "960647839640342588"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-los-futniteros-1783678089288.png"
     },
     {
       "nombre": "Krypi FC",
@@ -742,16 +563,7 @@
       "creadoPorTag": "koraybe.",
       "creadoEn": "2026-07-09T16:16:43.742Z",
       "escudoPath": "escudos/escudo-krypi-fc-1783678111753.png",
-      "escudoFilename": "escudo-krypi-fc-1783678111753.png",
-      "id": "CLUB-1524811543521394854",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z",
-      "jugadoresRegistrados": 2,
-      "plantillaIds": [
-        "1391445070347239566",
-        "1299384781406081108"
-      ],
-      "maxJugadores": 18
+      "escudoFilename": "escudo-krypi-fc-1783678111753.png"
     }
   ],
   "jugadores": [
@@ -762,19 +574,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-07T18:35:34.745Z",
-      "id": "727582475181752402",
-      "discordId": "727582475181752402",
-      "discord": "rober9313",
-      "nombre": "rober9313",
-      "nombreJugador": "rober9313",
-      "idJugador": "727582475181752402",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-07T18:35:34.745Z"
     },
     {
       "usuarioId": "654002868948566016",
@@ -783,19 +583,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-07T19:38:11.133Z",
-      "id": "654002868948566016",
-      "discordId": "654002868948566016",
-      "discord": "100tpetit",
-      "nombre": "100tpetit",
-      "nombreJugador": "100tpetit",
-      "idJugador": "654002868948566016",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Alegria FCA",
-      "clubId": "CLUB-1524137481388167462",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-07T19:38:11.133Z"
     },
     {
       "usuarioId": "772912205888225310",
@@ -804,19 +592,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-07T19:43:04.232Z",
-      "id": "772912205888225310",
-      "discordId": "772912205888225310",
-      "discord": "covayaqf",
-      "nombre": "covayaqf",
-      "nombreJugador": "covayaqf",
-      "idJugador": "772912205888225310",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "COVAYERS FC",
-      "clubId": "CLUB-1524138705080684784",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-07T19:43:04.232Z"
     },
     {
       "usuarioId": "676532731194114071",
@@ -825,19 +601,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-07T19:43:04.232Z",
-      "id": "676532731194114071",
-      "discordId": "676532731194114071",
-      "discord": "alvaro102724",
-      "nombre": "alvaro102724",
-      "nombreJugador": "alvaro102724",
-      "idJugador": "676532731194114071",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "COVAYERS FC",
-      "clubId": "CLUB-1524138705080684784",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-07T19:43:04.232Z"
     },
     {
       "usuarioId": "1054476149155188828",
@@ -846,19 +610,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-07T19:43:04.232Z",
-      "id": "1054476149155188828",
-      "discordId": "1054476149155188828",
-      "discord": "rocio_pelucona",
-      "nombre": "rocio_pelucona",
-      "nombreJugador": "rocio_pelucona",
-      "idJugador": "1054476149155188828",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "COVAYERS FC",
-      "clubId": "CLUB-1524138705080684784",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-07T19:43:04.232Z"
     },
     {
       "usuarioId": "1524031600256618536",
@@ -867,19 +619,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-07T19:46:42.155Z",
-      "id": "1524031600256618536",
-      "discordId": "1524031600256618536",
-      "discord": "fuzeteamfc",
-      "nombre": "fuzeteamfc",
-      "nombreJugador": "fuzeteamfc",
-      "idJugador": "1524031600256618536",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-07T19:46:42.155Z"
     },
     {
       "usuarioId": "1459177295641055375",
@@ -888,19 +628,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-07T20:27:53.809Z",
-      "id": "1459177295641055375",
-      "discordId": "1459177295641055375",
-      "discord": "sergio039169",
-      "nombre": "sergio039169",
-      "nombreJugador": "sergio039169",
-      "idJugador": "1459177295641055375",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Coolegas CF",
-      "clubId": "CLUB-1524149993303310416",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-07T20:27:53.809Z"
     },
     {
       "usuarioId": "1520502299833663620",
@@ -909,19 +637,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-07T20:29:48.581Z",
-      "id": "1520502299833663620",
-      "discordId": "1520502299833663620",
-      "discord": "cris_211008",
-      "nombre": "cris_211008",
-      "nombreJugador": "cris_211008",
-      "idJugador": "1520502299833663620",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Club Élite XL",
-      "clubId": "CLUB-1524150474578723020",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-07T20:29:48.581Z"
     },
     {
       "usuarioId": "1474508120855150745",
@@ -930,19 +646,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T09:27:15.313Z",
-      "id": "1474508120855150745",
-      "discordId": "1474508120855150745",
-      "discord": "whimsical_hummingbird_93569",
-      "nombre": "whimsical_hummingbird_93569",
-      "nombreJugador": "whimsical_hummingbird_93569",
-      "idJugador": "1474508120855150745",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T09:27:15.313Z"
     },
     {
       "usuarioId": "1439325258942386359",
@@ -950,19 +654,7 @@
       "club": "Alegria FCA",
       "registradoPorId": "654002868948566016",
       "registradoPorTag": "100tpetit",
-      "registradoEn": "2026-07-08T10:09:08.900Z",
-      "id": "1439325258942386359",
-      "discordId": "1439325258942386359",
-      "discord": "isma00816",
-      "nombre": "isma00816",
-      "nombreJugador": "isma00816",
-      "idJugador": "1439325258942386359",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Alegria FCA",
-      "clubId": "CLUB-1524137481388167462",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T10:09:08.900Z"
     },
     {
       "usuarioId": "859119320193171467",
@@ -970,19 +662,7 @@
       "club": "Fuzeteam FC B",
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T13:42:41.988Z",
-      "id": "859119320193171467",
-      "discordId": "859119320193171467",
-      "discord": "miguelll.css",
-      "nombre": "miguelll.css",
-      "nombreJugador": "miguelll.css",
-      "idJugador": "859119320193171467",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:42:41.988Z"
     },
     {
       "usuarioId": "1429555146924494910",
@@ -990,19 +670,7 @@
       "club": "Fuzeteam FC B",
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T13:42:54.167Z",
-      "id": "1429555146924494910",
-      "discordId": "1429555146924494910",
-      "discord": "pezoro21__29924",
-      "nombre": "pezoro21__29924",
-      "nombreJugador": "pezoro21__29924",
-      "idJugador": "1429555146924494910",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:42:54.167Z"
     },
     {
       "usuarioId": "1509200990128046175",
@@ -1010,19 +678,7 @@
       "club": "Fuzeteam FC B",
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T13:43:04.754Z",
-      "id": "1509200990128046175",
-      "discordId": "1509200990128046175",
-      "discord": "8208170580",
-      "nombre": "8208170580",
-      "nombreJugador": "8208170580",
-      "idJugador": "1509200990128046175",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:43:04.754Z"
     },
     {
       "usuarioId": "1479528092111343809",
@@ -1030,19 +686,7 @@
       "club": "Fuzeteam FC B",
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T13:43:11.535Z",
-      "id": "1479528092111343809",
-      "discordId": "1479528092111343809",
-      "discord": "elsingon5496",
-      "nombre": "elsingon5496",
-      "nombreJugador": "elsingon5496",
-      "idJugador": "1479528092111343809",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:43:11.535Z"
     },
     {
       "usuarioId": "1513193906139824150",
@@ -1050,19 +694,7 @@
       "club": "Fuzeteam FC B",
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T13:43:21.358Z",
-      "id": "1513193906139824150",
-      "discordId": "1513193906139824150",
-      "discord": "cheno010",
-      "nombre": "cheno010",
-      "nombreJugador": "cheno010",
-      "idJugador": "1513193906139824150",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:43:21.358Z"
     },
     {
       "usuarioId": "1524154841847304453",
@@ -1070,19 +702,7 @@
       "club": "Fuzeteam FC B",
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T13:43:30.880Z",
-      "id": "1524154841847304453",
-      "discordId": "1524154841847304453",
-      "discord": "emmanuel076951",
-      "nombre": "emmanuel076951",
-      "nombreJugador": "emmanuel076951",
-      "idJugador": "1524154841847304453",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:43:30.880Z"
     },
     {
       "usuarioId": "484731143577403393",
@@ -1090,19 +710,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-08T13:53:51.188Z",
-      "id": "484731143577403393",
-      "discordId": "484731143577403393",
-      "discord": "djjoan23",
-      "nombre": "djjoan23",
-      "nombreJugador": "djjoan23",
-      "idJugador": "484731143577403393",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:53:51.188Z"
     },
     {
       "usuarioId": "689543579542093868",
@@ -1110,19 +718,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-08T13:54:15.431Z",
-      "id": "689543579542093868",
-      "discordId": "689543579542093868",
-      "discord": "dracolin.",
-      "nombre": "dracolin.",
-      "nombreJugador": "dracolin.",
-      "idJugador": "689543579542093868",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:54:15.431Z"
     },
     {
       "usuarioId": "1350099909889626203",
@@ -1130,19 +726,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-08T13:54:37.130Z",
-      "id": "1350099909889626203",
-      "discordId": "1350099909889626203",
-      "discord": "amayaalonso10",
-      "nombre": "amayaalonso10",
-      "nombreJugador": "amayaalonso10",
-      "idJugador": "1350099909889626203",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:54:37.130Z"
     },
     {
       "usuarioId": "695298792341372999",
@@ -1150,19 +734,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-08T13:54:52.250Z",
-      "id": "695298792341372999",
-      "discordId": "695298792341372999",
-      "discord": "salvaa7_vlc",
-      "nombre": "salvaa7_vlc",
-      "nombreJugador": "salvaa7_vlc",
-      "idJugador": "695298792341372999",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T13:54:52.250Z"
     },
     {
       "usuarioId": "1494349760948338801",
@@ -1170,19 +742,7 @@
       "club": "Fuzeteam FC B",
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T14:43:51.793Z",
-      "id": "1494349760948338801",
-      "discordId": "1494349760948338801",
-      "discord": "rogermartins99",
-      "nombre": "rogermartins99",
-      "nombreJugador": "rogermartins99",
-      "idJugador": "1494349760948338801",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T14:43:51.793Z"
     },
     {
       "usuarioId": "1524140893601530078",
@@ -1190,19 +750,7 @@
       "club": "Fuzeteam FC B",
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T14:44:00.712Z",
-      "id": "1524140893601530078",
-      "discordId": "1524140893601530078",
-      "discord": "derek.the.best2012",
-      "nombre": "derek.the.best2012",
-      "nombreJugador": "derek.the.best2012",
-      "idJugador": "1524140893601530078",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T14:44:00.712Z"
     },
     {
       "usuarioId": "1250558249371963512",
@@ -1211,19 +759,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-08T17:11:41.261Z",
-      "id": "1250558249371963512",
-      "discordId": "1250558249371963512",
-      "discord": "juanmita0907",
-      "nombre": "juanmita0907",
-      "nombreJugador": "juanmita0907",
-      "idJugador": "1250558249371963512",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Tllres Mazeta",
-      "clubId": "CLUB-1524463014105972871",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T17:11:41.261Z"
     },
     {
       "usuarioId": "1469424281200099348",
@@ -1232,19 +768,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-08T17:13:06.439Z",
-      "id": "1469424281200099348",
-      "discordId": "1469424281200099348",
-      "discord": "aretxagaa",
-      "nombre": "aretxagaa",
-      "nombreJugador": "aretxagaa",
-      "idJugador": "1469424281200099348",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "TEIDE CITY",
-      "clubId": "CLUB-1524463370508566679",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T17:13:06.439Z"
     },
     {
       "usuarioId": "1485354629817438402",
@@ -1253,19 +777,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-08T20:54:13.431Z",
-      "id": "1485354629817438402",
-      "discordId": "1485354629817438402",
-      "discord": "gerard044",
-      "nombre": "gerard044",
-      "nombreJugador": "gerard044",
-      "idJugador": "1485354629817438402",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Billar FC",
-      "clubId": "CLUB-1524519016541061222",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T20:54:13.431Z"
     },
     {
       "usuarioId": "1434323287915368562",
@@ -1274,19 +786,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-08T22:53:41.436Z",
-      "id": "1434323287915368562",
-      "discordId": "1434323287915368562",
-      "discord": "enzinyo",
-      "nombre": "enzinyo",
-      "nombreJugador": "enzinyo",
-      "idJugador": "1434323287915368562",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Samba do Espana",
-      "clubId": "CLUB-1524549056389582919",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T22:53:41.436Z"
     },
     {
       "usuarioId": "1127979341918261248",
@@ -1295,19 +795,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-08T22:53:41.436Z",
-      "id": "1127979341918261248",
-      "discordId": "1127979341918261248",
-      "discord": "godex777",
-      "nombre": "godex777",
-      "nombreJugador": "godex777",
-      "idJugador": "1127979341918261248",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Samba do Espana",
-      "clubId": "CLUB-1524549056389582919",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T22:53:41.436Z"
     },
     {
       "usuarioId": "1351545060126359616",
@@ -1315,19 +803,7 @@
       "club": "Samba do Espana",
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-08T22:54:48.488Z",
-      "id": "1351545060126359616",
-      "discordId": "1351545060126359616",
-      "discord": "eerrius_19",
-      "nombre": "eerrius_19",
-      "nombreJugador": "eerrius_19",
-      "idJugador": "1351545060126359616",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Samba do Espana",
-      "clubId": "CLUB-1524549056389582919",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T22:54:48.488Z"
     },
     {
       "usuarioId": "1261655774606659665",
@@ -1335,19 +811,7 @@
       "club": "Samba do Espana",
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-08T22:54:55.917Z",
-      "id": "1261655774606659665",
-      "discordId": "1261655774606659665",
-      "discord": "l.diaz85_99063",
-      "nombre": "l.diaz85_99063",
-      "nombreJugador": "l.diaz85_99063",
-      "idJugador": "1261655774606659665",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Samba do Espana",
-      "clubId": "CLUB-1524549056389582919",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T22:54:55.917Z"
     },
     {
       "usuarioId": "1239924012868702269",
@@ -1355,19 +819,7 @@
       "club": "Samba do Espana",
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-08T22:55:22.804Z",
-      "id": "1239924012868702269",
-      "discordId": "1239924012868702269",
-      "discord": "christian._.710",
-      "nombre": "christian._.710",
-      "nombreJugador": "christian._.710",
-      "idJugador": "1239924012868702269",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Samba do Espana",
-      "clubId": "CLUB-1524549056389582919",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T22:55:22.804Z"
     },
     {
       "usuarioId": "1197209429175705743",
@@ -1375,19 +827,7 @@
       "club": "Samba do Espana",
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-08T22:56:13.090Z",
-      "id": "1197209429175705743",
-      "discordId": "1197209429175705743",
-      "discord": "licha5.",
-      "nombre": "licha5.",
-      "nombreJugador": "licha5.",
-      "idJugador": "1197209429175705743",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Samba do Espana",
-      "clubId": "CLUB-1524549056389582919",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T22:56:13.090Z"
     },
     {
       "usuarioId": "1496185889108529275",
@@ -1395,19 +835,7 @@
       "club": "Samba do Espana",
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-08T22:56:24.673Z",
-      "id": "1496185889108529275",
-      "discordId": "1496185889108529275",
-      "discord": "iker655",
-      "nombre": "iker655",
-      "nombreJugador": "iker655",
-      "idJugador": "1496185889108529275",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Samba do Espana",
-      "clubId": "CLUB-1524549056389582919",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-08T22:56:24.673Z"
     },
     {
       "usuarioId": "1435447968156352693",
@@ -1416,19 +844,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-09T00:32:47.469Z",
-      "id": "1435447968156352693",
-      "discordId": "1435447968156352693",
-      "discord": "sebas.90457",
-      "nombre": "sebas.90457",
-      "nombreJugador": "sebas.90457",
-      "idJugador": "1435447968156352693",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Coral Springs A",
-      "clubId": "CLUB-1524573993552707665",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T00:32:47.469Z"
     },
     {
       "usuarioId": "1222976083276595332",
@@ -1437,19 +853,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-09T00:32:47.469Z",
-      "id": "1222976083276595332",
-      "discordId": "1222976083276595332",
-      "discord": "dylanf10xdgmail.com55",
-      "nombre": "dylanf10xdgmail.com55",
-      "nombreJugador": "dylanf10xdgmail.com55",
-      "idJugador": "1222976083276595332",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Coral Springs A",
-      "clubId": "CLUB-1524573993552707665",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T00:32:47.469Z"
     },
     {
       "usuarioId": "839911418161528922",
@@ -1457,19 +861,7 @@
       "club": "Fuzeteam FC B",
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-09T10:39:59.261Z",
-      "id": "839911418161528922",
-      "discordId": "839911418161528922",
-      "discord": "joker._.2009",
-      "nombre": "joker._.2009",
-      "nombreJugador": "joker._.2009",
-      "idJugador": "839911418161528922",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Fuzeteam FC B",
-      "clubId": "CLUB-1524139626946891797",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T10:39:59.261Z"
     },
     {
       "usuarioId": "656517073035591710",
@@ -1477,19 +869,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-09T11:00:15.925Z",
-      "id": "656517073035591710",
-      "discordId": "656517073035591710",
-      "discord": "v3l3ir0",
-      "nombre": "v3l3ir0",
-      "nombreJugador": "v3l3ir0",
-      "idJugador": "656517073035591710",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T11:00:15.925Z"
     },
     {
       "usuarioId": "543912651743428630",
@@ -1497,19 +877,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-09T11:07:35.121Z",
-      "id": "543912651743428630",
-      "discordId": "543912651743428630",
-      "discord": "gadertus",
-      "nombre": "gadertus",
-      "nombreJugador": "gadertus",
-      "idJugador": "543912651743428630",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T11:07:35.121Z"
     },
     {
       "usuarioId": "1102023576879628358",
@@ -1517,19 +885,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-09T11:07:52.816Z",
-      "id": "1102023576879628358",
-      "discordId": "1102023576879628358",
-      "discord": "azeta11",
-      "nombre": "azeta11",
-      "nombreJugador": "azeta11",
-      "idJugador": "1102023576879628358",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T11:07:52.816Z"
     },
     {
       "usuarioId": "1408437339667300415",
@@ -1538,19 +894,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-09T11:39:24.720Z",
-      "id": "1408437339667300415",
-      "discordId": "1408437339667300415",
-      "discord": "omaralgoandamal16",
-      "nombre": "omaralgoandamal16",
-      "nombreJugador": "omaralgoandamal16",
-      "idJugador": "1408437339667300415",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Hamoods CF",
-      "clubId": "CLUB-1524741754807652385",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T11:39:24.720Z"
     },
     {
       "usuarioId": "1296563505838817333",
@@ -1559,19 +903,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-09T11:39:24.720Z",
-      "id": "1296563505838817333",
-      "discordId": "1296563505838817333",
-      "discord": "dani013876",
-      "nombre": "dani013876",
-      "nombreJugador": "dani013876",
-      "idJugador": "1296563505838817333",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Hamoods CF",
-      "clubId": "CLUB-1524741754807652385",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T11:39:24.720Z"
     },
     {
       "usuarioId": "1061381499590545418",
@@ -1579,19 +911,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-09T12:15:54.125Z",
-      "id": "1061381499590545418",
-      "discordId": "1061381499590545418",
-      "discord": "magic_painos",
-      "nombre": "magic_painos",
-      "nombreJugador": "magic_painos",
-      "idJugador": "1061381499590545418",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T12:15:54.125Z"
     },
     {
       "usuarioId": "1138050928902164540",
@@ -1599,19 +919,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-09T12:16:09.520Z",
-      "id": "1138050928902164540",
-      "discordId": "1138050928902164540",
-      "discord": "marioogm._17776",
-      "nombre": "marioogm._17776",
-      "nombreJugador": "marioogm._17776",
-      "idJugador": "1138050928902164540",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T12:16:09.520Z"
     },
     {
       "usuarioId": "452086067890356224",
@@ -1619,19 +927,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-09T12:16:35.374Z",
-      "id": "452086067890356224",
-      "discordId": "452086067890356224",
-      "discord": "diamondplayer7",
-      "nombre": "diamondplayer7",
-      "nombreJugador": "diamondplayer7",
-      "idJugador": "452086067890356224",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T12:16:35.374Z"
     },
     {
       "usuarioId": "1266863253120876657",
@@ -1640,19 +936,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-09T14:14:04.138Z",
-      "id": "1266863253120876657",
-      "discordId": "1266863253120876657",
-      "discord": "bilal_3211",
-      "nombre": "bilal_3211",
-      "nombreJugador": "bilal_3211",
-      "idJugador": "1266863253120876657",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "BLACK MECANIC",
-      "clubId": "CLUB-1524780678745423963",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T14:14:04.138Z"
     },
     {
       "usuarioId": "1322935196508622849",
@@ -1661,19 +945,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-09T14:27:46.034Z",
-      "id": "1322935196508622849",
-      "discordId": "1322935196508622849",
-      "discord": "zalman80",
-      "nombre": "zalman80",
-      "nombreJugador": "zalman80",
-      "idJugador": "1322935196508622849",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Naeva FC",
-      "clubId": "CLUB-1524784125721051178",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T14:27:46.034Z"
     },
     {
       "usuarioId": "1260991762424664195",
@@ -1682,19 +954,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-09T15:04:58.047Z",
-      "id": "1260991762424664195",
-      "discordId": "1260991762424664195",
-      "discord": "cyril154",
-      "nombre": "cyril154",
-      "nombreJugador": "cyril154",
-      "idJugador": "1260991762424664195",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Uniò catalana",
-      "clubId": "CLUB-1524793480340049920",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T15:04:58.047Z"
     },
     {
       "usuarioId": "880393019663216650",
@@ -1703,19 +963,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-09T15:04:58.047Z",
-      "id": "880393019663216650",
-      "discordId": "880393019663216650",
-      "discord": "aitorr010",
-      "nombre": "aitorr010",
-      "nombreJugador": "aitorr010",
-      "idJugador": "880393019663216650",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Uniò catalana",
-      "clubId": "CLUB-1524793480340049920",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T15:04:58.047Z"
     },
     {
       "usuarioId": "1281213328722497609",
@@ -1724,19 +972,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "662364519116308486",
       "registradoPorTag": "ryzex_15",
-      "registradoEn": "2026-07-09T15:04:58.047Z",
-      "id": "1281213328722497609",
-      "discordId": "1281213328722497609",
-      "discord": "xxshad0oxx",
-      "nombre": "xxshad0oxx",
-      "nombreJugador": "xxshad0oxx",
-      "idJugador": "1281213328722497609",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Uniò catalana",
-      "clubId": "CLUB-1524793480340049920",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T15:04:58.047Z"
     },
     {
       "usuarioId": "960647839640342588",
@@ -1745,19 +981,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-09T15:46:30.550Z",
-      "id": "960647839640342588",
-      "discordId": "960647839640342588",
-      "discord": "futniteyt",
-      "nombre": "futniteyt",
-      "nombreJugador": "futniteyt",
-      "idJugador": "960647839640342588",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Los Futniteros",
-      "clubId": "CLUB-1524803942461210775",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T15:46:30.550Z"
     },
     {
       "usuarioId": "484361323996512256",
@@ -1765,19 +989,7 @@
       "club": "Catalunya Lliure",
       "registradoPorId": "727582475181752402",
       "registradoPorTag": "rober9313",
-      "registradoEn": "2026-07-09T15:58:53.514Z",
-      "id": "484361323996512256",
-      "discordId": "484361323996512256",
-      "discord": "aadrii_004",
-      "nombre": "aadrii_004",
-      "nombreJugador": "aadrii_004",
-      "idJugador": "484361323996512256",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Catalunya Lliure",
-      "clubId": "CLUB-1524121722901762204",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T15:58:53.514Z"
     },
     {
       "usuarioId": "1391445070347239566",
@@ -1786,19 +998,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-09T16:16:43.742Z",
-      "id": "1391445070347239566",
-      "discordId": "1391445070347239566",
-      "discord": "its_dan7_61943",
-      "nombre": "its_dan7_61943",
-      "nombreJugador": "its_dan7_61943",
-      "idJugador": "1391445070347239566",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Krypi FC",
-      "clubId": "CLUB-1524811543521394854",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T16:16:43.742Z"
     },
     {
       "usuarioId": "1299384781406081108",
@@ -1807,19 +1007,7 @@
       "agregadoComoDirectiva": true,
       "registradoPorId": "791958476003868702",
       "registradoPorTag": "koraybe.",
-      "registradoEn": "2026-07-09T16:16:43.742Z",
-      "id": "1299384781406081108",
-      "discordId": "1299384781406081108",
-      "discord": "josemanueh0315",
-      "nombre": "josemanueh0315",
-      "nombreJugador": "josemanueh0315",
-      "idJugador": "1299384781406081108",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Krypi FC",
-      "clubId": "CLUB-1524811543521394854",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T16:16:43.742Z"
     },
     {
       "usuarioId": "1345436915549212776",
@@ -1827,19 +1015,7 @@
       "club": "COVAYERS FC",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T16:18:24.827Z",
-      "id": "1345436915549212776",
-      "discordId": "1345436915549212776",
-      "discord": "fran_gk.64",
-      "nombre": "fran_gk.64",
-      "nombreJugador": "fran_gk.64",
-      "idJugador": "1345436915549212776",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "COVAYERS FC",
-      "clubId": "CLUB-1524138705080684784",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T16:18:24.827Z"
     },
     {
       "usuarioId": "1514404620921868308",
@@ -1847,19 +1023,7 @@
       "club": "Ghost Unit",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T23:06:24.690Z",
-      "id": "1514404620921868308",
-      "discordId": "1514404620921868308",
-      "discord": "courtois0781",
-      "nombre": "courtois0781",
-      "nombreJugador": "courtois0781",
-      "idJugador": "1514404620921868308",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T23:06:24.690Z"
     },
     {
       "usuarioId": "1472330724219682974",
@@ -1867,19 +1031,7 @@
       "club": "Ghost Unit",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T23:07:08.366Z",
-      "id": "1472330724219682974",
-      "discordId": "1472330724219682974",
-      "discord": "jeromedi___2012",
-      "nombre": "jeromedi___2012",
-      "nombreJugador": "jeromedi___2012",
-      "idJugador": "1472330724219682974",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T23:07:08.366Z"
     },
     {
       "usuarioId": "1044679459145527297",
@@ -1887,19 +1039,7 @@
       "club": "Ghost Unit",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T23:07:44.514Z",
-      "id": "1044679459145527297",
-      "discordId": "1044679459145527297",
-      "discord": "emgaming123",
-      "nombre": "emgaming123",
-      "nombreJugador": "emgaming123",
-      "idJugador": "1044679459145527297",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T23:07:44.514Z"
     },
     {
       "usuarioId": "1494997574015258736",
@@ -1907,19 +1047,7 @@
       "club": "Ghost Unit",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T23:08:33.064Z",
-      "id": "1494997574015258736",
-      "discordId": "1494997574015258736",
-      "discord": "rodriguez1300._68747",
-      "nombre": "rodriguez1300._68747",
-      "nombreJugador": "rodriguez1300._68747",
-      "idJugador": "1494997574015258736",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T23:08:33.064Z"
     },
     {
       "usuarioId": "776054545095589918",
@@ -1927,19 +1055,7 @@
       "club": "Ghost Unit",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T23:09:38.543Z",
-      "id": "776054545095589918",
-      "discordId": "776054545095589918",
-      "discord": "t.r.n.",
-      "nombre": "t.r.n.",
-      "nombreJugador": "t.r.n.",
-      "idJugador": "776054545095589918",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T23:09:38.543Z"
     },
     {
       "usuarioId": "1222909424985833596",
@@ -1947,19 +1063,7 @@
       "club": "Ghost Unit",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T23:10:36.221Z",
-      "id": "1222909424985833596",
-      "discordId": "1222909424985833596",
-      "discord": "laxordyy",
-      "nombre": "laxordyy",
-      "nombreJugador": "laxordyy",
-      "idJugador": "1222909424985833596",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T23:10:36.221Z"
     },
     {
       "usuarioId": "1282851819235577899",
@@ -1967,19 +1071,7 @@
       "club": "Ghost Unit",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T23:11:06.122Z",
-      "id": "1282851819235577899",
-      "discordId": "1282851819235577899",
-      "discord": "toni8181919",
-      "nombre": "toni8181919",
-      "nombreJugador": "toni8181919",
-      "idJugador": "1282851819235577899",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T23:11:06.122Z"
     },
     {
       "usuarioId": "1383767352897835101",
@@ -1987,19 +1079,7 @@
       "club": "Ghost Unit",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T23:12:23.109Z",
-      "id": "1383767352897835101",
-      "discordId": "1383767352897835101",
-      "discord": "ggalvaro",
-      "nombre": "ggalvaro",
-      "nombreJugador": "ggalvaro",
-      "idJugador": "1383767352897835101",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T23:12:23.109Z"
     },
     {
       "usuarioId": "1524733992073564261",
@@ -2007,19 +1087,7 @@
       "club": "Ghost Unit",
       "registradoPorId": "1345436915549212776",
       "registradoPorTag": "fran_gk.64",
-      "registradoEn": "2026-07-09T23:13:22.340Z",
-      "id": "1524733992073564261",
-      "discordId": "1524733992073564261",
-      "discord": "rocu2.",
-      "nombre": "rocu2.",
-      "nombreJugador": "rocu2.",
-      "idJugador": "1524733992073564261",
-      "idEaPsn": "",
-      "eaPsnId": "",
-      "clubNombre": "Ghost Unit",
-      "clubId": "CLUB-1524346135471456366",
-      "estado": "activo",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "registradoEn": "2026-07-09T23:13:22.340Z"
     }
   ],
   "config": {
@@ -2066,62 +1134,50 @@
         {
           "slotId": "EQ-1783457313021-0-5356",
           "clubNombre": "Catalunya Lliure",
-          "nombre": "🚜 Catalunya Lliure",
+          "nombre": "Catalunya Lliure",
           "escudoUrl": "/escudos/escudo-catalunya-lliure-1783647001899.png",
           "activo": true,
           "grupo": null,
           "historialSustituciones": [],
           "creadoEn": "2026-07-07T20:48:33.021Z",
           "escudoPath": "escudos/escudo-catalunya-lliure-1783647001899.png",
-          "escudoFilename": "escudo-catalunya-lliure-1783647001899.png",
-          "clubId": "CLUB-1524121722901762204",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-catalunya-lliure-1783647001899.png"
         },
         {
           "slotId": "EQ-1783457315101-1-2247",
           "clubNombre": "Alegria FCA",
-          "nombre": "🎯 Alegria FCA",
+          "nombre": "Alegria FCA",
           "escudoUrl": "/escudos/escudo-alegria-fca-1783675814661.png",
           "activo": true,
           "grupo": null,
           "historialSustituciones": [],
           "creadoEn": "2026-07-07T20:48:35.101Z",
           "escudoPath": "escudos/escudo-alegria-fca-1783675814661.png",
-          "escudoFilename": "escudo-alegria-fca-1783675814661.png",
-          "clubId": "CLUB-1524137481388167462",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-alegria-fca-1783675814661.png"
         },
         {
           "slotId": "EQ-1783457317673-2-9184",
           "clubNombre": "COVAYERS FC",
-          "nombre": "🐹 COVAYERS FC",
+          "nombre": "COVAYERS FC",
           "escudoUrl": "/escudos/escudo-covayers-fc-1783651704382.png",
           "activo": true,
           "grupo": null,
           "historialSustituciones": [],
           "creadoEn": "2026-07-07T20:48:37.673Z",
           "escudoPath": "escudos/escudo-covayers-fc-1783651704382.png",
-          "escudoFilename": "escudo-covayers-fc-1783651704382.png",
-          "clubId": "CLUB-1524138705080684784",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-covayers-fc-1783651704382.png"
         },
         {
           "slotId": "EQ-1783457319553-3-1309",
           "clubNombre": "Fuzeteam FC B",
-          "nombre": "🚀 Fuzeteam FC B",
+          "nombre": "Fuzeteam FC B",
           "escudoUrl": "/escudos/escudo-fuzeteam-fc-b-1783647040206.png",
           "activo": true,
           "grupo": null,
           "historialSustituciones": [],
           "creadoEn": "2026-07-07T20:48:39.553Z",
           "escudoPath": "escudos/escudo-fuzeteam-fc-b-1783647040206.png",
-          "escudoFilename": "escudo-fuzeteam-fc-b-1783647040206.png",
-          "clubId": "CLUB-1524139626946891797",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-fuzeteam-fc-b-1783647040206.png"
         },
         {
           "slotId": "EQ-1783457321668-4-2861",
@@ -2133,10 +1189,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-07T20:48:41.668Z",
           "escudoPath": "escudos/escudo-coolegas-cf-1783675755990.png",
-          "escudoFilename": "escudo-coolegas-cf-1783675755990.png",
-          "clubId": "CLUB-1524149993303310416",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-coolegas-cf-1783675755990.png"
         },
         {
           "slotId": "EQ-1783457324265-5-8077",
@@ -2148,171 +1201,262 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-07T20:48:44.265Z",
           "escudoPath": "escudos/escudo-club-elite-xl-1783676596552.png",
-          "escudoFilename": "escudo-club-elite-xl-1783676596552.png",
-          "clubId": "CLUB-1524150474578723020",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-club-elite-xl-1783676596552.png"
         },
         {
           "slotId": "EQ-1783505340176-6-9495",
           "clubNombre": "Ghost Unit",
-          "nombre": "🔝 Ghost Unit",
+          "nombre": "Ghost Unit",
           "escudoUrl": "/escudos/escudo-ghost-unit-1783676845645.png",
           "activo": true,
           "grupo": null,
           "historialSustituciones": [],
           "creadoEn": "2026-07-08T10:09:00.176Z",
           "escudoPath": "escudos/escudo-ghost-unit-1783676845645.png",
-          "escudoFilename": "escudo-ghost-unit-1783676845645.png",
-          "clubId": "CLUB-1524346135471456366",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-ghost-unit-1783676845645.png"
         },
         {
           "slotId": "EQ-1783505342566-7-8064",
           "clubNombre": "Hamoods CF",
-          "nombre": "🦁 Hamoods CF",
+          "nombre": "Hamoods CF",
           "escudoUrl": "/escudos/escudo-hamoods-cf-1783676688723.png",
           "activo": true,
           "grupo": null,
           "historialSustituciones": [],
           "creadoEn": "2026-07-08T10:09:02.566Z",
           "escudoPath": "escudos/escudo-hamoods-cf-1783676688723.png",
-          "escudoFilename": "escudo-hamoods-cf-1783676688723.png",
-          "clubId": "CLUB-1524741754807652385",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-hamoods-cf-1783676688723.png"
+        },
+        {
+          "slotId": "EQ-1783611528387-7-5362",
+          "clubNombre": "Unió catalana",
+          "nombre": "Unió catalana",
+          "escudoUrl": "/escudos/escudo-unio-catalana-1783676740841.png",
+          "activo": true,
+          "grupo": null,
+          "historialSustituciones": [],
+          "creadoEn": "2026-07-09T15:38:48.387Z",
+          "escudoPath": "escudos/escudo-unio-catalana-1783676740841.png",
+          "escudoFilename": "escudo-unio-catalana-1783676740841.png"
+        },
+        {
+          "slotId": "EQ-1783607746481-5-4054",
+          "clubNombre": "BLACK MECANIC",
+          "nombre": "BLACK MECANIC",
+          "escudoUrl": "/escudos/escudo-black-mecanic-1783677032034.png",
+          "activo": true,
+          "grupo": null,
+          "historialSustituciones": [],
+          "creadoEn": "2026-07-09T14:35:46.481Z",
+          "escudoPath": "escudos/escudo-black-mecanic-1783677032034.png",
+          "escudoFilename": "escudo-black-mecanic-1783677032034.png"
+        },
+        {
+          "slotId": "EQ-1783607746481-2-7048",
+          "clubNombre": "Billar FC",
+          "nombre": "Billar FC",
+          "escudoUrl": "/escudos/escudo-billar-fc-1783676951341.png",
+          "activo": true,
+          "grupo": null,
+          "historialSustituciones": [],
+          "creadoEn": "2026-07-09T14:35:46.481Z",
+          "escudoPath": "escudos/escudo-billar-fc-1783676951341.png",
+          "escudoFilename": "escudo-billar-fc-1783676951341.png"
+        },
+        {
+          "slotId": "EQ-1783607746481-4-2459",
+          "clubNombre": "Coral Springs A",
+          "nombre": "Coral Springs A",
+          "escudoUrl": "/escudos/escudo-coral-springs-a-1783677983588.png",
+          "activo": true,
+          "grupo": null,
+          "historialSustituciones": [],
+          "creadoEn": "2026-07-09T14:35:46.481Z",
+          "escudoPath": "escudos/escudo-coral-springs-a-1783677983588.png",
+          "escudoFilename": "escudo-coral-springs-a-1783677983588.png"
         }
       ],
       "sustituciones": [],
       "partidos": [
         {
-          "id": "PART-0001-1783506431498-1756",
+          "id": "COMP-0001-j1-p1",
           "jornada": 1,
-          "ronda": 1,
-          "fase": "liga",
-          "grupo": null,
-          "fecha": "",
-          "hora": "",
+          "round": 1,
           "localSlotId": "EQ-1783457313021-0-5356",
-          "visitanteSlotId": "EQ-1783505342566-7-8064",
-          "localGoles": null,
-          "visitanteGoles": null,
-          "ganadorSlotId": null,
-          "estado": "pendiente",
-          "creadoEn": "2026-07-08T10:27:11.498Z"
-        },
-        {
-          "id": "PART-0002-1783506431498-8605",
-          "jornada": 1,
-          "ronda": 1,
-          "fase": "liga",
-          "grupo": null,
-          "fecha": "",
-          "hora": "",
-          "localSlotId": "EQ-1783457315101-1-2247",
           "visitanteSlotId": "EQ-1783505340176-6-9495",
+          "localNombre": "Catalunya Lliure",
+          "visitanteNombre": "Ghost Unit",
           "localGoles": null,
           "visitanteGoles": null,
-          "ganadorSlotId": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
           "estado": "pendiente",
-          "creadoEn": "2026-07-08T10:27:11.498Z"
+          "finalizado": false,
+          "fecha": "",
+          "hora": ""
         },
         {
-          "id": "PART-0003-1783506431498-1069",
+          "id": "COMP-0001-j1-p2",
           "jornada": 1,
-          "ronda": 1,
-          "fase": "liga",
-          "grupo": null,
+          "round": 1,
+          "localSlotId": "EQ-1783457315101-1-2247",
+          "visitanteSlotId": "EQ-1783611528387-7-5362",
+          "localNombre": "Alegria FCA",
+          "visitanteNombre": "Unió catalana",
+          "localGoles": null,
+          "visitanteGoles": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
+          "estado": "pendiente",
+          "finalizado": false,
           "fecha": "",
-          "hora": "",
+          "hora": ""
+        },
+        {
+          "id": "COMP-0001-j1-p3",
+          "jornada": 1,
+          "round": 1,
           "localSlotId": "EQ-1783457317673-2-9184",
-          "visitanteSlotId": "EQ-1783457324265-5-8077",
+          "visitanteSlotId": "EQ-1783607746481-5-4054",
+          "localNombre": "COVAYERS FC",
+          "visitanteNombre": "BLACK MECANIC",
           "localGoles": null,
           "visitanteGoles": null,
-          "ganadorSlotId": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
           "estado": "pendiente",
-          "creadoEn": "2026-07-08T10:27:11.498Z"
+          "finalizado": false,
+          "fecha": "",
+          "hora": ""
         },
         {
-          "id": "PART-0004-1783506431498-440",
+          "id": "COMP-0001-j1-p4",
           "jornada": 1,
-          "ronda": 1,
-          "fase": "liga",
-          "grupo": null,
-          "fecha": "",
-          "hora": "",
+          "round": 1,
           "localSlotId": "EQ-1783457319553-3-1309",
-          "visitanteSlotId": "EQ-1783457321668-4-2861",
-          "localGoles": null,
-          "visitanteGoles": null,
-          "ganadorSlotId": null,
-          "estado": "pendiente",
-          "creadoEn": "2026-07-08T10:27:11.498Z"
-        },
-        {
-          "id": "PART-0005-1783506431498-8992",
-          "jornada": 2,
-          "ronda": 2,
-          "fase": "liga",
-          "grupo": null,
-          "fecha": "",
-          "hora": "",
-          "localSlotId": "EQ-1783505340176-6-9495",
-          "visitanteSlotId": "EQ-1783457313021-0-5356",
-          "localGoles": null,
-          "visitanteGoles": null,
-          "ganadorSlotId": null,
-          "estado": "pendiente",
-          "creadoEn": "2026-07-08T10:27:11.498Z"
-        },
-        {
-          "id": "PART-0006-1783506431498-8366",
-          "jornada": 2,
-          "ronda": 2,
-          "fase": "liga",
-          "grupo": null,
-          "fecha": "",
-          "hora": "",
-          "localSlotId": "EQ-1783457324265-5-8077",
           "visitanteSlotId": "EQ-1783505342566-7-8064",
+          "localNombre": "Fuzeteam FC B",
+          "visitanteNombre": "Hamoods CF",
           "localGoles": null,
           "visitanteGoles": null,
-          "ganadorSlotId": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
           "estado": "pendiente",
-          "creadoEn": "2026-07-08T10:27:11.498Z"
+          "finalizado": false,
+          "fecha": "",
+          "hora": ""
         },
         {
-          "id": "PART-0007-1783506431498-278",
-          "jornada": 2,
-          "ronda": 2,
-          "fase": "liga",
-          "grupo": null,
+          "id": "COMP-0001-j1-p5",
+          "jornada": 1,
+          "round": 1,
+          "localSlotId": "EQ-1783607746481-2-7048",
+          "visitanteSlotId": "EQ-1783607746481-4-2459",
+          "localNombre": "Billar FC",
+          "visitanteNombre": "Coral Springs A",
+          "localGoles": null,
+          "visitanteGoles": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
+          "estado": "pendiente",
+          "finalizado": false,
           "fecha": "",
-          "hora": "",
-          "localSlotId": "EQ-1783457321668-4-2861",
+          "hora": ""
+        },
+        {
+          "id": "COMP-0001-j2-p1",
+          "jornada": 2,
+          "round": 2,
+          "localSlotId": "EQ-1783611528387-7-5362",
+          "visitanteSlotId": "EQ-1783457313021-0-5356",
+          "localNombre": "Unió catalana",
+          "visitanteNombre": "Catalunya Lliure",
+          "localGoles": null,
+          "visitanteGoles": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
+          "estado": "pendiente",
+          "finalizado": false,
+          "fecha": "",
+          "hora": ""
+        },
+        {
+          "id": "COMP-0001-j2-p2",
+          "jornada": 2,
+          "round": 2,
+          "localSlotId": "EQ-1783607746481-5-4054",
+          "visitanteSlotId": "EQ-1783505340176-6-9495",
+          "localNombre": "BLACK MECANIC",
+          "visitanteNombre": "Ghost Unit",
+          "localGoles": null,
+          "visitanteGoles": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
+          "estado": "pendiente",
+          "finalizado": false,
+          "fecha": "",
+          "hora": ""
+        },
+        {
+          "id": "COMP-0001-j2-p3",
+          "jornada": 2,
+          "round": 2,
+          "localSlotId": "EQ-1783505342566-7-8064",
           "visitanteSlotId": "EQ-1783457315101-1-2247",
+          "localNombre": "Hamoods CF",
+          "visitanteNombre": "Alegria FCA",
           "localGoles": null,
           "visitanteGoles": null,
-          "ganadorSlotId": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
           "estado": "pendiente",
-          "creadoEn": "2026-07-08T10:27:11.498Z"
+          "finalizado": false,
+          "fecha": "",
+          "hora": ""
         },
         {
-          "id": "PART-0008-1783506431498-6068",
+          "id": "COMP-0001-j2-p4",
           "jornada": 2,
-          "ronda": 2,
-          "fase": "liga",
-          "grupo": null,
-          "fecha": "",
-          "hora": "",
-          "localSlotId": "EQ-1783457319553-3-1309",
+          "round": 2,
+          "localSlotId": "EQ-1783607746481-4-2459",
           "visitanteSlotId": "EQ-1783457317673-2-9184",
+          "localNombre": "Coral Springs A",
+          "visitanteNombre": "COVAYERS FC",
           "localGoles": null,
           "visitanteGoles": null,
-          "ganadorSlotId": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
           "estado": "pendiente",
-          "creadoEn": "2026-07-08T10:27:11.498Z"
+          "finalizado": false,
+          "fecha": "",
+          "hora": ""
+        },
+        {
+          "id": "COMP-0001-j2-p5",
+          "jornada": 2,
+          "round": 2,
+          "localSlotId": "EQ-1783607746481-2-7048",
+          "visitanteSlotId": "EQ-1783457319553-3-1309",
+          "localNombre": "Billar FC",
+          "visitanteNombre": "Fuzeteam FC B",
+          "localGoles": null,
+          "visitanteGoles": null,
+          "golesLocal": null,
+          "golesVisitante": null,
+          "resultado": "",
+          "estado": "pendiente",
+          "finalizado": false,
+          "fecha": "",
+          "hora": ""
         },
         {
           "id": "PART-0009-1783506431498-8290",
@@ -3237,7 +2381,8 @@
       "grupos": [],
       "calendarioGenerado": true,
       "calendarioGeneradoEn": "2026-07-08T10:27:11.499Z",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "partidosHistoricos": [],
+      "historialCambiosEquipos": []
     },
     {
       "id": "COMP-0002",
@@ -3262,10 +2407,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T08:54:06.501Z",
           "escudoPath": "escudos/escudo-catalunya-lliure-1783647001899.png",
-          "escudoFilename": "escudo-catalunya-lliure-1783647001899.png",
-          "clubId": "CLUB-1524121722901762204",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-catalunya-lliure-1783647001899.png"
         },
         {
           "slotId": "EQ-1783587246501-1-9937",
@@ -3277,10 +2419,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T08:54:06.502Z",
           "escudoPath": "escudos/escudo-alegria-fca-1783675814661.png",
-          "escudoFilename": "escudo-alegria-fca-1783675814661.png",
-          "clubId": "CLUB-1524137481388167462",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-alegria-fca-1783675814661.png"
         },
         {
           "slotId": "EQ-1783587246502-2-4522",
@@ -3292,10 +2431,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T08:54:06.502Z",
           "escudoPath": "escudos/escudo-covayers-fc-1783651704382.png",
-          "escudoFilename": "escudo-covayers-fc-1783651704382.png",
-          "clubId": "CLUB-1524138705080684784",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-covayers-fc-1783651704382.png"
         },
         {
           "slotId": "EQ-1783587246502-3-4138",
@@ -3307,10 +2443,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T08:54:06.502Z",
           "escudoPath": "escudos/escudo-fuzeteam-fc-b-1783647040206.png",
-          "escudoFilename": "escudo-fuzeteam-fc-b-1783647040206.png",
-          "clubId": "CLUB-1524139626946891797",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-fuzeteam-fc-b-1783647040206.png"
         },
         {
           "slotId": "EQ-1783587246502-4-6396",
@@ -3322,10 +2455,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T08:54:06.502Z",
           "escudoPath": "escudos/escudo-coolegas-cf-1783675755990.png",
-          "escudoFilename": "escudo-coolegas-cf-1783675755990.png",
-          "clubId": "CLUB-1524149993303310416",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-coolegas-cf-1783675755990.png"
         },
         {
           "slotId": "EQ-1783587246502-5-5627",
@@ -3337,10 +2467,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T08:54:06.502Z",
           "escudoPath": "escudos/escudo-club-elite-xl-1783676596552.png",
-          "escudoFilename": "escudo-club-elite-xl-1783676596552.png",
-          "clubId": "CLUB-1524150474578723020",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-club-elite-xl-1783676596552.png"
         },
         {
           "slotId": "EQ-1783587246502-6-1917",
@@ -3352,10 +2479,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T08:54:06.502Z",
           "escudoPath": "escudos/escudo-ghost-unit-1783676845645.png",
-          "escudoFilename": "escudo-ghost-unit-1783676845645.png",
-          "clubId": "CLUB-1524346135471456366",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-ghost-unit-1783676845645.png"
         },
         {
           "slotId": "EQ-1783587246502-7-1480",
@@ -3367,10 +2491,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T08:54:06.502Z",
           "escudoPath": "escudos/escudo-hamoods-cf-1783676688723.png",
-          "escudoFilename": "escudo-hamoods-cf-1783676688723.png",
-          "clubId": "CLUB-1524741754807652385",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-hamoods-cf-1783676688723.png"
         }
       ],
       "sustituciones": [],
@@ -3577,8 +2698,7 @@
       "grupos": [],
       "calendarioGenerado": true,
       "creadaEn": "2026-07-09T08:54:06.502Z",
-      "calendarioGeneradoEn": "2026-07-09T08:54:09.179Z",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "calendarioGeneradoEn": "2026-07-09T08:54:09.179Z"
     },
     {
       "id": "COMP-0003",
@@ -3606,10 +2726,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:09.001Z",
           "escudoPath": "escudos/escudo-tllres-mazeta-1783676878355.png",
-          "escudoFilename": "escudo-tllres-mazeta-1783676878355.png",
-          "clubId": "CLUB-1524463014105972871",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-tllres-mazeta-1783676878355.png"
         },
         {
           "slotId": "EQ-1783607709001-1-826",
@@ -3621,10 +2738,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:09.001Z",
           "escudoPath": "escudos/escudo-teide-city-1783676899833.png",
-          "escudoFilename": "escudo-teide-city-1783676899833.png",
-          "clubId": "CLUB-1524463370508566679",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-teide-city-1783676899833.png"
         },
         {
           "slotId": "EQ-1783607709001-2-8577",
@@ -3636,10 +2750,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:09.001Z",
           "escudoPath": "escudos/escudo-billar-fc-1783676951341.png",
-          "escudoFilename": "escudo-billar-fc-1783676951341.png",
-          "clubId": "CLUB-1524519016541061222",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-billar-fc-1783676951341.png"
         },
         {
           "slotId": "EQ-1783607709001-3-8227",
@@ -3651,10 +2762,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:09.001Z",
           "escudoPath": "escudos/escudo-samba-do-espana-1783676980274.png",
-          "escudoFilename": "escudo-samba-do-espana-1783676980274.png",
-          "clubId": "CLUB-1524549056389582919",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-samba-do-espana-1783676980274.png"
         },
         {
           "slotId": "EQ-1783607709001-4-3258",
@@ -3666,10 +2774,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:09.001Z",
           "escudoPath": "escudos/escudo-coral-springs-a-1783677983588.png",
-          "escudoFilename": "escudo-coral-springs-a-1783677983588.png",
-          "clubId": "CLUB-1524573993552707665",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-coral-springs-a-1783677983588.png"
         },
         {
           "slotId": "EQ-1783607709001-5-9077",
@@ -3681,10 +2786,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:09.001Z",
           "escudoPath": "escudos/escudo-black-mecanic-1783677032034.png",
-          "escudoFilename": "escudo-black-mecanic-1783677032034.png",
-          "clubId": "CLUB-1524780678745423963",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-black-mecanic-1783677032034.png"
         },
         {
           "slotId": "EQ-1783607709001-6-3209",
@@ -3696,10 +2798,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:09.001Z",
           "escudoPath": "escudos/escudo-naeva-fc-1783678142172.png",
-          "escudoFilename": "escudo-naeva-fc-1783678142172.png",
-          "clubId": "CLUB-1524784125721051178",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-naeva-fc-1783678142172.png"
         },
         {
           "slotId": "EQ-1783611503341-7-8038",
@@ -3711,10 +2810,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T15:38:23.341Z",
           "escudoPath": "escudos/escudo-unio-catalana-1783676740841.png",
-          "escudoFilename": "escudo-unio-catalana-1783676740841.png",
-          "clubId": "CLUB-1524793480340049920",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-unio-catalana-1783676740841.png"
         }
       ],
       "sustituciones": [],
@@ -4769,8 +3865,7 @@
       "grupos": [],
       "calendarioGenerado": true,
       "creadaEn": "2026-07-09T14:35:09.001Z",
-      "calendarioGeneradoEn": "2026-07-09T15:38:28.247Z",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "calendarioGeneradoEn": "2026-07-09T15:38:28.247Z"
     },
     {
       "id": "COMP-0004",
@@ -4795,10 +3890,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:46.481Z",
           "escudoPath": "escudos/escudo-tllres-mazeta-1783676878355.png",
-          "escudoFilename": "escudo-tllres-mazeta-1783676878355.png",
-          "clubId": "CLUB-1524463014105972871",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-tllres-mazeta-1783676878355.png"
         },
         {
           "slotId": "EQ-1783607746481-1-1730",
@@ -4810,10 +3902,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:46.481Z",
           "escudoPath": "escudos/escudo-teide-city-1783676899833.png",
-          "escudoFilename": "escudo-teide-city-1783676899833.png",
-          "clubId": "CLUB-1524463370508566679",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-teide-city-1783676899833.png"
         },
         {
           "slotId": "EQ-1783607746481-2-7048",
@@ -4825,10 +3914,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:46.481Z",
           "escudoPath": "escudos/escudo-billar-fc-1783676951341.png",
-          "escudoFilename": "escudo-billar-fc-1783676951341.png",
-          "clubId": "CLUB-1524519016541061222",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-billar-fc-1783676951341.png"
         },
         {
           "slotId": "EQ-1783607746481-3-6661",
@@ -4840,10 +3926,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:46.481Z",
           "escudoPath": "escudos/escudo-samba-do-espana-1783676980274.png",
-          "escudoFilename": "escudo-samba-do-espana-1783676980274.png",
-          "clubId": "CLUB-1524549056389582919",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-samba-do-espana-1783676980274.png"
         },
         {
           "slotId": "EQ-1783607746481-4-2459",
@@ -4855,10 +3938,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:46.481Z",
           "escudoPath": "escudos/escudo-coral-springs-a-1783677983588.png",
-          "escudoFilename": "escudo-coral-springs-a-1783677983588.png",
-          "clubId": "CLUB-1524573993552707665",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-coral-springs-a-1783677983588.png"
         },
         {
           "slotId": "EQ-1783607746481-5-4054",
@@ -4870,10 +3950,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:46.481Z",
           "escudoPath": "escudos/escudo-black-mecanic-1783677032034.png",
-          "escudoFilename": "escudo-black-mecanic-1783677032034.png",
-          "clubId": "CLUB-1524780678745423963",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-black-mecanic-1783677032034.png"
         },
         {
           "slotId": "EQ-1783607746481-6-6469",
@@ -4885,10 +3962,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T14:35:46.481Z",
           "escudoPath": "escudos/escudo-naeva-fc-1783678142172.png",
-          "escudoFilename": "escudo-naeva-fc-1783678142172.png",
-          "clubId": "CLUB-1524784125721051178",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-naeva-fc-1783678142172.png"
         },
         {
           "slotId": "EQ-1783611528387-7-5362",
@@ -4900,10 +3974,7 @@
           "historialSustituciones": [],
           "creadoEn": "2026-07-09T15:38:48.387Z",
           "escudoPath": "escudos/escudo-unio-catalana-1783676740841.png",
-          "escudoFilename": "escudo-unio-catalana-1783676740841.png",
-          "clubId": "CLUB-1524793480340049920",
-          "presupuesto": 50000000,
-          "actualizadoEn": "2026-07-13T23:15:34.693Z"
+          "escudoFilename": "escudo-unio-catalana-1783676740841.png"
         }
       ],
       "sustituciones": [],
@@ -5110,14 +4181,8 @@
       "grupos": [],
       "calendarioGenerado": true,
       "creadaEn": "2026-07-09T14:35:46.481Z",
-      "calendarioGeneradoEn": "2026-07-09T15:38:53.075Z",
-      "actualizadoEn": "2026-07-13T23:15:34.693Z"
+      "calendarioGeneradoEn": "2026-07-09T15:38:53.075Z"
     }
   ],
-  "noticias": [],
-  "sync": {
-    "version": 1783984534694,
-    "source": "discord-bot",
-    "updatedAt": "2026-07-13T23:15:34.693Z"
-  }
+  "historialCambiosEquipos": []
 }
