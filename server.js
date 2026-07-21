@@ -1224,6 +1224,219 @@ function telJornadasOfficialForceAndSave(data){
 
 
 
+
+
+/* ============================================================
+   TEL FIX: JORNADAS OFICIALES SIN BORRAR RESULTADOS
+   Corrige el problema de que los resultados admin desaparezcan.
+   - Mantiene Jornada 1 y 2 oficiales.
+   - Si el partido ya existe, conserva marcador, fecha, hora y estado.
+   - No vuelve a poner a null los resultados ya guardados.
+   ============================================================ */
+function telJornadasOfficialApply(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  let league = comps.find(comp=>{
+    if(telJornadasOfficialIsCup(comp)) return false;
+    const name = telJornadasOfficialNorm(comp.nombre || comp.name || '');
+    return name.includes('elite') || name.includes('liga') || name.includes('league');
+  }) || comps.find(comp=>!telJornadasOfficialIsCup(comp));
+
+  if(!league){
+    league = {
+      id:'elite-league',
+      nombre:'Élite League',
+      tipo:'liga',
+      equipos:[],
+      partidos:[]
+    };
+    if(!data.competiciones) data.competiciones = comps;
+    data.competiciones.push(league);
+  }
+
+  if(!league.id) league.id = telJornadasOfficialSlug(league.nombre || 'elite-league');
+  league.tipo = league.tipo || 'liga';
+  league.equipos = league.equipos || [];
+  league.partidos = league.partidos || [];
+  league.partidosHistoricos = league.partidosHistoricos || [];
+
+  const jornadas = {
+    1: [
+      ['Catalunya Lliure', 'Ghost Unit'],
+      ['Alegria FCA', 'Unió catalana'],
+      ['COVAYERS FC', 'BLACK MECANIC'],
+      ['Fuzeteam FC B', 'Hamoods CF'],
+      ['Billar FC', 'Coral Springs A']
+    ],
+    2: [
+      ['Unió catalana', 'Catalunya Lliure'],
+      ['BLACK MECANIC', 'Ghost Unit'],
+      ['Hamoods CF', 'Alegria FCA'],
+      ['Coral Springs A', 'COVAYERS FC'],
+      ['Billar FC', 'Fuzeteam FC B']
+    ]
+  };
+
+  const allNames = [...new Set(Object.values(jornadas).flat(2))];
+  const teamMap = new Map();
+
+  league.equipos.forEach(team=>{
+    const name = telJornadasOfficialTeamName(team);
+    if(name) teamMap.set(telJornadasOfficialNorm(name), team);
+  });
+
+  allNames.forEach(name=>{
+    const key = telJornadasOfficialNorm(name);
+    let team = teamMap.get(key);
+
+    if(!team){
+      team = telJornadasOfficialMakeTeam(data, name);
+      league.equipos.push(team);
+      teamMap.set(key, team);
+    }
+
+    team.nombre = name;
+    team.clubNombre = name;
+    telJornadasOfficialSlot(team);
+  });
+
+  function slotOf(name){
+    return telJornadasOfficialSlot(teamMap.get(telJornadasOfficialNorm(name)));
+  }
+
+  function isScoreValue(value){
+    return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
+  }
+
+  function hasResult(match){
+    return !!match && (
+      match.finalizado === true ||
+      ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
+      (isScoreValue(match.localGoles) && isScoreValue(match.visitanteGoles)) ||
+      (isScoreValue(match.golesLocal) && isScoreValue(match.golesVisitante)) ||
+      /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
+    );
+  }
+
+  function getGoals(match, side){
+    if(side === 'local'){
+      return isScoreValue(match.localGoles) ? Number(match.localGoles) :
+        isScoreValue(match.golesLocal) ? Number(match.golesLocal) : null;
+    }
+    return isScoreValue(match.visitanteGoles) ? Number(match.visitanteGoles) :
+      isScoreValue(match.golesVisitante) ? Number(match.golesVisitante) : null;
+  }
+
+  function samePair(match, local, visitante){
+    const wantedA = telJornadasOfficialNorm(local);
+    const wantedB = telJornadasOfficialNorm(visitante);
+
+    const matchLocalNames = [
+      match.localNombre,
+      match.nombreLocal,
+      match.equipoLocal,
+      telJornadasOfficialTeamName(teamMap.get(telJornadasOfficialNorm(match.localNombre || '')))
+    ].filter(Boolean).map(telJornadasOfficialNorm);
+
+    const matchAwayNames = [
+      match.visitanteNombre,
+      match.nombreVisitante,
+      match.equipoVisitante,
+      telJornadasOfficialTeamName(teamMap.get(telJornadasOfficialNorm(match.visitanteNombre || '')))
+    ].filter(Boolean).map(telJornadasOfficialNorm);
+
+    const localSlot = String(match.localSlotId || '');
+    const awaySlot = String(match.visitanteSlotId || '');
+
+    return (
+      (matchLocalNames.includes(wantedA) && matchAwayNames.includes(wantedB)) ||
+      (localSlot && awaySlot && localSlot === String(slotOf(local)) && awaySlot === String(slotOf(visitante)))
+    );
+  }
+
+  const oldMatches = Array.isArray(league.partidos) ? league.partidos : [];
+  const usedOldIndexes = new Set();
+  const fixed = [];
+
+  for(const [jornada, games] of Object.entries(jornadas)){
+    games.forEach((game, index)=>{
+      const [local, visitante] = game;
+      const wantedId = `${league.id}-j${jornada}-p${index + 1}`;
+
+      let existingIndex = oldMatches.findIndex((match, i)=>{
+        if(usedOldIndexes.has(i)) return false;
+        const j = Number(match.jornada || match.round || 0);
+        if(j !== Number(jornada)) return false;
+        if(String(match.id || '') === wantedId) return true;
+        return samePair(match, local, visitante);
+      });
+
+      const existing = existingIndex >= 0 ? oldMatches[existingIndex] : null;
+      if(existingIndex >= 0) usedOldIndexes.add(existingIndex);
+
+      const localGoals = existing ? getGoals(existing, 'local') : null;
+      const awayGoals = existing ? getGoals(existing, 'away') : null;
+      const played = existing ? hasResult(existing) : false;
+
+      fixed.push({
+        ...(existing || {}),
+        id: wantedId,
+        jornada: Number(jornada),
+        round: Number(jornada),
+        localSlotId: slotOf(local),
+        visitanteSlotId: slotOf(visitante),
+        localNombre: local,
+        visitanteNombre: visitante,
+        localGoles: localGoals,
+        visitanteGoles: awayGoals,
+        golesLocal: localGoals,
+        golesVisitante: awayGoals,
+        resultado: played && localGoals !== null && awayGoals !== null ? `${localGoals}-${awayGoals}` : (existing?.resultado || ''),
+        estado: played ? 'finalizado' : (existing?.estado || 'pendiente'),
+        finalizado: played,
+        fecha: existing?.fecha || existing?.date || '',
+        hora: existing?.hora || existing?.time || ''
+      });
+    });
+  }
+
+  const kept = [];
+  oldMatches.forEach((match, i)=>{
+    if(usedOldIndexes.has(i)) return;
+    const jornada = Number(match.jornada || match.round || 0);
+
+    if(jornada === 1 || jornada === 2){
+      if(hasResult(match)){
+        const historic = JSON.parse(JSON.stringify(match));
+        historic.historico = true;
+        historic.motivoHistorico = 'Archivado al corregir Jornada 1 y Jornada 2 sin borrar resultados';
+        league.partidosHistoricos.push(historic);
+      }
+      return;
+    }
+
+    kept.push(match);
+  });
+
+  league.partidos = [...fixed, ...kept];
+
+  data.historialCambiosJornadas = data.historialCambiosJornadas || [];
+  const last = data.historialCambiosJornadas[data.historialCambiosJornadas.length - 1];
+
+  if(!last || last.accion !== 'jornada-1-2-oficiales-sin-borrar-resultados'){
+    data.historialCambiosJornadas.push({
+      fecha: new Date().toISOString(),
+      accion: 'jornada-1-2-oficiales-sin-borrar-resultados',
+      competicion: league.nombre || league.id,
+      partidosFijados: fixed.length
+    });
+  }
+
+  return data;
+}
+
+
 app.get('/api/admin/aplicar-jornadas-1-2', requireAdmin, (req,res)=>{
   try{
     const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
