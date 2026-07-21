@@ -905,15 +905,15 @@ function telHydrateDataForClient(rawData){
         const local=resolveParticipant(match.localSlotId || match.localClubId || match.localId,match.localNombre || match.nombreLocal || match.equipoLocal);
         const away=resolveParticipant(match.visitanteSlotId || match.visitanteClubId || match.visitanteId,match.visitanteNombre || match.nombreVisitante || match.equipoVisitante);
         if(local){
-          match.localNombre=telClientCleanName(local.clubNombre || local.nombre || local.nombreVisual) || 'Por definir';
-          match.localLogo=telClientLogo(local);
+          match.localNombre=match.localEquipoHistorico || telClientCleanName(local.clubNombre || local.nombre || local.nombreVisual) || 'Por definir';
+          match.localLogo=match.localLogoHistorico || telClientLogo(local);
           match.localEscudo=match.localLogo;
           match.localClubId=local.clubId || '';
           if(!match.localSlotId) match.localSlotId=local.slotId || local.id || local.clubId || '';
         }
         if(away){
-          match.visitanteNombre=telClientCleanName(away.clubNombre || away.nombre || away.nombreVisual) || 'Por definir';
-          match.visitanteLogo=telClientLogo(away);
+          match.visitanteNombre=match.visitanteEquipoHistorico || telClientCleanName(away.clubNombre || away.nombre || away.nombreVisual) || 'Por definir';
+          match.visitanteLogo=match.visitanteLogoHistorico || telClientLogo(away);
           match.visitanteEscudo=match.visitanteLogo;
           match.visitanteClubId=away.clubId || '';
           if(!match.visitanteSlotId) match.visitanteSlotId=away.slotId || away.id || away.clubId || '';
@@ -6120,13 +6120,13 @@ function telCupAutoDecorateMatch(comp,match){
   const local=telCupAutoResolveTeam(comp,match.localSlotId,match.localNombre);
   const away=telCupAutoResolveTeam(comp,match.visitanteSlotId,match.visitanteNombre);
   if(local){
-    match.localNombre=telClientCleanName(local.clubNombre || local.nombre || local.nombreVisual) || 'Por definir';
-    match.localLogo=telClientLogo(local);
+    match.localNombre=match.localEquipoHistorico || telClientCleanName(local.clubNombre || local.nombre || local.nombreVisual) || 'Por definir';
+    match.localLogo=match.localLogoHistorico || telClientLogo(local);
     match.localEscudo=match.localLogo;
   }
   if(away){
-    match.visitanteNombre=telClientCleanName(away.clubNombre || away.nombre || away.nombreVisual) || 'Por definir';
-    match.visitanteLogo=telClientLogo(away);
+    match.visitanteNombre=match.visitanteEquipoHistorico || telClientCleanName(away.clubNombre || away.nombre || away.nombreVisual) || 'Por definir';
+    match.visitanteLogo=match.visitanteLogoHistorico || telClientLogo(away);
     match.visitanteEscudo=match.visitanteLogo;
   }
 }
@@ -6530,6 +6530,225 @@ app.delete('/api/admin/noticias/:id',requireAdmin,(req,res)=>{
 });
 
 if(require.main === module){
+
+/* ============================================================
+   TEL: CAMBIO DE EQUIPO SIN BORRAR HISTORIAL
+   - Solo admin.
+   - Los partidos jugados conservan el nombre/escudo antiguo.
+   - Los pendientes/futuros usan el equipo nuevo en el mismo slot.
+   - Se guarda historial en data.json y, en Vercel, también en Upstash
+     gracias a writeLeagueData().
+   ============================================================ */
+function telReplaceNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+function telReplaceSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'equipo';
+}
+function telReplaceCleanName(team){
+  return cleanAdminName(team?.clubNombre || team?.nombre || team?.nombreVisual || team?.name || '');
+}
+function telReplaceSlotId(team, index){
+  if(!team.slotId) team.slotId = String(team.id || team.clubId || team.idClub || telReplaceSlug(telReplaceCleanName(team)) || `slot-${index + 1}`);
+  return String(team.slotId);
+}
+function telReplacePlayed(match){
+  if(!match) return false;
+  const hasDirect = match.localGoles !== null && match.localGoles !== undefined &&
+    match.visitanteGoles !== null && match.visitanteGoles !== undefined;
+  const hasLegacy = match.golesLocal !== null && match.golesLocal !== undefined &&
+    match.golesVisitante !== null && match.golesVisitante !== undefined;
+  return match.finalizado === true || ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) || hasDirect || hasLegacy || /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''));
+}
+function telReplaceLogo(team){
+  return pickLogoUrl(team) || team?.localLogo || team?.visitanteLogo || '';
+}
+function telReplaceFindKnownTeam(data, name){
+  const wanted = telReplaceNorm(name);
+  for(const listName of ['clubes','equipos','teams']){
+    for(const item of (data[listName] || [])){
+      if(telReplaceNorm(telReplaceCleanName(item)) === wanted) return JSON.parse(JSON.stringify(item));
+    }
+  }
+  for(const comp of getCompetitionsAdmin(data)){
+    for(const item of (comp.equipos || [])){
+      if(telReplaceNorm(telReplaceCleanName(item)) === wanted) return JSON.parse(JSON.stringify(item));
+    }
+  }
+  return null;
+}
+function telReplaceMakeTeam(data, name){
+  const found = telReplaceFindKnownTeam(data, name);
+  const team = found || {
+    id: telReplaceSlug(name),
+    slotId: telReplaceSlug(name),
+    nombre: name,
+    clubNombre: name,
+    nombreVisual: name,
+    escudoUrl: `/escudos/${telReplaceSlug(name)}.png`,
+    escudoPath: `escudos/${telReplaceSlug(name)}.png`,
+    escudoFilename: `${telReplaceSlug(name)}.png`
+  };
+  team.nombre = name;
+  team.clubNombre = name;
+  team.nombreVisual = team.nombreVisual || name;
+  team.id = team.id || telReplaceSlug(name);
+  team.slotId = team.slotId || team.id || telReplaceSlug(name);
+  return team;
+}
+function telReplaceCompetitionById(data, compId){
+  const competitions = data.competiciones || data.ligas || data.torneos || [];
+  const wanted = telReplaceNorm(compId);
+  return competitions.find((comp, index)=>{
+    const id = String(comp.id || comp._id || comp.nombre || comp.name || `comp-${index+1}`);
+    return !compId || String(id) === String(compId) || telReplaceNorm(id) === wanted || telReplaceNorm(comp.nombre || comp.name) === wanted;
+  }) || null;
+}
+
+app.get('/api/admin/equipos-competicion', requireAdmin, (req,res)=>{
+  try{
+    const data = readLeagueData();
+    const competitions = getCompetitionsAdmin(data).map((comp, index)=>({
+      id:String(comp.id || comp._id || comp.nombre || comp.name || `comp-${index+1}`),
+      nombre:String(comp.nombre || comp.name || `Competición ${index+1}`),
+      equipos:(comp.equipos || []).map((team, i)=>({
+        slotId:String(team.slotId || team.id || team.clubId || `slot-${i+1}`),
+        nombre:telReplaceCleanName(team) || `Equipo ${i+1}`,
+        escudoUrl:pickLogoUrl(team)
+      }))
+    }));
+    res.set('Cache-Control','no-store');
+    res.json({ok:true, competitions});
+  }catch(error){
+    console.error('[cambiar-equipo] listado:', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+app.post('/api/admin/cambiar-equipo-competicion', requireAdmin, (req,res)=>{
+  try{
+    const data = readLeagueData();
+    const compId = String(req.body?.compId || '').trim();
+    const equipoSale = String(req.body?.equipoSale || req.body?.sale || '').trim();
+    const equipoEntra = String(req.body?.equipoEntra || req.body?.entra || '').trim();
+
+    if(!equipoSale || !equipoEntra){
+      return res.status(400).json({ok:false,message:'Falta el equipo que sale o el equipo que entra.'});
+    }
+
+    const comp = telReplaceCompetitionById(data, compId);
+    if(!comp) return res.status(404).json({ok:false,message:'Competición no encontrada.'});
+
+    comp.equipos = comp.equipos || [];
+    comp.partidos = comp.partidos || [];
+    comp.historialCambiosEquipos = comp.historialCambiosEquipos || [];
+
+    const oldTeam = comp.equipos.find((team, index)=>{
+      telReplaceSlotId(team, index);
+      return telReplaceNorm(telReplaceCleanName(team)) === telReplaceNorm(equipoSale);
+    });
+    if(!oldTeam) return res.status(404).json({ok:false,message:'El equipo que sale no está en esa competición.'});
+
+    const oldSlotId = telReplaceSlotId(oldTeam, comp.equipos.indexOf(oldTeam));
+    const oldName = telReplaceCleanName(oldTeam) || equipoSale;
+    const oldLogo = telReplaceLogo(oldTeam);
+    const oldSnapshot = JSON.parse(JSON.stringify(oldTeam));
+    const newTeam = telReplaceMakeTeam(data, equipoEntra);
+
+    // El equipo nuevo ocupa el MISMO slot para que las jornadas futuras no se rompan.
+    oldTeam.nombre = equipoEntra;
+    oldTeam.clubNombre = equipoEntra;
+    oldTeam.nombreVisual = equipoEntra;
+    oldTeam.name = equipoEntra;
+    oldTeam.reemplazaA = oldName;
+    oldTeam.slotId = oldSlotId;
+    oldTeam.equipoOriginalHistorico = oldSnapshot;
+    for(const key of ['escudoUrl','logoUrl','escudoPath','escudoFilename','logo','escudo','emoji']){
+      if(newTeam[key]) oldTeam[key] = newTeam[key];
+    }
+
+    let jugadosConservados = 0;
+    let futurosActualizados = 0;
+
+    for(const match of comp.partidos){
+      const localUsesOld = String(match.localSlotId || '') === oldSlotId;
+      const awayUsesOld = String(match.visitanteSlotId || '') === oldSlotId;
+      if(!localUsesOld && !awayUsesOld) continue;
+
+      if(telReplacePlayed(match)){
+        // Histórico: no se altera el nombre que se verá en ese partido ya jugado.
+        if(localUsesOld){
+          match.localNombre = oldName;
+          match.localEquipoHistorico = oldName;
+          if(oldLogo) match.localLogoHistorico = oldLogo;
+        }
+        if(awayUsesOld){
+          match.visitanteNombre = oldName;
+          match.visitanteEquipoHistorico = oldName;
+          if(oldLogo) match.visitanteLogoHistorico = oldLogo;
+        }
+        match.historicoCambioEquipo = true;
+        match.equipoOriginal = oldName;
+        match.equipoNuevo = equipoEntra;
+        jugadosConservados++;
+      }else{
+        // Futuro/pendiente: el mismo slot pasa a mostrar el equipo nuevo.
+        if(localUsesOld) match.localNombre = equipoEntra;
+        if(awayUsesOld) match.visitanteNombre = equipoEntra;
+        match.equipoReemplazado = oldName;
+        match.equipoNuevo = equipoEntra;
+        futurosActualizados++;
+      }
+    }
+
+    const cambio = {
+      fecha:new Date().toISOString(),
+      compId:String(comp.id || comp.nombre || ''),
+      equipoSale:oldName,
+      equipoEntra,
+      slotId:oldSlotId,
+      partidosJugadosConservados:jugadosConservados,
+      partidosFuturosActualizados:futurosActualizados
+    };
+    comp.historialCambiosEquipos.push(cambio);
+    data.historialCambiosEquipos = data.historialCambiosEquipos || [];
+    data.historialCambiosEquipos.push(cambio);
+
+    if(isCupCompetitionAdmin(comp)) advanceCupAdmin(comp);
+    else recalcLeagueClassificationAdmin(comp);
+
+    writeLeagueData(data);
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,message:'Equipo cambiado sin borrar historial.',cambio});
+  }catch(error){
+    console.error('[cambiar-equipo]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+app.get('/admin-cambiar-equipo.html', (req,res)=>{
+  if(!telHasAdminSession(req)) return res.redirect('/?admin_login=1#login');
+  const file = path.join(__dirname, 'admin-cambiar-equipo.html');
+  if(!fs.existsSync(file)) return res.status(404).type('text/plain').send('Falta admin-cambiar-equipo.html');
+  res.set({
+    'Cache-Control':'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma':'no-cache',
+    'Expires':'0'
+  });
+  return res.sendFile(file);
+});
+
+
   app.listen(PORT, () => {
     console.log(`🌐 Web Thunder Elite League lista en http://localhost:${PORT}`);
   });
