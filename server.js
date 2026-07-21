@@ -1343,13 +1343,8 @@ function telCompTableRecalc(comp){
 }
 function telCompTableApply(data){
   if(!data || typeof data !== 'object') return data;
-  let __telChanged = false;
-  try{ __telChanged = telForceFirstTwoMatchdays(data) || false; }catch(_e){}
   const comps = data.competiciones || data.ligas || data.torneos || [];
   comps.forEach(comp=>telCompTableRecalc(comp));
-  if(__telChanged){
-    try{ fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8'); }catch(_e){}
-  }
   return data;
 }
 function telCompTableSave(data){
@@ -1391,6 +1386,236 @@ app.get('/api/admin/recalcular-clasificacion-competicion', requireAdmin, (req,re
 });
 
 
+
+
+/* ============================================================
+   TEL JORNADAS 1 Y 2 EXACTAS COMO LAS FOTOS
+   - No reutiliza partidos por posición.
+   - Solo conserva resultado si el cruce es exactamente el mismo.
+   - Si un equipo ya no está activo, no aparece en clasificación.
+   - El rival activo conserva PJ, goles y puntos.
+   ============================================================ */
+const TEL_JORNADAS_FOTO_EXACTAS = {
+  1: [
+    ['Catalunya Lliure', 'Ghost Unit'],
+    ['Alegria FCA', 'Unió catalana'],
+    ['COVAYERS FC', 'BLACK MECANIC'],
+    ['Fuzeteam FC B', 'Hamoods CF'],
+    ['Billar FC', 'Coral Springs A']
+  ],
+  2: [
+    ['Unió catalana', 'Catalunya Lliure'],
+    ['BLACK MECANIC', 'Ghost Unit'],
+    ['Hamoods CF', 'Alegria FCA'],
+    ['Coral Springs A', 'COVAYERS FC'],
+    ['Billar FC', 'Fuzeteam FC B']
+  ]
+};
+function telFotoExactNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^\w]+/g,' ')
+    .trim();
+}
+function telFotoExactSame(a,b){
+  return telFotoExactNorm(a) === telFotoExactNorm(b);
+}
+function telFotoExactIsCup(comp){
+  const txt = telFotoExactNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telFotoExactNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telFotoExactTeamName(team){
+  return String(team?.nombre || team?.clubNombre || team?.name || team?.nombreVisual || '').trim();
+}
+function telFotoExactSlot(comp, name){
+  const wanted = telFotoExactNorm(name);
+  const teams = Array.isArray(comp.equipos) ? comp.equipos : [];
+  for(let i=0;i<teams.length;i++){
+    const team = teams[i] || {};
+    const values = [team.nombre, team.clubNombre, team.nombreVisual, team.name, team.id, team.clubId, team.slotId].filter(Boolean);
+    if(values.some(value => telFotoExactNorm(value) === wanted)){
+      return String(team.slotId || team.id || team.clubId || team.idClub || `slot-${i+1}`);
+    }
+  }
+
+  // Si el equipo ya no está en la liga, conserva el slot histórico si existía en partidos antiguos.
+  const matches = Array.isArray(comp.partidos) ? comp.partidos : [];
+  for(const match of matches){
+    if(telFotoExactSame(match.localNombre || match.nombreLocal || match.equipoLocal, name) && match.localSlotId){
+      return String(match.localSlotId);
+    }
+    if(telFotoExactSame(match.visitanteNombre || match.nombreVisitante || match.equipoVisitante, name) && match.visitanteSlotId){
+      return String(match.visitanteSlotId);
+    }
+  }
+
+  return `hist-${wanted.replace(/\s+/g,'-') || 'equipo'}`;
+}
+function telFotoExactValidScore(value){
+  return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
+}
+function telFotoExactPlayed(match){
+  return !!match && (
+    match.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
+    (telFotoExactValidScore(match.localGoles) && telFotoExactValidScore(match.visitanteGoles)) ||
+    (telFotoExactValidScore(match.golesLocal) && telFotoExactValidScore(match.golesVisitante)) ||
+    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
+  );
+}
+function telFotoExactGoals(match, side){
+  if(!match) return null;
+  if(side === 'local'){
+    if(telFotoExactValidScore(match.localGoles)) return Number(match.localGoles);
+    if(telFotoExactValidScore(match.golesLocal)) return Number(match.golesLocal);
+  }else{
+    if(telFotoExactValidScore(match.visitanteGoles)) return Number(match.visitanteGoles);
+    if(telFotoExactValidScore(match.golesVisitante)) return Number(match.golesVisitante);
+  }
+  const parsed = String(match.resultado || '').match(/(\d+)\s*[-:]\s*(\d+)/);
+  if(parsed) return side === 'local' ? Number(parsed[1]) : Number(parsed[2]);
+  return null;
+}
+function telFotoExactFindSameOld(oldMatches, jornada, local, visitante){
+  return oldMatches.find(match=>{
+    if(Number(match.jornada || match.round || 0) !== Number(jornada)) return false;
+    return telFotoExactSame(match.localNombre || match.nombreLocal || match.equipoLocal, local) &&
+      telFotoExactSame(match.visitanteNombre || match.nombreVisitante || match.equipoVisitante, visitante);
+  }) || null;
+}
+function telFotoExactLooksLikeLeague(comp){
+  if(!comp || telFotoExactIsCup(comp)) return false;
+
+  const names = new Set();
+
+  (comp.equipos || []).forEach(team=>{
+    [team.nombre, team.clubNombre, team.nombreVisual, team.name].forEach(value=>{
+      if(value) names.add(telFotoExactNorm(value));
+    });
+  });
+
+  (comp.partidos || []).forEach(match=>{
+    [match.localNombre, match.nombreLocal, match.equipoLocal, match.visitanteNombre, match.nombreVisitante, match.equipoVisitante].forEach(value=>{
+      if(value) names.add(telFotoExactNorm(value));
+    });
+  });
+
+  const expected = Object.values(TEL_JORNADAS_FOTO_EXACTAS).flat(2).map(telFotoExactNorm);
+  const hits = expected.filter(name=>names.has(name)).length;
+
+  // Si no hay nombres suficientes, usamos la primera liga no copa.
+  return hits >= 4;
+}
+function telFotoExactApplyToComp(comp, compIndex){
+  if(!comp) return false;
+
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
+
+  const oldMatches = comp.partidos || [];
+  const future = oldMatches.filter(match=>{
+    const jornada = Number(match.jornada || match.round || 0);
+    return jornada !== 1 && jornada !== 2;
+  });
+
+  const fixed = [];
+
+  for(const [jornada, games] of Object.entries(TEL_JORNADAS_FOTO_EXACTAS)){
+    games.forEach(([local, visitante], index)=>{
+      const oldSame = telFotoExactFindSameOld(oldMatches, jornada, local, visitante);
+      const played = telFotoExactPlayed(oldSame);
+      const localGoals = telFotoExactGoals(oldSame, 'local');
+      const awayGoals = telFotoExactGoals(oldSame, 'away');
+      const id = `${comp.id || comp.nombre || `liga-${compIndex+1}`}-j${jornada}-p${index+1}`;
+
+      fixed.push({
+        ...(oldSame || {}),
+        id,
+        jornada:Number(jornada),
+        round:Number(jornada),
+        ordenJornada:index+1,
+        localNombre:local,
+        nombreLocal:local,
+        equipoLocal:local,
+        visitanteNombre:visitante,
+        nombreVisitante:visitante,
+        equipoVisitante:visitante,
+        localSlotId:telFotoExactSlot(comp, local),
+        visitanteSlotId:telFotoExactSlot(comp, visitante),
+        localGoles:localGoals,
+        visitanteGoles:awayGoals,
+        golesLocal:localGoals,
+        golesVisitante:awayGoals,
+        resultado: played && localGoals !== null && awayGoals !== null ? `${localGoals}-${awayGoals}` : (oldSame?.resultado || ''),
+        estado: played ? 'finalizado' : (oldSame?.estado || 'pendiente'),
+        finalizado: played,
+        fecha: oldSame?.fecha || oldSame?.date || '',
+        hora: oldSame?.hora || oldSame?.time || '',
+        fixtureOriginalFoto:true
+      });
+    });
+  }
+
+  comp.partidos = [...fixed, ...future].sort((a,b)=>{
+    const ja = Number(a.jornada || 9999);
+    const jb = Number(b.jornada || 9999);
+    if(ja !== jb) return ja - jb;
+    return Number(a.ordenJornada || 9999) - Number(b.ordenJornada || 9999);
+  });
+
+  return true;
+}
+function telFotoExactApply(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  let target = comps.find(telFotoExactLooksLikeLeague);
+
+  if(!target){
+    target = comps.find(comp=>!telFotoExactIsCup(comp));
+  }
+
+  if(target){
+    const index = comps.indexOf(target);
+    telFotoExactApplyToComp(target, index);
+  }
+
+  // Recalcula clasificación solo con equipos activos actuales de comp.equipos.
+  if(typeof telCompTableApply === 'function'){
+    telCompTableApply(data);
+  }
+
+  return data;
+}
+function telFotoExactSave(data){
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+  return data;
+}
+app.get('/api/admin/fijar-jornadas-fotos-exacto', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telFotoExactApply(data);
+    telFotoExactSave(data);
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Jornada 1 y Jornada 2 fijadas exactamente como las fotos.',
+      jornada1:TEL_JORNADAS_FOTO_EXACTAS[1],
+      jornada2:TEL_JORNADAS_FOTO_EXACTAS[2]
+    });
+  }catch(error){
+    console.error('[fijar-jornadas-fotos-exacto]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -1402,7 +1627,7 @@ app.get("/api/data", (req, res) => {
     config: {}
   });
 
-  telCompTableApply(data);
+  telFotoExactApply(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -1593,7 +1818,7 @@ app.get("/api/clubes/:clubId", (req, res) => {
 app.get("/api/competiciones", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, { competiciones: [] });
-  telCompTableApply(data);
+  telFotoExactApply(data);
   res.json(data.competiciones || []);
 });
 
