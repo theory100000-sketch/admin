@@ -988,592 +988,13 @@ app.get('/api/sync-debug', async (req,res)=>{
 
 
 
-/* === TEL PATCH JORNADAS FOTO 1 Y 2
-   Mantiene Jornada 1 y Jornada 2 exactamente como las fotos.
-   Si ya hay resultados guardados, NO los borra.
-   Si cambias un equipo, partidos jugados conservan antiguo y futuros pasan al nuevo.
-*/
-function telFotoNorm(v){
-  return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,' ').trim();
-}
-function telFotoSlug(v){
-  return String(v||'equipo').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,'') || 'equipo';
-}
-function telFotoName(t){
-  return String(t?.nombre || t?.clubNombre || t?.name || t?.nombreVisual || '').trim();
-}
-function telFotoSlot(t){
-  if(!t.slotId) t.slotId = String(t.id || t.clubId || t.idClub || telFotoSlug(telFotoName(t)));
-  return String(t.slotId);
-}
-function telFotoComps(data){
-  return data.competiciones || data.ligas || data.torneos || [];
-}
-function telFotoIsCup(comp){
-  const txt = telFotoNorm(`${comp?.nombre||''} ${comp?.tipo||''} ${comp?.formato||''} ${comp?.formatoNombre||''}`);
-  if(txt.includes('copa') || txt.includes('elimin')) return true;
-  return (comp?.partidos||[]).some(p=>{
-    const r = telFotoNorm(`${p?.rondaNombre||''} ${p?.fase||''}`);
-    return r.includes('cuarto') || r.includes('semi') || r.includes('final');
-  });
-}
-function telFotoLeague(data){
-  const comps = telFotoComps(data);
-  let league = comps.find(c=>{
-    if(telFotoIsCup(c)) return false;
-    const n = telFotoNorm(c.nombre || c.name || '');
-    return n.includes('elite') || n.includes('liga') || n.includes('league');
-  }) || comps.find(c=>!telFotoIsCup(c));
-
-  if(!league){
-    league = {id:'elite-league', nombre:'Élite League', tipo:'liga', equipos:[], partidos:[]};
-    if(!data.competiciones) data.competiciones = comps;
-    data.competiciones.push(league);
-  }
-
-  if(!league.id) league.id = telFotoSlug(league.nombre || 'elite-league');
-  league.tipo = league.tipo || 'liga';
-  league.equipos = league.equipos || [];
-  league.partidos = league.partidos || [];
-  league.partidosHistoricos = league.partidosHistoricos || [];
-  return league;
-}
-function telFotoFindTeam(data, comp, name){
-  const want = telFotoNorm(name);
-  for(const t of (comp?.equipos||[])){
-    const values=[t.slotId,t.id,t.clubId,t.idClub,t.nombre,t.clubNombre,t.name,t.nombreVisual].filter(Boolean);
-    if(values.some(v=>String(v)===String(name)||telFotoNorm(v)===want)) return t;
-  }
-  for(const key of ['clubes','equipos','teams']){
-    for(const t of (data[key]||[])){
-      const values=[t.slotId,t.id,t.clubId,t.idClub,t.nombre,t.clubNombre,t.name,t.nombreVisual].filter(Boolean);
-      if(values.some(v=>String(v)===String(name)||telFotoNorm(v)===want)) return JSON.parse(JSON.stringify(t));
-    }
-  }
-  for(const c of telFotoComps(data)){
-    for(const t of (c.equipos||[])){
-      const values=[t.slotId,t.id,t.clubId,t.idClub,t.nombre,t.clubNombre,t.name,t.nombreVisual].filter(Boolean);
-      if(values.some(v=>String(v)===String(name)||telFotoNorm(v)===want)) return JSON.parse(JSON.stringify(t));
-    }
-  }
-  return null;
-}
-function telFotoEnsureTeam(data, comp, name){
-  let t = telFotoFindTeam(data, comp, name);
-  if(!t){
-    t = {id:telFotoSlug(name), slotId:telFotoSlug(name), nombre:name, clubNombre:name,
-      escudoUrl:`/escudos/${telFotoSlug(name)}.png`,
-      escudoPath:`escudos/${telFotoSlug(name)}.png`,
-      escudoFilename:`${telFotoSlug(name)}.png`
-    };
-    comp.equipos.push(t);
-  }else if(!(comp.equipos||[]).includes(t)){
-    const existing = comp.equipos.find(x=>telFotoNorm(telFotoName(x))===telFotoNorm(name));
-    if(existing) t = existing;
-    else comp.equipos.push(t);
-  }
-  t.nombre = name;
-  t.clubNombre = name;
-  if(!t.id) t.id = telFotoSlug(name);
-  if(!t.slotId) t.slotId = String(t.id || telFotoSlug(name));
-  return t;
-}
-function telFotoValidScore(v){
-  return v !== null && v !== undefined && v !== '' && !Number.isNaN(Number(v));
-}
-function telFotoPlayed(m){
-  return !!m && (
-    m.finalizado === true ||
-    ['finalizado','jugado','completado'].includes(String(m.estado||'').toLowerCase()) ||
-    (telFotoValidScore(m.localGoles) && telFotoValidScore(m.visitanteGoles)) ||
-    (telFotoValidScore(m.golesLocal) && telFotoValidScore(m.golesVisitante)) ||
-    /\d+\s*[-:]\s*\d+/.test(String(m.resultado||''))
-  );
-}
-function telFotoGoals(m, side){
-  if(!m) return null;
-  if(side === 'local'){
-    if(telFotoValidScore(m.localGoles)) return Number(m.localGoles);
-    if(telFotoValidScore(m.golesLocal)) return Number(m.golesLocal);
-  }else{
-    if(telFotoValidScore(m.visitanteGoles)) return Number(m.visitanteGoles);
-    if(telFotoValidScore(m.golesVisitante)) return Number(m.golesVisitante);
-  }
-  const r = String(m.resultado||'').match(/(\d+)\s*[-:]\s*(\d+)/);
-  if(r) return side === 'local' ? Number(r[1]) : Number(r[2]);
-  return null;
-}
-function telFotoSamePair(match, comp, local, away){
-  const a = telFotoNorm(local), b = telFotoNorm(away);
-  const localNames = [match.localNombre, match.nombreLocal, match.equipoLocal].filter(Boolean).map(telFotoNorm);
-  const awayNames = [match.visitanteNombre, match.nombreVisitante, match.equipoVisitante].filter(Boolean).map(telFotoNorm);
-
-  const localTeam = (comp.equipos||[]).find(t=>String(t.slotId||'')===String(match.localSlotId||''));
-  const awayTeam = (comp.equipos||[]).find(t=>String(t.slotId||'')===String(match.visitanteSlotId||''));
-  if(localTeam) localNames.push(telFotoNorm(telFotoName(localTeam)));
-  if(awayTeam) awayNames.push(telFotoNorm(telFotoName(awayTeam)));
-
-  return localNames.includes(a) && awayNames.includes(b);
-}
-function telFotoApplyOfficialJornadas(data){
-  if(!data || typeof data !== 'object') return data;
-  const league = telFotoLeague(data);
-
-  const jornadas = {
-    1: [
-      ['Catalunya Lliure', 'Ghost Unit'],
-      ['Alegria FCA', 'Unió catalana'],
-      ['COVAYERS FC', 'BLACK MECANIC'],
-      ['Fuzeteam FC B', 'Hamoods CF'],
-      ['Billar FC', 'Coral Springs A']
-    ],
-    2: [
-      ['Unió catalana', 'Catalunya Lliure'],
-      ['BLACK MECANIC', 'Ghost Unit'],
-      ['Hamoods CF', 'Alegria FCA'],
-      ['Coral Springs A', 'COVAYERS FC'],
-      ['Billar FC', 'Fuzeteam FC B']
-    ]
-  };
-
-  const allTeams = [...new Set(Object.values(jornadas).flat(2))];
-  const teamMap = new Map();
-  for(const name of allTeams){
-    const t = telFotoEnsureTeam(data, league, name);
-    teamMap.set(telFotoNorm(name), t);
-  }
-  const slotOf = name => telFotoSlot(teamMap.get(telFotoNorm(name)));
-
-  const old = Array.isArray(league.partidos) ? league.partidos : [];
-  const used = new Set();
-  const fixed = [];
-
-  for(const [jornada, games] of Object.entries(jornadas)){
-    games.forEach(([local,away], index)=>{
-      const id = `${league.id}-j${jornada}-p${index+1}`;
-      let oldIndex = old.findIndex((m,i)=>{
-        if(used.has(i)) return false;
-        const j = Number(m.jornada || m.round || 0);
-        if(j !== Number(jornada)) return false;
-        return String(m.id||'') === id || telFotoSamePair(m, league, local, away);
-      });
-      const m = oldIndex >= 0 ? old[oldIndex] : null;
-      if(oldIndex >= 0) used.add(oldIndex);
-
-      const lg = telFotoGoals(m,'local');
-      const vg = telFotoGoals(m,'away');
-      const played = telFotoPlayed(m);
-
-      fixed.push({
-        ...(m || {}),
-        id,
-        jornada:Number(jornada),
-        round:Number(jornada),
-        localSlotId: slotOf(local),
-        visitanteSlotId: slotOf(away),
-        localNombre: local,
-        visitanteNombre: away,
-        nombreLocal: local,
-        nombreVisitante: away,
-        localGoles: lg,
-        visitanteGoles: vg,
-        golesLocal: lg,
-        golesVisitante: vg,
-        resultado: played && lg !== null && vg !== null ? `${lg}-${vg}` : (m?.resultado || ''),
-        estado: played ? 'finalizado' : (m?.estado || 'pendiente'),
-        finalizado: played,
-        fecha: m?.fecha || m?.date || '',
-        hora: m?.hora || m?.time || ''
-      });
-    });
-  }
-
-  const kept = [];
-  old.forEach((m,i)=>{
-    if(used.has(i)) return;
-    const j = Number(m.jornada || m.round || 0);
-    if(j === 1 || j === 2){
-      if(telFotoPlayed(m)){
-        const hist = JSON.parse(JSON.stringify(m));
-        hist.historico = true;
-        hist.motivoHistorico = 'Archivado al fijar Jornada 1 y Jornada 2 como foto';
-        league.partidosHistoricos.push(hist);
-      }
-      return;
-    }
-    kept.push(m);
-  });
-
-  league.partidos = [...fixed, ...kept];
-
-  if(typeof telReplaceTeamApplyActive === 'function'){
-    telReplaceTeamApplyActive(data);
-  }
-
-  data.historialCambiosJornadas = data.historialCambiosJornadas || [];
-  const last = data.historialCambiosJornadas[data.historialCambiosJornadas.length - 1];
-  if(!last || last.accion !== 'jornada-1-2-igual-foto-sin-borrar-resultados'){
-    data.historialCambiosJornadas.push({
-      fecha:new Date().toISOString(),
-      accion:'jornada-1-2-igual-foto-sin-borrar-resultados',
-      competicion:league.nombre||league.id,
-      partidosFijados:fixed.length
-    });
-  }
-  return data;
-}
-function telFotoSave(data){
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data,null,2), 'utf8');
-  return data;
-}
-function telFotoForceAndSave(data){
-  telFotoApplyOfficialJornadas(data);
-  if(typeof telFinalReplaceApplyActive === 'function'){
-    telFinalReplaceApplyActive(data);
-  }
-  if(typeof telPanelTeamsApply === 'function') telPanelTeamsApply(data);
-  telFotoSave(data);
-  return data;
-}
-
-
-
 /* ============================================================
-   TEL FIX FINAL CAMBIO EQUIPO
-   - No resetea resultados.
-   - El equipo que sale no aparece en clasificación.
-   - Los partidos jugados siguen contando para el rival activo.
-   - Los pendientes pasan al equipo nuevo.
+   TEL FIX DEFINITIVO CLASIFICACIÓN
+   La clasificación sale SOLO de comp.equipos actual.
+   Si un club se saca desde el panel y ya no está en comp.equipos,
+   no aparece en clasificación aunque tenga partidos/resultados antiguos.
    ============================================================ */
-function telFinalReplaceNorm(value){
-  return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,' ').trim();
-}
-function telFinalReplaceSlug(value){
-  return String(value || 'equipo').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,'') || 'equipo';
-}
-function telFinalReplaceName(team){
-  return String(team?.nombre || team?.clubNombre || team?.name || team?.nombreVisual || '').trim();
-}
-function telFinalReplaceSlot(team){
-  if(!team.slotId) team.slotId = String(team.id || team.clubId || team.idClub || telFinalReplaceSlug(telFinalReplaceName(team)));
-  return String(team.slotId);
-}
-function telFinalReplacePlayed(match){
-  const valid = v => v !== null && v !== undefined && v !== '' && !Number.isNaN(Number(v));
-  return !!match && (
-    match.finalizado === true ||
-    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
-    (valid(match.localGoles) && valid(match.visitanteGoles)) ||
-    (valid(match.golesLocal) && valid(match.golesVisitante)) ||
-    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
-  );
-}
-function telFinalReplaceComps(data){
-  return data.competiciones || data.ligas || data.torneos || [];
-}
-function telFinalReplaceCompId(comp,index){
-  if(!comp.id) comp.id = telFinalReplaceSlug(comp.nombre || comp.name || `competicion-${index+1}`);
-  return String(comp.id);
-}
-function telFinalReplaceFindTeam(data, comp, search){
-  const raw = String(search || '').trim();
-  const wanted = telFinalReplaceNorm(raw);
-
-  for(const team of (comp?.equipos || [])){
-    const values = [team.slotId, team.id, team.clubId, team.idClub, team.nombre, team.clubNombre, team.nombreVisual, team.name].filter(Boolean);
-    if(values.some(v => String(v) === raw || telFinalReplaceNorm(v) === wanted)) return team;
-  }
-
-  for(const key of ['clubes','equipos','teams']){
-    for(const team of (data[key] || [])){
-      const values = [team.slotId, team.id, team.clubId, team.idClub, team.nombre, team.clubNombre, team.nombreVisual, team.name].filter(Boolean);
-      if(values.some(v => String(v) === raw || telFinalReplaceNorm(v) === wanted)) return JSON.parse(JSON.stringify(team));
-    }
-  }
-
-  for(const other of telFinalReplaceComps(data)){
-    for(const team of (other.equipos || [])){
-      const values = [team.slotId, team.id, team.clubId, team.idClub, team.nombre, team.clubNombre, team.nombreVisual, team.name].filter(Boolean);
-      if(values.some(v => String(v) === raw || telFinalReplaceNorm(v) === wanted)) return JSON.parse(JSON.stringify(team));
-    }
-  }
-
-  return null;
-}
-function telFinalReplaceMakeTeam(data, comp, name){
-  let team = telFinalReplaceFindTeam(data, comp, name);
-  if(!team){
-    team = {
-      id: telFinalReplaceSlug(name),
-      slotId: telFinalReplaceSlug(name),
-      nombre: name,
-      clubNombre: name,
-      escudoUrl: `/escudos/${telFinalReplaceSlug(name)}.png`,
-      escudoPath: `escudos/${telFinalReplaceSlug(name)}.png`,
-      escudoFilename: `${telFinalReplaceSlug(name)}.png`
-    };
-  }
-
-  team.nombre = name;
-  team.clubNombre = name;
-  team.nombreVisual = name;
-  team.name = name;
-
-  if(!team.id) team.id = telFinalReplaceSlug(name);
-  if(!team.slotId) team.slotId = String(team.id || telFinalReplaceSlug(name));
-
-  return team;
-}
-function telFinalReplaceGetComp(data, compId){
-  const comps = telFinalReplaceComps(data);
-  return comps.find((comp,index) => {
-    const id = telFinalReplaceCompId(comp,index);
-    return compId ? String(id) === String(compId) : index === 0;
-  }) || null;
-}
-function telFinalReplaceEnsureHistoricTeam(comp, oldTeam, oldName, oldSlot){
-  comp.equipos = comp.equipos || [];
-  const historicSlot = `${oldSlot}__historico__${telFinalReplaceSlug(oldName)}`;
-
-  let historic = comp.equipos.find(team => String(team.slotId || '') === historicSlot);
-  if(!historic){
-    historic = JSON.parse(JSON.stringify(oldTeam || {}));
-    historic.id = historic.id || historicSlot;
-    historic.slotId = historicSlot;
-    comp.equipos.push(historic);
-  }
-
-  historic.nombre = oldName;
-  historic.clubNombre = oldName;
-  historic.nombreVisual = oldName;
-  historic.name = oldName;
-  historic.historico = true;
-  historic.equipoHistorico = true;
-  historic.excluidoClasificacion = true;
-  historic.eliminadoDeCompeticion = true;
-  historic.slotOriginalAntesDeCambio = oldSlot;
-
-  return historicSlot;
-}
-function telFinalReplaceApply(data, replacement){
-  const comp = telFinalReplaceGetComp(data, replacement.compId || '');
-  if(!comp) return {ok:false, reason:'competition_not_found'};
-
-  comp.equipos = comp.equipos || [];
-  comp.partidos = comp.partidos || [];
-
-  const sale = String(replacement.equipoSale || replacement.sale || '').trim();
-  const entra = String(replacement.equipoEntra || replacement.entra || '').trim();
-
-  if(!sale || !entra) return {ok:false, reason:'missing_names'};
-
-  let oldTeam = telFinalReplaceFindTeam(data, comp, replacement.oldSlot || sale);
-
-  if(!oldTeam){
-    oldTeam = {
-      id: telFinalReplaceSlug(sale),
-      slotId: telFinalReplaceSlug(sale),
-      nombre: sale,
-      clubNombre: sale
-    };
-    comp.equipos.push(oldTeam);
-  }
-
-  if(!comp.equipos.includes(oldTeam)){
-    const existing = comp.equipos.find(t => telFinalReplaceNorm(telFinalReplaceName(t)) === telFinalReplaceNorm(sale));
-    if(existing) oldTeam = existing;
-    else comp.equipos.push(oldTeam);
-  }
-
-  const oldName = replacement.equipoSaleNombreReal || telFinalReplaceName(oldTeam) || sale;
-  const oldSlot = String(replacement.oldSlot || telFinalReplaceSlot(oldTeam));
-  const newTeam = telFinalReplaceMakeTeam(data, comp, entra);
-  const historicSlot = telFinalReplaceEnsureHistoricTeam(comp, oldTeam, oldName, oldSlot);
-
-  // El slot original queda para el equipo nuevo. Así el calendario futuro se mantiene.
-  oldTeam.nombre = entra;
-  oldTeam.clubNombre = entra;
-  oldTeam.nombreVisual = entra;
-  oldTeam.name = entra;
-  oldTeam.slotId = oldSlot;
-  oldTeam.reemplazaA = oldName;
-  oldTeam.historico = false;
-  oldTeam.equipoHistorico = false;
-  oldTeam.excluidoClasificacion = false;
-  oldTeam.eliminadoDeCompeticion = false;
-  oldTeam.equipoOriginalHistorico = oldTeam.equipoOriginalHistorico || {nombre:oldName, slotId:oldSlot};
-
-  for(const key of ['escudoUrl','logoUrl','escudoPath','escudoFilename','logo']){
-    if(newTeam[key]) oldTeam[key] = newTeam[key];
-  }
-
-  let playedKept = 0;
-  let futureChanged = 0;
-
-  for(const match of comp.partidos){
-    const localOldSlot = String(match.localSlotId || '') === oldSlot;
-    const awayOldSlot = String(match.visitanteSlotId || '') === oldSlot;
-    const localOldName = telFinalReplaceNorm(match.localNombre || match.nombreLocal || match.equipoLocal) === telFinalReplaceNorm(oldName);
-    const awayOldName = telFinalReplaceNorm(match.visitanteNombre || match.nombreVisitante || match.equipoVisitante) === telFinalReplaceNorm(oldName);
-
-    if(!localOldSlot && !awayOldSlot && !localOldName && !awayOldName) continue;
-
-    if(telFinalReplacePlayed(match)){
-      // IMPORTANTE: no tocar marcador. Solo movemos el equipo antiguo a slot histórico.
-      if(localOldSlot || localOldName){
-        match.localSlotId = historicSlot;
-        match.localNombre = oldName;
-        match.nombreLocal = oldName;
-        match.localEquipoHistorico = oldName;
-      }
-
-      if(awayOldSlot || awayOldName){
-        match.visitanteSlotId = historicSlot;
-        match.visitanteNombre = oldName;
-        match.nombreVisitante = oldName;
-        match.visitanteEquipoHistorico = oldName;
-      }
-
-      match.historicoCambioEquipo = true;
-      match.equipoOriginal = oldName;
-      match.equipoNuevo = entra;
-      playedKept++;
-    }else{
-      // Pendientes/futuros van al equipo nuevo.
-      if(localOldSlot || localOldName){
-        match.localSlotId = oldSlot;
-        match.localNombre = entra;
-        match.nombreLocal = entra;
-      }
-
-      if(awayOldSlot || awayOldName){
-        match.visitanteSlotId = oldSlot;
-        match.visitanteNombre = entra;
-        match.nombreVisitante = entra;
-      }
-
-      match.equipoReemplazado = oldName;
-      match.equipoNuevo = entra;
-      futureChanged++;
-    }
-  }
-
-  if(typeof recalcLeagueClassificationAdmin === 'function'){
-    recalcLeagueClassificationAdmin(comp);
-  }
-
-  return {
-    ok:true,
-    compId:String(comp.id || ''),
-    equipoSale:oldName,
-    equipoEntra:entra,
-    oldSlot,
-    historicSlot,
-    partidosJugadosConservados:playedKept,
-    partidosFuturosActualizados:futureChanged
-  };
-}
-function telFinalReplaceApplyActive(data){
-  const list = Array.isArray(data.equipoReemplazosActivos) ? data.equipoReemplazosActivos : [];
-  return list.map(item => telFinalReplaceApply(data, item));
-}
-
-app.get('/admin-reemplazar-equipo', requireAdmin, (req,res)=>{
-  res.set('Cache-Control','no-store');
-  res.type('html').send(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reemplazar equipo</title><style>body{margin:0;background:#071020;color:#fff;font-family:Arial,sans-serif;padding:36px}.card{max-width:900px;margin:auto;background:#0b1428;border:1px solid rgba(255,255,255,.14);border-radius:20px;padding:28px}input,button{width:100%;box-sizing:border-box;padding:15px;border-radius:12px;margin-top:8px}input{border:1px solid rgba(255,255,255,.18);background:#071020;color:#fff;font-weight:900}button{border:0;background:#9d35ff;color:#fff;font-weight:1000}label{display:block;margin-top:16px;font-weight:900}.ok{color:#baff35}.bad{color:#ff6680}</style></head><body><div class="card"><h1>Reemplazar equipo</h1><p>Los partidos ya jugados mantienen el equipo antiguo y su resultado. Los pendientes/futuros pasan al equipo nuevo.</p><label>ID competición opcional</label><input id="compId" placeholder="vacío = primera competición"><label>Equipo que sale</label><input id="sale" placeholder="Ej: BLACK MECANIC"><label>Equipo que entra</label><input id="entra" placeholder="Ej: Nuevo FC"><button onclick="guardar()">Guardar reemplazo</button><p id="msg"></p></div><script>async function guardar(){const msg=document.getElementById('msg');msg.textContent='Guardando...';msg.className='';const body={compId:compId.value.trim(),equipoSale:sale.value.trim(),equipoEntra:entra.value.trim()};const res=await fetch('/api/admin/reemplazar-equipo-competicion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json().catch(()=>({ok:false,message:'Error'}));if(!data.ok){msg.textContent=data.message||'No se pudo guardar';msg.className='bad';return;}msg.textContent='Guardado. Jugados conservados: '+(data.result?.partidosJugadosConservados||0)+' · Futuros actualizados: '+(data.result?.partidosFuturosActualizados||0);msg.className='ok';}</script></body></html>`);
-});
-
-app.post('/api/admin/reemplazar-equipo-competicion', requireAdmin, (req,res)=>{
-  try{
-    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
-    const compId = String(req.body?.compId || '').trim();
-    const equipoSale = String(req.body?.equipoSale || req.body?.sale || '').trim();
-    const equipoEntra = String(req.body?.equipoEntra || req.body?.entra || '').trim();
-
-    if(!equipoSale || !equipoEntra){
-      return res.status(400).json({ok:false,message:'Falta equipoSale o equipoEntra.'});
-    }
-
-    data.equipoReemplazosActivos = Array.isArray(data.equipoReemplazosActivos) ? data.equipoReemplazosActivos : [];
-
-    data.equipoReemplazosActivos = data.equipoReemplazosActivos.filter(item =>
-      !(String(item.compId || '') === compId && telFinalReplaceNorm(item.equipoSale) === telFinalReplaceNorm(equipoSale))
-    );
-
-    const replacement = {
-      fecha:new Date().toISOString(),
-      compId,
-      equipoSale,
-      equipoEntra
-    };
-
-    data.equipoReemplazosActivos.push(replacement);
-
-    const result = telFinalReplaceApply(data, replacement);
-
-    data.historialCambiosEquipos = Array.isArray(data.historialCambiosEquipos) ? data.historialCambiosEquipos : [];
-    data.historialCambiosEquipos.push({
-      fecha:new Date().toISOString(),
-      compId:result.compId || compId,
-      equipoSale,
-      equipoEntra,
-      oldSlot:result.oldSlot || '',
-      historicSlot:result.historicSlot || '',
-      partidosJugadosConservados:result.partidosJugadosConservados || 0,
-      partidosFuturosActualizados:result.partidosFuturosActualizados || 0
-    });
-
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
-
-    res.set('Cache-Control','no-store');
-    res.json({ok:true,message:'Equipo reemplazado sin resetear resultados ni dejar el equipo antiguo en clasificación.',result});
-  }catch(error){
-    console.error('[reemplazar-equipo-competicion]', error);
-    res.status(500).json({ok:false,message:String(error.message || error)});
-  }
-});
-
-
-app.get('/api/admin/aplicar-jornadas-foto', requireAdmin, (req,res)=>{
-  try{
-    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
-    telFotoForceAndSave(data);
-    res.set('Cache-Control','no-store');
-    res.json({
-      ok:true,
-      message:'Jornada 1 y Jornada 2 quedaron igual que la foto y sin borrar resultados.',
-      jornada1:[
-        ['Catalunya Lliure','Ghost Unit'],
-        ['Alegria FCA','Unió catalana'],
-        ['COVAYERS FC','BLACK MECANIC'],
-        ['Fuzeteam FC B','Hamoods CF'],
-        ['Billar FC','Coral Springs A']
-      ],
-      jornada2:[
-        ['Unió catalana','Catalunya Lliure'],
-        ['BLACK MECANIC','Ghost Unit'],
-        ['Hamoods CF','Alegria FCA'],
-        ['Coral Springs A','COVAYERS FC'],
-        ['Billar FC','Fuzeteam FC B']
-      ]
-    });
-  }catch(error){
-    res.status(500).json({ok:false,message:String(error.message||error)});
-  }
-});
-/* === FIN TEL PATCH JORNADAS FOTO 1 Y 2 */
-
-
-
-
-/* ============================================================
-   TEL LIMPIAR EQUIPOS SACADOS DE CLASIFICACIÓN
-   - Aunque el panel quite equipos, no vuelven a aparecer.
-   - La clasificación se recalcula solo con equipos activos.
-   - Los partidos antiguos contra equipos sacados siguen contando
-     para el rival activo.
-   ============================================================ */
-function telCleanRemovedNorm(value){
+function telCompTableNorm(value){
   return String(value || '')
     .toLowerCase()
     .normalize('NFD')
@@ -1581,446 +1002,14 @@ function telCleanRemovedNorm(value){
     .replace(/[^\w]+/g,' ')
     .trim();
 }
-function telCleanRemovedTeamName(team){
+function telCompTableName(team){
   return String(team?.nombre || team?.clubNombre || team?.name || team?.nombreVisual || '').trim();
 }
-function telCleanRemovedIsCup(comp){
-  const txt = telCleanRemovedNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
-  if(txt.includes('copa') || txt.includes('elimin')) return true;
-  return (comp?.partidos || []).some(match=>{
-    const phase = telCleanRemovedNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
-    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
-  });
+function telCompTableSlot(team, index){
+  return String(team?.slotId || team?.id || team?.clubId || team?.idClub || team?.clubNombre || team?.nombre || `slot-${index+1}`);
 }
-function telCleanRemovedScoreValue(value){
-  return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
-}
-function telCleanRemovedPlayed(match){
-  return !!match && (
-    match.finalizado === true ||
-    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
-    (telCleanRemovedScoreValue(match.localGoles) && telCleanRemovedScoreValue(match.visitanteGoles)) ||
-    (telCleanRemovedScoreValue(match.golesLocal) && telCleanRemovedScoreValue(match.golesVisitante)) ||
-    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
-  );
-}
-function telCleanRemovedGoals(match){
-  let local = match?.localGoles ?? match?.golesLocal;
-  let away = match?.visitanteGoles ?? match?.golesVisitante;
-
-  if((local === null || local === undefined || local === '' || away === null || away === undefined || away === '') && match?.resultado){
-    const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
-    if(parsed){
-      local = Number(parsed[1]);
-      away = Number(parsed[2]);
-    }
-  }
-
-  return {
-    local:Number(local ?? 0),
-    away:Number(away ?? 0)
-  };
-}
-function telCleanRemovedRemovedNames(data, comp){
-  const names = new Set();
-
-  // Equipos eliminados desde nuestros cambios activos.
-  for(const item of (data.equipoReemplazosActivos || [])){
-    if(item && item.equipoSale) names.add(telCleanRemovedNorm(item.equipoSale));
-  }
-
-  // Historial de cambios.
-  for(const item of (data.historialCambiosEquipos || [])){
-    if(item && item.equipoSale) names.add(telCleanRemovedNorm(item.equipoSale));
-  }
-
-  // Marcas habituales cuando un panel elimina/saca equipos.
-  for(const team of (comp.equipos || [])){
-    const removed = team.historico === true ||
-      team.equipoHistorico === true ||
-      team.excluidoClasificacion === true ||
-      team.eliminadoDeCompeticion === true ||
-      team.sacadoDeCompeticion === true ||
-      team.removidoDeCompeticion === true ||
-      team.inactivoCompeticion === true ||
-      String(team.estado || '').toLowerCase().includes('sacado') ||
-      String(team.estado || '').toLowerCase().includes('eliminado') ||
-      String(team.estado || '').toLowerCase().includes('inactivo');
-
-    if(removed) names.add(telCleanRemovedNorm(telCleanRemovedTeamName(team)));
-  }
-
-  return names;
-}
-function telCleanRemovedTeamActive(team, removedNames){
-  const name = telCleanRemovedNorm(telCleanRemovedTeamName(team));
-
-  if(!name) return false;
-  if(removedNames.has(name)) return false;
-
-  if(team.historico === true) return false;
-  if(team.equipoHistorico === true) return false;
-  if(team.excluidoClasificacion === true) return false;
-  if(team.eliminadoDeCompeticion === true) return false;
-  if(team.sacadoDeCompeticion === true) return false;
-  if(team.removidoDeCompeticion === true) return false;
-  if(team.inactivoCompeticion === true) return false;
-
-  const estado = String(team.estado || '').toLowerCase();
-  if(estado.includes('sacado') || estado.includes('eliminado') || estado.includes('inactivo')) return false;
-
-  return true;
-}
-function telCleanRemovedRecalcClassification(data, comp){
-  if(!comp || telCleanRemovedIsCup(comp)) return;
-
-  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
-  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
-
-  const removedNames = telCleanRemovedRemovedNames(data, comp);
-  const rowsBySlot = new Map();
-
-  comp.equipos.forEach((team, index)=>{
-    if(!telCleanRemovedTeamActive(team, removedNames)) return;
-
-    const slotId = String(team.slotId || team.id || team.clubId || team.clubNombre || team.nombre || `slot-${index+1}`);
-    rowsBySlot.set(slotId, {
-      ...team,
-      slotId,
-      nombre: team.nombre || team.clubNombre || team.nombreVisual || team.name || `Equipo ${index+1}`,
-      clubNombre: team.clubNombre || team.nombre || team.nombreVisual || team.name || `Equipo ${index+1}`,
-      pj:0, pg:0, pe:0, pp:0, gf:0, gc:0, dg:0, pts:0
-    });
-  });
-
-  comp.partidos.forEach(match=>{
-    if(!telCleanRemovedPlayed(match)) return;
-
-    const localSlot = String(match.localSlotId || '');
-    const awaySlot = String(match.visitanteSlotId || '');
-
-    const local = rowsBySlot.get(localSlot) || null;
-    const away = rowsBySlot.get(awaySlot) || null;
-
-    // Si ambos están sacados/históricos, no se muestra nada.
-    if(!local && !away) return;
-
-    const goals = telCleanRemovedGoals(match);
-    const lg = Number(goals.local || 0);
-    const vg = Number(goals.away || 0);
-
-    // El rival activo conserva su PJ, goles y puntos aunque jugase contra un equipo sacado.
-    if(local){
-      local.pj += 1;
-      local.gf += lg;
-      local.gc += vg;
-      local.dg = local.gf - local.gc;
-    }
-
-    if(away){
-      away.pj += 1;
-      away.gf += vg;
-      away.gc += lg;
-      away.dg = away.gf - away.gc;
-    }
-
-    if(lg > vg){
-      if(local){ local.pg += 1; local.pts += 3; }
-      if(away){ away.pp += 1; }
-    }else if(lg < vg){
-      if(away){ away.pg += 1; away.pts += 3; }
-      if(local){ local.pp += 1; }
-    }else{
-      if(local){ local.pe += 1; local.pts += 1; }
-      if(away){ away.pe += 1; away.pts += 1; }
-    }
-  });
-
-  comp.clasificacion = Array.from(rowsBySlot.values()).sort((a,b)=>
-    (Number(b.pts||0) - Number(a.pts||0)) ||
-    (Number(b.dg||0) - Number(a.dg||0)) ||
-    (Number(b.gf||0) - Number(a.gf||0)) ||
-    String(a.nombre || a.clubNombre || '').localeCompare(String(b.nombre || b.clubNombre || ''), 'es')
-  );
-}
-function telCleanRemovedApplyAll(data){
-  if(!data || typeof data !== 'object') return data;
-
-  const comps = data.competiciones || data.ligas || data.torneos || [];
-  comps.forEach(comp=>telCleanRemovedRecalcClassification(data, comp));
-
-  return data;
-}
-function telCleanRemovedForceAndSave(data){
-  telCleanRemovedApplyAll(data);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
-  return data;
-}
-
-app.get('/api/admin/limpiar-equipos-sacados', requireAdmin, (req,res)=>{
-  try{
-    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
-
-    // Respeta cambios activos de reemplazo si existen.
-    if(typeof telFinalReplaceApplyActive === 'function'){
-      telFinalReplaceApplyActive(data);
-    }
-    if(typeof telReplaceTeamApplyActive === 'function'){
-      telReplaceTeamApplyActive(data);
-    }
-
-    telPanelTeamsForceAndSave(data);
-
-    res.set('Cache-Control','no-store');
-    res.json({
-      ok:true,
-      message:'Clasificación limpiada: los equipos sacados ya no aparecen y los resultados se mantienen.'
-    });
-  }catch(error){
-    console.error('[limpiar-equipos-sacados]', error);
-    res.status(500).json({ok:false,message:String(error.message || error)});
-  }
-});
-
-
-
-
-/* ============================================================
-   TEL FIX DURO: CLASIFICACIÓN SOLO 10 EQUIPOS OFICIALES
-   Evita que sigan saliendo 12 aunque el panel deje restos guardados.
-   ============================================================ */
-function telOnly10Norm(value){
-  return String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g,'')
-    .replace(/[^\w]+/g,' ')
-    .trim();
-}
-function telOnly10Name(team){
-  return String(team?.nombre || team?.clubNombre || team?.name || team?.nombreVisual || '').trim();
-}
-function telOnly10IsCup(comp){
-  const txt = telOnly10Norm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
-  if(txt.includes('copa') || txt.includes('elimin')) return true;
-  return (comp?.partidos || []).some(match=>{
-    const phase = telOnly10Norm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
-    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
-  });
-}
-function telOnly10OfficialNames(data){
-  const baseNames = [
-    'Catalunya Lliure',
-    'Ghost Unit',
-    'Alegria FCA',
-    'Unió catalana',
-    'COVAYERS FC',
-    'BLACK MECANIC',
-    'Fuzeteam FC B',
-    'Hamoods CF',
-    'Billar FC',
-    'Coral Springs A'
-  ];
-
-  const active = new Set(baseNames.map(telOnly10Norm));
-
-  // Si un equipo fue reemplazado, sale el antiguo y entra el nuevo.
-  for(const item of (data.equipoReemplazosActivos || [])){
-    if(item?.equipoSale) active.delete(telOnly10Norm(item.equipoSale));
-    if(item?.equipoEntra) active.add(telOnly10Norm(item.equipoEntra));
-  }
-
-  for(const item of (data.historialCambiosEquipos || [])){
-    if(item?.equipoSale) active.delete(telOnly10Norm(item.equipoSale));
-    if(item?.equipoEntra) active.add(telOnly10Norm(item.equipoEntra));
-  }
-
-  return active;
-}
-function telOnly10ValidScore(value){
-  return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
-}
-function telOnly10Played(match){
-  return !!match && (
-    match.finalizado === true ||
-    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
-    (telOnly10ValidScore(match.localGoles) && telOnly10ValidScore(match.visitanteGoles)) ||
-    (telOnly10ValidScore(match.golesLocal) && telOnly10ValidScore(match.golesVisitante)) ||
-    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
-  );
-}
-function telOnly10Goals(match){
-  let local = match?.localGoles ?? match?.golesLocal;
-  let away = match?.visitanteGoles ?? match?.golesVisitante;
-
-  if((local === null || local === undefined || local === '' || away === null || away === undefined || away === '') && match?.resultado){
-    const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
-    if(parsed){
-      local = Number(parsed[1]);
-      away = Number(parsed[2]);
-    }
-  }
-
-  return {
-    local:Number(local ?? 0),
-    away:Number(away ?? 0)
-  };
-}
-function telOnly10CleanCompetition(data, comp){
-  if(!comp || telOnly10IsCup(comp)) return;
-  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
-  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
-
-  const allowed = telOnly10OfficialNames(data);
-
-  // Índice de equipos por slot antes de filtrar.
-  const originalBySlot = new Map();
-  comp.equipos.forEach((team, index)=>{
-    const slot = String(team.slotId || team.id || team.clubId || team.clubNombre || team.nombre || `slot-${index+1}`);
-    originalBySlot.set(slot, team);
-  });
-
-  // Quita de equipos de liga todo lo que no sea uno de los 10 oficiales activos.
-  comp.equipos = comp.equipos.filter(team=>{
-    const name = telOnly10Norm(telOnly10Name(team));
-    if(!name) return false;
-    if(team.historico === true || team.equipoHistorico === true) return false;
-    if(team.excluidoClasificacion === true || team.eliminadoDeCompeticion === true || team.sacadoDeCompeticion === true) return false;
-    return allowed.has(name);
-  });
-
-  const rowsBySlot = new Map();
-
-  comp.equipos.forEach((team, index)=>{
-    const slotId = String(team.slotId || team.id || team.clubId || team.clubNombre || team.nombre || `slot-${index+1}`);
-    rowsBySlot.set(slotId, {
-      ...team,
-      slotId,
-      nombre: team.nombre || team.clubNombre || team.nombreVisual || team.name || `Equipo ${index+1}`,
-      clubNombre: team.clubNombre || team.nombre || team.nombreVisual || team.name || `Equipo ${index+1}`,
-      pj:0, pg:0, pe:0, pp:0, gf:0, gc:0, dg:0, pts:0
-    });
-  });
-
-  comp.partidos.forEach(match=>{
-    if(!telOnly10Played(match)) return;
-
-    const localSlot = String(match.localSlotId || '');
-    const awaySlot = String(match.visitanteSlotId || '');
-
-    const local = rowsBySlot.get(localSlot) || null;
-    const away = rowsBySlot.get(awaySlot) || null;
-
-    // Si el equipo no está activo, no aparece en la tabla.
-    // Si su rival sí está activo, el rival conserva el resultado.
-    if(!local && !away) return;
-
-    const goals = telOnly10Goals(match);
-    const lg = Number(goals.local || 0);
-    const vg = Number(goals.away || 0);
-
-    if(local){
-      local.pj++;
-      local.gf += lg;
-      local.gc += vg;
-      local.dg = local.gf - local.gc;
-    }
-
-    if(away){
-      away.pj++;
-      away.gf += vg;
-      away.gc += lg;
-      away.dg = away.gf - away.gc;
-    }
-
-    if(lg > vg){
-      if(local){ local.pg++; local.pts += 3; }
-      if(away){ away.pp++; }
-    }else if(lg < vg){
-      if(away){ away.pg++; away.pts += 3; }
-      if(local){ local.pp++; }
-    }else{
-      if(local){ local.pe++; local.pts += 1; }
-      if(away){ away.pe++; away.pts += 1; }
-    }
-  });
-
-  comp.clasificacion = Array.from(rowsBySlot.values()).sort((a,b)=>
-    (Number(b.pts||0) - Number(a.pts||0)) ||
-    (Number(b.dg||0) - Number(a.dg||0)) ||
-    (Number(b.gf||0) - Number(a.gf||0)) ||
-    String(a.nombre || a.clubNombre || '').localeCompare(String(b.nombre || b.clubNombre || ''), 'es')
-  );
-}
-function telOnly10Apply(data){
-  if(!data || typeof data !== 'object') return data;
-
-  const comps = data.competiciones || data.ligas || data.torneos || [];
-  comps.forEach(comp=>telOnly10CleanCompetition(data, comp));
-
-  return data;
-}
-function telOnly10ForceAndSave(data){
-  telOnly10Apply(data);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
-  return data;
-}
-app.get('/api/admin/forzar-clasificacion-10', requireAdmin, (req,res)=>{
-  try{
-    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
-
-    if(typeof telFinalReplaceApplyActive === 'function') telFinalReplaceApplyActive(data);
-    if(typeof telReplaceTeamApplyActive === 'function') telReplaceTeamApplyActive(data);
-    if(typeof telFotoApplyOfficialJornadas === 'function') telFotoApplyOfficialJornadas(data);
-
-    telPanelTeamsForceAndSave(data);
-
-    res.set('Cache-Control','no-store');
-    res.json({
-      ok:true,
-      message:'Clasificación forzada a los 10 equipos oficiales activos.',
-      equiposActivos:[...telOnly10OfficialNames(data)]
-    });
-  }catch(error){
-    console.error('[forzar-clasificacion-10]', error);
-    res.status(500).json({ok:false,message:String(error.message || error)});
-  }
-});
-
-
-
-
-/* ============================================================
-   TEL CLASIFICACIÓN = EQUIPOS ACTIVOS DEL PANEL ADMIN
-   - No usa lista fija de 10.
-   - Salen los equipos que estén activos en comp.equipos.
-   - Si el panel admin saca un equipo, no sale en clasificación.
-   - Los resultados no se reinician.
-   - Los partidos jugados contra equipos sacados siguen contando
-     para el rival activo.
-   ============================================================ */
-function telPanelTeamsNorm(value){
-  return String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g,'')
-    .replace(/[^\w]+/g,' ')
-    .trim();
-}
-function telPanelTeamsName(team){
-  return String(team?.nombre || team?.clubNombre || team?.name || team?.nombreVisual || '').trim();
-}
-function telPanelTeamsIsCup(comp){
-  const txt = telPanelTeamsNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
-  if(txt.includes('copa') || txt.includes('elimin')) return true;
-  return (comp?.partidos || []).some(match=>{
-    const phase = telPanelTeamsNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
-    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
-  });
-}
-function telPanelTeamsIsRemoved(team){
+function telCompTableIsRemoved(team){
   if(!team) return true;
-
   if(team.historico === true) return true;
   if(team.equipoHistorico === true) return true;
   if(team.excluidoClasificacion === true) return true;
@@ -2031,31 +1020,36 @@ function telPanelTeamsIsRemoved(team){
   if(team.activo === false) return true;
   if(team.active === false) return true;
 
-  const estado = telPanelTeamsNorm(team.estado || team.status || '');
+  const estado = telCompTableNorm(team.estado || team.status || '');
   if(estado.includes('sacado')) return true;
   if(estado.includes('eliminado')) return true;
   if(estado.includes('inactivo')) return true;
-  if(estado.includes('baja')) return true;
   if(estado.includes('fuera')) return true;
+  if(estado.includes('baja')) return true;
 
   return false;
 }
-function telPanelTeamsSlot(team, index){
-  return String(team?.slotId || team?.id || team?.clubId || team?.idClub || team?.clubNombre || team?.nombre || `slot-${index+1}`);
+function telCompTableIsCup(comp){
+  const txt = telCompTableNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telCompTableNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
 }
-function telPanelTeamsValidScore(value){
+function telCompTableScoreOk(value){
   return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
 }
-function telPanelTeamsPlayed(match){
+function telCompTablePlayed(match){
   return !!match && (
     match.finalizado === true ||
     ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
-    (telPanelTeamsValidScore(match.localGoles) && telPanelTeamsValidScore(match.visitanteGoles)) ||
-    (telPanelTeamsValidScore(match.golesLocal) && telPanelTeamsValidScore(match.golesVisitante)) ||
+    (telCompTableScoreOk(match.localGoles) && telCompTableScoreOk(match.visitanteGoles)) ||
+    (telCompTableScoreOk(match.golesLocal) && telCompTableScoreOk(match.golesVisitante)) ||
     /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
   );
 }
-function telPanelTeamsGoals(match){
+function telCompTableGoals(match){
   let local = match?.localGoles ?? match?.golesLocal;
   let away = match?.visitanteGoles ?? match?.golesVisitante;
 
@@ -2072,22 +1066,20 @@ function telPanelTeamsGoals(match){
     away:Number(away ?? 0)
   };
 }
-function telPanelTeamsRecalcCompetition(comp){
-  if(!comp || telPanelTeamsIsCup(comp)) return;
-
-  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
-  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
-
+function telCompTableBuildActiveIndexes(comp){
   const rowsBySlot = new Map();
+  const activeNames = new Set();
 
-  // Aquí está la clave: la clasificación sale de los equipos activos del panel admin.
-  comp.equipos.forEach((team, index)=>{
-    if(telPanelTeamsIsRemoved(team)) return;
+  const teams = Array.isArray(comp.equipos) ? comp.equipos : [];
 
-    const slotId = telPanelTeamsSlot(team, index);
-    const name = telPanelTeamsName(team);
+  teams.forEach((team, index)=>{
+    if(telCompTableIsRemoved(team)) return;
 
+    const name = telCompTableName(team);
     if(!name) return;
+
+    const slotId = telCompTableSlot(team, index);
+    activeNames.add(telCompTableNorm(name));
 
     rowsBySlot.set(slotId, {
       ...team,
@@ -2105,20 +1097,55 @@ function telPanelTeamsRecalcCompetition(comp){
     });
   });
 
+  return {rowsBySlot, activeNames};
+}
+function telCompTableRecalc(comp){
+  if(!comp || telCompTableIsCup(comp)) return comp;
+
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
+
+  const {rowsBySlot, activeNames} = telCompTableBuildActiveIndexes(comp);
+
   comp.partidos.forEach(match=>{
-    if(!telPanelTeamsPlayed(match)) return;
+    if(!telCompTablePlayed(match)) return;
 
     const localSlot = String(match.localSlotId || '');
     const awaySlot = String(match.visitanteSlotId || '');
 
-    const local = rowsBySlot.get(localSlot) || null;
-    const away = rowsBySlot.get(awaySlot) || null;
+    let local = rowsBySlot.get(localSlot) || null;
+    let away = rowsBySlot.get(awaySlot) || null;
 
-    // Si un equipo fue sacado del panel, no aparece en tabla.
-    // Pero si el rival sigue activo, el resultado sigue contando para el rival.
+    // Fallback por nombre, pero SOLO si el nombre existe en comp.equipos activo.
+    if(!local){
+      const localName = telCompTableNorm(match.localNombre || match.nombreLocal || match.equipoLocal || '');
+      if(activeNames.has(localName)){
+        for(const row of rowsBySlot.values()){
+          if(telCompTableNorm(row.nombre || row.clubNombre) === localName){
+            local = row;
+            break;
+          }
+        }
+      }
+    }
+
+    if(!away){
+      const awayName = telCompTableNorm(match.visitanteNombre || match.nombreVisitante || match.equipoVisitante || '');
+      if(activeNames.has(awayName)){
+        for(const row of rowsBySlot.values()){
+          if(telCompTableNorm(row.nombre || row.clubNombre) === awayName){
+            away = row;
+            break;
+          }
+        }
+      }
+    }
+
+    // Si un equipo ya no está en comp.equipos activo, no vuelve a tabla.
+    // Si el rival sí está activo, conserva su resultado.
     if(!local && !away) return;
 
-    const goals = telPanelTeamsGoals(match);
+    const goals = telCompTableGoals(match);
     const lg = Number(goals.local || 0);
     const vg = Number(goals.away || 0);
 
@@ -2149,63 +1176,54 @@ function telPanelTeamsRecalcCompetition(comp){
   });
 
   comp.clasificacion = Array.from(rowsBySlot.values()).sort((a,b)=>
-    (Number(b.pts||0) - Number(a.pts||0)) ||
-    (Number(b.dg||0) - Number(a.dg||0)) ||
-    (Number(b.gf||0) - Number(a.gf||0)) ||
+    (Number(b.pts || 0) - Number(a.pts || 0)) ||
+    (Number(b.dg || 0) - Number(a.dg || 0)) ||
+    (Number(b.gf || 0) - Number(a.gf || 0)) ||
     String(a.nombre || a.clubNombre || '').localeCompare(String(b.nombre || b.clubNombre || ''), 'es')
   );
+
+  return comp;
 }
-function telPanelTeamsApply(data){
+function telCompTableApply(data){
   if(!data || typeof data !== 'object') return data;
-
   const comps = data.competiciones || data.ligas || data.torneos || [];
-
-  comps.forEach(comp=>{
-    telPanelTeamsRecalcCompetition(comp);
-  });
-
+  comps.forEach(comp=>telCompTableRecalc(comp));
   return data;
 }
-function telPanelTeamsForceAndSave(data){
-  telPanelTeamsApply(data);
+function telCompTableSave(data){
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
   return data;
 }
 
-/* Anula el parche anterior de lista fija de 10, si existe. */
-function telOnly10Apply(data){
-  return telPanelTeamsApply(data);
-}
-function telOnly10ForceAndSave(data){
-  return telPanelTeamsForceAndSave(data);
-}
+/* Sobrescribe recalculos anteriores para que todos usen comp.equipos actual. */
+function telPanelTeamsApply(data){ return telCompTableApply(data); }
+function telCleanRemovedApplyAll(data){ return telCompTableApply(data); }
+function telOnly10Apply(data){ return telCompTableApply(data); }
 
-app.get('/api/admin/recalcular-clasificacion-panel', requireAdmin, (req,res)=>{
+app.get('/api/admin/recalcular-clasificacion-competicion', requireAdmin, (req,res)=>{
   try{
     const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
 
-    if(typeof telFinalReplaceApplyActive === 'function'){
-      telFinalReplaceApplyActive(data);
-    }
-    if(typeof telReplaceTeamApplyActive === 'function'){
-      telReplaceTeamApplyActive(data);
-    }
+    if(typeof telFinalReplaceApplyActive === 'function') telFinalReplaceApplyActive(data);
+    if(typeof telReplaceTeamApplyActive === 'function') telReplaceTeamApplyActive(data);
 
-    telPanelTeamsForceAndSave(data);
+    telCompTableApply(data);
+    telCompTableSave(data);
 
     const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
       competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      equiposEnPanel: Array.isArray(comp.equipos) ? comp.equipos.filter(t=>!telCompTableIsRemoved(t)).length : 0,
       equiposClasificacion: Array.isArray(comp.clasificacion) ? comp.clasificacion.length : 0
     }));
 
     res.set('Cache-Control','no-store');
     res.json({
       ok:true,
-      message:'Clasificación recalculada con los equipos activos del panel admin.',
+      message:'Clasificación recalculada solo con equipos actuales de la competición.',
       resumen
     });
   }catch(error){
-    console.error('[recalcular-clasificacion-panel]', error);
+    console.error('[recalcular-clasificacion-competicion]', error);
     res.status(500).json({ok:false,message:String(error.message || error)});
   }
 });
@@ -2222,18 +1240,14 @@ app.get("/api/data", (req, res) => {
     config: {}
   });
 
-  telFotoForceAndSave(data);
-  telPanelTeamsForceAndSave(data);
-  telPanelTeamsForceAndSave(data);
+  telCompTableApply(data);
   res.json(telHydrateDataForClient(data));
 });
 
 app.get("/api/ligas", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {});
-  telFotoForceAndSave(data);
-  telPanelTeamsForceAndSave(data);
-  telPanelTeamsForceAndSave(data);
+  telCompTableApply(data);
   res.json(getRealLeagues(data));
 });
 
@@ -2417,9 +1431,7 @@ app.get("/api/clubes/:clubId", (req, res) => {
 app.get("/api/competiciones", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, { competiciones: [] });
-  telFotoForceAndSave(data);
-  telPanelTeamsForceAndSave(data);
-  telPanelTeamsForceAndSave(data);
+  telCompTableApply(data);
   res.json(data.competiciones || []);
 });
 
@@ -2813,10 +1825,7 @@ function teamLabelAdmin(team){
 function recalcLeagueClassificationAdmin(comp){
   const rowsBySlot = new Map();
 
-  // Solo equipos activos en clasificación. Los históricos/sacados no aparecen.
   (comp.equipos || []).forEach((team, index) => {
-    if(team.historico === true || team.equipoHistorico === true || team.excluidoClasificacion === true || team.eliminadoDeCompeticion === true) return;
-
     const slotId = String(team.slotId || team.id || team.clubNombre || team.nombre || `slot-${index+1}`);
     rowsBySlot.set(slotId, {
       ...team,
@@ -2832,61 +1841,36 @@ function recalcLeagueClassificationAdmin(comp){
       match.estado === 'finalizado' ||
       match.estado === 'jugado' ||
       match.estado === 'completado' ||
-      match.finalizado === true ||
-      (match.localGoles !== null && match.localGoles !== undefined && match.visitanteGoles !== null && match.visitanteGoles !== undefined) ||
-      (match.golesLocal !== null && match.golesLocal !== undefined && match.golesVisitante !== null && match.golesVisitante !== undefined) ||
-      /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
+      (match.localGoles !== null && match.localGoles !== undefined && match.visitanteGoles !== null && match.visitanteGoles !== undefined)
     );
 
     if(!played) return;
 
     const localSlot = String(match.localSlotId || '');
     const awaySlot = String(match.visitanteSlotId || '');
+    if(!rowsBySlot.has(localSlot) || !rowsBySlot.has(awaySlot)) return;
 
-    const local = rowsBySlot.get(localSlot) || null;
-    const away = rowsBySlot.get(awaySlot) || null;
+    const local = rowsBySlot.get(localSlot);
+    const away = rowsBySlot.get(awaySlot);
+    const lg = Number(match.localGoles || 0);
+    const vg = Number(match.visitanteGoles || 0);
 
-    // Si un equipo fue sacado, no aparece en clasificación,
-    // pero el rival activo SÍ conserva su partido, goles y puntos.
-    if(!local && !away) return;
-
-    let lg = match.localGoles ?? match.golesLocal;
-    let vg = match.visitanteGoles ?? match.golesVisitante;
-
-    if((lg === null || lg === undefined || lg === '' || vg === null || vg === undefined || vg === '') && match.resultado){
-      const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
-      if(parsed){
-        lg = Number(parsed[1]);
-        vg = Number(parsed[2]);
-      }
-    }
-
-    lg = Number(lg ?? 0);
-    vg = Number(vg ?? 0);
-
-    if(local){
-      local.pj++;
-      local.gf += lg;
-      local.gc += vg;
-      local.dg = local.gf - local.gc;
-    }
-
-    if(away){
-      away.pj++;
-      away.gf += vg;
-      away.gc += lg;
-      away.dg = away.gf - away.gc;
-    }
+    local.pj++; away.pj++;
+    local.gf += lg; local.gc += vg;
+    away.gf += vg; away.gc += lg;
+    local.dg = local.gf - local.gc;
+    away.dg = away.gf - away.gc;
 
     if(lg > vg){
-      if(local){ local.pg++; local.pts += 3; }
-      if(away){ away.pp++; }
+      local.pg++; away.pp++;
+      local.pts += 3;
     }else if(lg < vg){
-      if(away){ away.pg++; away.pts += 3; }
-      if(local){ local.pp++; }
+      away.pg++; local.pp++;
+      away.pts += 3;
     }else{
-      if(local){ local.pe++; local.pts += 1; }
-      if(away){ away.pe++; away.pts += 1; }
+      local.pe++; away.pe++;
+      local.pts += 1;
+      away.pts += 1;
     }
   });
 
