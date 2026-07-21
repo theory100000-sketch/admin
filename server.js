@@ -1231,6 +1231,7 @@ function telFotoForceAndSave(data){
   if(typeof telFinalReplaceApplyActive === 'function'){
     telFinalReplaceApplyActive(data);
   }
+  if(typeof telCleanRemovedApplyAll === 'function') telCleanRemovedApplyAll(data);
   telFotoSave(data);
   return data;
 }
@@ -1563,6 +1564,225 @@ app.get('/api/admin/aplicar-jornadas-foto', requireAdmin, (req,res)=>{
 /* === FIN TEL PATCH JORNADAS FOTO 1 Y 2 */
 
 
+
+
+/* ============================================================
+   TEL LIMPIAR EQUIPOS SACADOS DE CLASIFICACIÓN
+   - Aunque el panel quite equipos, no vuelven a aparecer.
+   - La clasificación se recalcula solo con equipos activos.
+   - Los partidos antiguos contra equipos sacados siguen contando
+     para el rival activo.
+   ============================================================ */
+function telCleanRemovedNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^\w]+/g,' ')
+    .trim();
+}
+function telCleanRemovedTeamName(team){
+  return String(team?.nombre || team?.clubNombre || team?.name || team?.nombreVisual || '').trim();
+}
+function telCleanRemovedIsCup(comp){
+  const txt = telCleanRemovedNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telCleanRemovedNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telCleanRemovedScoreValue(value){
+  return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
+}
+function telCleanRemovedPlayed(match){
+  return !!match && (
+    match.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
+    (telCleanRemovedScoreValue(match.localGoles) && telCleanRemovedScoreValue(match.visitanteGoles)) ||
+    (telCleanRemovedScoreValue(match.golesLocal) && telCleanRemovedScoreValue(match.golesVisitante)) ||
+    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
+  );
+}
+function telCleanRemovedGoals(match){
+  let local = match?.localGoles ?? match?.golesLocal;
+  let away = match?.visitanteGoles ?? match?.golesVisitante;
+
+  if((local === null || local === undefined || local === '' || away === null || away === undefined || away === '') && match?.resultado){
+    const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+    if(parsed){
+      local = Number(parsed[1]);
+      away = Number(parsed[2]);
+    }
+  }
+
+  return {
+    local:Number(local ?? 0),
+    away:Number(away ?? 0)
+  };
+}
+function telCleanRemovedRemovedNames(data, comp){
+  const names = new Set();
+
+  // Equipos eliminados desde nuestros cambios activos.
+  for(const item of (data.equipoReemplazosActivos || [])){
+    if(item && item.equipoSale) names.add(telCleanRemovedNorm(item.equipoSale));
+  }
+
+  // Historial de cambios.
+  for(const item of (data.historialCambiosEquipos || [])){
+    if(item && item.equipoSale) names.add(telCleanRemovedNorm(item.equipoSale));
+  }
+
+  // Marcas habituales cuando un panel elimina/saca equipos.
+  for(const team of (comp.equipos || [])){
+    const removed = team.historico === true ||
+      team.equipoHistorico === true ||
+      team.excluidoClasificacion === true ||
+      team.eliminadoDeCompeticion === true ||
+      team.sacadoDeCompeticion === true ||
+      team.removidoDeCompeticion === true ||
+      team.inactivoCompeticion === true ||
+      String(team.estado || '').toLowerCase().includes('sacado') ||
+      String(team.estado || '').toLowerCase().includes('eliminado') ||
+      String(team.estado || '').toLowerCase().includes('inactivo');
+
+    if(removed) names.add(telCleanRemovedNorm(telCleanRemovedTeamName(team)));
+  }
+
+  return names;
+}
+function telCleanRemovedTeamActive(team, removedNames){
+  const name = telCleanRemovedNorm(telCleanRemovedTeamName(team));
+
+  if(!name) return false;
+  if(removedNames.has(name)) return false;
+
+  if(team.historico === true) return false;
+  if(team.equipoHistorico === true) return false;
+  if(team.excluidoClasificacion === true) return false;
+  if(team.eliminadoDeCompeticion === true) return false;
+  if(team.sacadoDeCompeticion === true) return false;
+  if(team.removidoDeCompeticion === true) return false;
+  if(team.inactivoCompeticion === true) return false;
+
+  const estado = String(team.estado || '').toLowerCase();
+  if(estado.includes('sacado') || estado.includes('eliminado') || estado.includes('inactivo')) return false;
+
+  return true;
+}
+function telCleanRemovedRecalcClassification(data, comp){
+  if(!comp || telCleanRemovedIsCup(comp)) return;
+
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
+
+  const removedNames = telCleanRemovedRemovedNames(data, comp);
+  const rowsBySlot = new Map();
+
+  comp.equipos.forEach((team, index)=>{
+    if(!telCleanRemovedTeamActive(team, removedNames)) return;
+
+    const slotId = String(team.slotId || team.id || team.clubId || team.clubNombre || team.nombre || `slot-${index+1}`);
+    rowsBySlot.set(slotId, {
+      ...team,
+      slotId,
+      nombre: team.nombre || team.clubNombre || team.nombreVisual || team.name || `Equipo ${index+1}`,
+      clubNombre: team.clubNombre || team.nombre || team.nombreVisual || team.name || `Equipo ${index+1}`,
+      pj:0, pg:0, pe:0, pp:0, gf:0, gc:0, dg:0, pts:0
+    });
+  });
+
+  comp.partidos.forEach(match=>{
+    if(!telCleanRemovedPlayed(match)) return;
+
+    const localSlot = String(match.localSlotId || '');
+    const awaySlot = String(match.visitanteSlotId || '');
+
+    const local = rowsBySlot.get(localSlot) || null;
+    const away = rowsBySlot.get(awaySlot) || null;
+
+    // Si ambos están sacados/históricos, no se muestra nada.
+    if(!local && !away) return;
+
+    const goals = telCleanRemovedGoals(match);
+    const lg = Number(goals.local || 0);
+    const vg = Number(goals.away || 0);
+
+    // El rival activo conserva su PJ, goles y puntos aunque jugase contra un equipo sacado.
+    if(local){
+      local.pj += 1;
+      local.gf += lg;
+      local.gc += vg;
+      local.dg = local.gf - local.gc;
+    }
+
+    if(away){
+      away.pj += 1;
+      away.gf += vg;
+      away.gc += lg;
+      away.dg = away.gf - away.gc;
+    }
+
+    if(lg > vg){
+      if(local){ local.pg += 1; local.pts += 3; }
+      if(away){ away.pp += 1; }
+    }else if(lg < vg){
+      if(away){ away.pg += 1; away.pts += 3; }
+      if(local){ local.pp += 1; }
+    }else{
+      if(local){ local.pe += 1; local.pts += 1; }
+      if(away){ away.pe += 1; away.pts += 1; }
+    }
+  });
+
+  comp.clasificacion = Array.from(rowsBySlot.values()).sort((a,b)=>
+    (Number(b.pts||0) - Number(a.pts||0)) ||
+    (Number(b.dg||0) - Number(a.dg||0)) ||
+    (Number(b.gf||0) - Number(a.gf||0)) ||
+    String(a.nombre || a.clubNombre || '').localeCompare(String(b.nombre || b.clubNombre || ''), 'es')
+  );
+}
+function telCleanRemovedApplyAll(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telCleanRemovedRecalcClassification(data, comp));
+
+  return data;
+}
+function telCleanRemovedForceAndSave(data){
+  telCleanRemovedApplyAll(data);
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+  return data;
+}
+
+app.get('/api/admin/limpiar-equipos-sacados', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+
+    // Respeta cambios activos de reemplazo si existen.
+    if(typeof telFinalReplaceApplyActive === 'function'){
+      telFinalReplaceApplyActive(data);
+    }
+    if(typeof telReplaceTeamApplyActive === 'function'){
+      telReplaceTeamApplyActive(data);
+    }
+
+    telCleanRemovedForceAndSave(data);
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Clasificación limpiada: los equipos sacados ya no aparecen y los resultados se mantienen.'
+    });
+  }catch(error){
+    console.error('[limpiar-equipos-sacados]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -1575,6 +1795,7 @@ app.get("/api/data", (req, res) => {
   });
 
   telFotoForceAndSave(data);
+  telCleanRemovedForceAndSave(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -1582,6 +1803,7 @@ app.get("/api/ligas", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {});
   telFotoForceAndSave(data);
+  telCleanRemovedForceAndSave(data);
   res.json(getRealLeagues(data));
 });
 
@@ -1766,6 +1988,7 @@ app.get("/api/competiciones", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, { competiciones: [] });
   telFotoForceAndSave(data);
+  telCleanRemovedForceAndSave(data);
   res.json(data.competiciones || []);
 });
 
