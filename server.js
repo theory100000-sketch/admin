@@ -988,19 +988,278 @@ app.get('/api/sync-debug', async (req,res)=>{
 
 
 
-/* TEL REEMPLAZAR EQUIPO CONSERVANDO HISTORIAL */
-function telRepN(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,' ').trim();}
-function telRepS(v){return String(v||'equipo').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,'')||'equipo';}
-function telRepName(t){return String(t?.nombre||t?.clubNombre||t?.nombreVisual||t?.name||'').trim();}
-function telRepSlot(t){if(!t.slotId)t.slotId=String(t.id||t.clubId||t.idClub||telRepS(telRepName(t)));return String(t.slotId);}
-function telRepPlayed(m){const ok=v=>v!==null&&v!==undefined&&v!==''&&!Number.isNaN(Number(v));return !!m&&(m.finalizado===true||['finalizado','jugado','completado'].includes(String(m.estado||'').toLowerCase())||(ok(m.localGoles)&&ok(m.visitanteGoles))||(ok(m.golesLocal)&&ok(m.golesVisitante))||/\d+\s*[-:]\s*\d+/.test(String(m.resultado||'')));}
-function telRepComps(d){return d.competiciones||d.ligas||d.torneos||[];}
-function telRepCompId(c,i){if(!c.id)c.id=telRepS(c.nombre||c.name||`competicion-${i+1}`);return String(c.id);}
-function telRepFindTeam(d,c,x){const n=telRepN(x),raw=String(x||'').trim();for(const t of (c?.equipos||[])){const vals=[t.slotId,t.id,t.clubId,t.idClub,t.nombre,t.clubNombre,t.nombreVisual,t.name].filter(Boolean);if(vals.some(v=>String(v)===raw||telRepN(v)===n))return t;}for(const k of ['clubes','equipos','teams'])for(const t of (d[k]||[])){const vals=[t.slotId,t.id,t.clubId,t.idClub,t.nombre,t.clubNombre,t.nombreVisual,t.name].filter(Boolean);if(vals.some(v=>String(v)===raw||telRepN(v)===n))return JSON.parse(JSON.stringify(t));}return null;}
-function telRepEnsureHist(c,old,oldName,oldSlot){const hist=`${oldSlot}__historico__${telRepS(oldName)}`;let h=(c.equipos||[]).find(t=>String(t.slotId||'')===hist);if(!h){h=JSON.parse(JSON.stringify(old||{}));h.id=h.id||hist;h.slotId=hist;c.equipos.push(h);}h.nombre=oldName;h.clubNombre=oldName;h.nombreVisual=oldName;h.name=oldName;h.historico=true;h.equipoHistorico=true;return hist;}
-function telRepApplyOne(d,r){const comps=telRepComps(d);const c=comps.find((x,i)=>!r.compId||telRepCompId(x,i)===String(r.compId));if(!c)return {ok:false,reason:'competition_not_found'};c.equipos=c.equipos||[];c.partidos=c.partidos||[];const sale=String(r.equipoSale||'').trim(),entra=String(r.equipoEntra||'').trim();if(!sale||!entra)return {ok:false,reason:'missing_names'};let old=telRepFindTeam(d,c,r.oldSlot||sale);if(!old){old={id:telRepS(sale),slotId:telRepS(sale),nombre:sale,clubNombre:sale};c.equipos.push(old);}if(!c.equipos.includes(old)){const ex=c.equipos.find(t=>telRepN(telRepName(t))===telRepN(sale));if(ex)old=ex;else c.equipos.push(old);}const oldName=r.equipoSaleNombreReal||telRepName(old)||sale;const oldSlot=String(r.oldSlot||telRepSlot(old));const newTeam=telRepFindTeam(d,c,entra)||{nombre:entra,clubNombre:entra};const hist=telRepEnsureHist(c,old,oldName,oldSlot);old.nombre=entra;old.clubNombre=entra;old.nombreVisual=entra;old.name=entra;old.reemplazaA=oldName;old.slotId=oldSlot;for(const k of ['escudoUrl','logoUrl','escudoPath','escudoFilename','logo'])if(newTeam[k])old[k]=newTeam[k];let played=0,future=0;for(const m of c.partidos){const lo=String(m.localSlotId||'')===oldSlot,aw=String(m.visitanteSlotId||'')===oldSlot,ln=telRepN(m.localNombre||m.nombreLocal||m.equipoLocal)===telRepN(oldName),an=telRepN(m.visitanteNombre||m.nombreVisitante||m.equipoVisitante)===telRepN(oldName);if(!lo&&!aw&&!ln&&!an)continue;if(telRepPlayed(m)){if(lo||ln){m.localSlotId=hist;m.localNombre=oldName;m.nombreLocal=oldName;}if(aw||an){m.visitanteSlotId=hist;m.visitanteNombre=oldName;m.nombreVisitante=oldName;}m.historicoCambioEquipo=true;m.equipoOriginal=oldName;m.equipoNuevo=entra;played++;}else{if(lo||ln){m.localSlotId=oldSlot;m.localNombre=entra;m.nombreLocal=entra;}if(aw||an){m.visitanteSlotId=oldSlot;m.visitanteNombre=entra;m.nombreVisitante=entra;}m.equipoReemplazado=oldName;m.equipoNuevo=entra;future++;}}return {ok:true,compId:String(c.id||''),equipoSale:oldName,equipoEntra:entra,oldSlot,historicSlot:hist,partidosJugadosConservados:played,partidosFuturosActualizados:future};}
-function telRepApplyActive(d){return (Array.isArray(d.equipoReemplazosActivos)?d.equipoReemplazosActivos:[]).map(r=>telRepApplyOne(d,r));}
-app.post('/api/admin/reemplazar-equipo-competicion', requireAdmin, (req,res)=>{try{const d=readJson(DATA_FILE,{clubes:[],competiciones:[]});const compId=String(req.body?.compId||'').trim();const equipoSale=String(req.body?.equipoSale||req.body?.sale||'').trim();const equipoEntra=String(req.body?.equipoEntra||req.body?.entra||'').trim();if(!equipoSale||!equipoEntra)return res.status(400).json({ok:false,message:'Falta equipoSale o equipoEntra.'});d.equipoReemplazosActivos=Array.isArray(d.equipoReemplazosActivos)?d.equipoReemplazosActivos:[];d.equipoReemplazosActivos=d.equipoReemplazosActivos.filter(x=>!(String(x.compId||'')===compId&&telRepN(x.equipoSale)===telRepN(equipoSale)));const r={fecha:new Date().toISOString(),compId,equipoSale,equipoEntra};d.equipoReemplazosActivos.push(r);const result=telRepApplyOne(d,r);d.historialCambiosEquipos=Array.isArray(d.historialCambiosEquipos)?d.historialCambiosEquipos:[];d.historialCambiosEquipos.push({fecha:new Date().toISOString(),compId:result.compId||compId,equipoSale,equipoEntra,oldSlot:result.oldSlot||'',historicSlot:result.historicSlot||'',partidosJugadosConservados:result.partidosJugadosConservados||0,partidosFuturosActualizados:result.partidosFuturosActualizados||0});fs.writeFileSync(DATA_FILE,JSON.stringify(d,null,2),'utf8');res.set('Cache-Control','no-store');res.json({ok:true,message:'Equipo reemplazado sin perder resultados.',result});}catch(e){console.error('[reemplazar-equipo-competicion]',e);res.status(500).json({ok:false,message:String(e.message||e)});}});
+/* === TEL PATCH JORNADAS FOTO 1 Y 2
+   Mantiene Jornada 1 y Jornada 2 exactamente como las fotos.
+   Si ya hay resultados guardados, NO los borra.
+   Si cambias un equipo, partidos jugados conservan antiguo y futuros pasan al nuevo.
+*/
+function telFotoNorm(v){
+  return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,' ').trim();
+}
+function telFotoSlug(v){
+  return String(v||'equipo').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telFotoName(t){
+  return String(t?.nombre || t?.clubNombre || t?.name || t?.nombreVisual || '').trim();
+}
+function telFotoSlot(t){
+  if(!t.slotId) t.slotId = String(t.id || t.clubId || t.idClub || telFotoSlug(telFotoName(t)));
+  return String(t.slotId);
+}
+function telFotoComps(data){
+  return data.competiciones || data.ligas || data.torneos || [];
+}
+function telFotoIsCup(comp){
+  const txt = telFotoNorm(`${comp?.nombre||''} ${comp?.tipo||''} ${comp?.formato||''} ${comp?.formatoNombre||''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos||[]).some(p=>{
+    const r = telFotoNorm(`${p?.rondaNombre||''} ${p?.fase||''}`);
+    return r.includes('cuarto') || r.includes('semi') || r.includes('final');
+  });
+}
+function telFotoLeague(data){
+  const comps = telFotoComps(data);
+  let league = comps.find(c=>{
+    if(telFotoIsCup(c)) return false;
+    const n = telFotoNorm(c.nombre || c.name || '');
+    return n.includes('elite') || n.includes('liga') || n.includes('league');
+  }) || comps.find(c=>!telFotoIsCup(c));
+
+  if(!league){
+    league = {id:'elite-league', nombre:'Élite League', tipo:'liga', equipos:[], partidos:[]};
+    if(!data.competiciones) data.competiciones = comps;
+    data.competiciones.push(league);
+  }
+
+  if(!league.id) league.id = telFotoSlug(league.nombre || 'elite-league');
+  league.tipo = league.tipo || 'liga';
+  league.equipos = league.equipos || [];
+  league.partidos = league.partidos || [];
+  league.partidosHistoricos = league.partidosHistoricos || [];
+  return league;
+}
+function telFotoFindTeam(data, comp, name){
+  const want = telFotoNorm(name);
+  for(const t of (comp?.equipos||[])){
+    const values=[t.slotId,t.id,t.clubId,t.idClub,t.nombre,t.clubNombre,t.name,t.nombreVisual].filter(Boolean);
+    if(values.some(v=>String(v)===String(name)||telFotoNorm(v)===want)) return t;
+  }
+  for(const key of ['clubes','equipos','teams']){
+    for(const t of (data[key]||[])){
+      const values=[t.slotId,t.id,t.clubId,t.idClub,t.nombre,t.clubNombre,t.name,t.nombreVisual].filter(Boolean);
+      if(values.some(v=>String(v)===String(name)||telFotoNorm(v)===want)) return JSON.parse(JSON.stringify(t));
+    }
+  }
+  for(const c of telFotoComps(data)){
+    for(const t of (c.equipos||[])){
+      const values=[t.slotId,t.id,t.clubId,t.idClub,t.nombre,t.clubNombre,t.name,t.nombreVisual].filter(Boolean);
+      if(values.some(v=>String(v)===String(name)||telFotoNorm(v)===want)) return JSON.parse(JSON.stringify(t));
+    }
+  }
+  return null;
+}
+function telFotoEnsureTeam(data, comp, name){
+  let t = telFotoFindTeam(data, comp, name);
+  if(!t){
+    t = {id:telFotoSlug(name), slotId:telFotoSlug(name), nombre:name, clubNombre:name,
+      escudoUrl:`/escudos/${telFotoSlug(name)}.png`,
+      escudoPath:`escudos/${telFotoSlug(name)}.png`,
+      escudoFilename:`${telFotoSlug(name)}.png`
+    };
+    comp.equipos.push(t);
+  }else if(!(comp.equipos||[]).includes(t)){
+    const existing = comp.equipos.find(x=>telFotoNorm(telFotoName(x))===telFotoNorm(name));
+    if(existing) t = existing;
+    else comp.equipos.push(t);
+  }
+  t.nombre = name;
+  t.clubNombre = name;
+  if(!t.id) t.id = telFotoSlug(name);
+  if(!t.slotId) t.slotId = String(t.id || telFotoSlug(name));
+  return t;
+}
+function telFotoValidScore(v){
+  return v !== null && v !== undefined && v !== '' && !Number.isNaN(Number(v));
+}
+function telFotoPlayed(m){
+  return !!m && (
+    m.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(m.estado||'').toLowerCase()) ||
+    (telFotoValidScore(m.localGoles) && telFotoValidScore(m.visitanteGoles)) ||
+    (telFotoValidScore(m.golesLocal) && telFotoValidScore(m.golesVisitante)) ||
+    /\d+\s*[-:]\s*\d+/.test(String(m.resultado||''))
+  );
+}
+function telFotoGoals(m, side){
+  if(!m) return null;
+  if(side === 'local'){
+    if(telFotoValidScore(m.localGoles)) return Number(m.localGoles);
+    if(telFotoValidScore(m.golesLocal)) return Number(m.golesLocal);
+  }else{
+    if(telFotoValidScore(m.visitanteGoles)) return Number(m.visitanteGoles);
+    if(telFotoValidScore(m.golesVisitante)) return Number(m.golesVisitante);
+  }
+  const r = String(m.resultado||'').match(/(\d+)\s*[-:]\s*(\d+)/);
+  if(r) return side === 'local' ? Number(r[1]) : Number(r[2]);
+  return null;
+}
+function telFotoSamePair(match, comp, local, away){
+  const a = telFotoNorm(local), b = telFotoNorm(away);
+  const localNames = [match.localNombre, match.nombreLocal, match.equipoLocal].filter(Boolean).map(telFotoNorm);
+  const awayNames = [match.visitanteNombre, match.nombreVisitante, match.equipoVisitante].filter(Boolean).map(telFotoNorm);
+
+  const localTeam = (comp.equipos||[]).find(t=>String(t.slotId||'')===String(match.localSlotId||''));
+  const awayTeam = (comp.equipos||[]).find(t=>String(t.slotId||'')===String(match.visitanteSlotId||''));
+  if(localTeam) localNames.push(telFotoNorm(telFotoName(localTeam)));
+  if(awayTeam) awayNames.push(telFotoNorm(telFotoName(awayTeam)));
+
+  return localNames.includes(a) && awayNames.includes(b);
+}
+function telFotoApplyOfficialJornadas(data){
+  if(!data || typeof data !== 'object') return data;
+  const league = telFotoLeague(data);
+
+  const jornadas = {
+    1: [
+      ['Catalunya Lliure', 'Ghost Unit'],
+      ['Alegria FCA', 'Unió catalana'],
+      ['COVAYERS FC', 'BLACK MECANIC'],
+      ['Fuzeteam FC B', 'Hamoods CF'],
+      ['Billar FC', 'Coral Springs A']
+    ],
+    2: [
+      ['Unió catalana', 'Catalunya Lliure'],
+      ['BLACK MECANIC', 'Ghost Unit'],
+      ['Hamoods CF', 'Alegria FCA'],
+      ['Coral Springs A', 'COVAYERS FC'],
+      ['Billar FC', 'Fuzeteam FC B']
+    ]
+  };
+
+  const allTeams = [...new Set(Object.values(jornadas).flat(2))];
+  const teamMap = new Map();
+  for(const name of allTeams){
+    const t = telFotoEnsureTeam(data, league, name);
+    teamMap.set(telFotoNorm(name), t);
+  }
+  const slotOf = name => telFotoSlot(teamMap.get(telFotoNorm(name)));
+
+  const old = Array.isArray(league.partidos) ? league.partidos : [];
+  const used = new Set();
+  const fixed = [];
+
+  for(const [jornada, games] of Object.entries(jornadas)){
+    games.forEach(([local,away], index)=>{
+      const id = `${league.id}-j${jornada}-p${index+1}`;
+      let oldIndex = old.findIndex((m,i)=>{
+        if(used.has(i)) return false;
+        const j = Number(m.jornada || m.round || 0);
+        if(j !== Number(jornada)) return false;
+        return String(m.id||'') === id || telFotoSamePair(m, league, local, away);
+      });
+      const m = oldIndex >= 0 ? old[oldIndex] : null;
+      if(oldIndex >= 0) used.add(oldIndex);
+
+      const lg = telFotoGoals(m,'local');
+      const vg = telFotoGoals(m,'away');
+      const played = telFotoPlayed(m);
+
+      fixed.push({
+        ...(m || {}),
+        id,
+        jornada:Number(jornada),
+        round:Number(jornada),
+        localSlotId: slotOf(local),
+        visitanteSlotId: slotOf(away),
+        localNombre: local,
+        visitanteNombre: away,
+        nombreLocal: local,
+        nombreVisitante: away,
+        localGoles: lg,
+        visitanteGoles: vg,
+        golesLocal: lg,
+        golesVisitante: vg,
+        resultado: played && lg !== null && vg !== null ? `${lg}-${vg}` : (m?.resultado || ''),
+        estado: played ? 'finalizado' : (m?.estado || 'pendiente'),
+        finalizado: played,
+        fecha: m?.fecha || m?.date || '',
+        hora: m?.hora || m?.time || ''
+      });
+    });
+  }
+
+  const kept = [];
+  old.forEach((m,i)=>{
+    if(used.has(i)) return;
+    const j = Number(m.jornada || m.round || 0);
+    if(j === 1 || j === 2){
+      if(telFotoPlayed(m)){
+        const hist = JSON.parse(JSON.stringify(m));
+        hist.historico = true;
+        hist.motivoHistorico = 'Archivado al fijar Jornada 1 y Jornada 2 como foto';
+        league.partidosHistoricos.push(hist);
+      }
+      return;
+    }
+    kept.push(m);
+  });
+
+  league.partidos = [...fixed, ...kept];
+
+  if(typeof telReplaceTeamApplyActive === 'function'){
+    telReplaceTeamApplyActive(data);
+  }
+
+  data.historialCambiosJornadas = data.historialCambiosJornadas || [];
+  const last = data.historialCambiosJornadas[data.historialCambiosJornadas.length - 1];
+  if(!last || last.accion !== 'jornada-1-2-igual-foto-sin-borrar-resultados'){
+    data.historialCambiosJornadas.push({
+      fecha:new Date().toISOString(),
+      accion:'jornada-1-2-igual-foto-sin-borrar-resultados',
+      competicion:league.nombre||league.id,
+      partidosFijados:fixed.length
+    });
+  }
+  return data;
+}
+function telFotoSave(data){
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data,null,2), 'utf8');
+  return data;
+}
+function telFotoForceAndSave(data){
+  telFotoApplyOfficialJornadas(data);
+  telFotoSave(data);
+  return data;
+}
+
+app.get('/api/admin/aplicar-jornadas-foto', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telFotoForceAndSave(data);
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Jornada 1 y Jornada 2 quedaron igual que la foto y sin borrar resultados.',
+      jornada1:[
+        ['Catalunya Lliure','Ghost Unit'],
+        ['Alegria FCA','Unió catalana'],
+        ['COVAYERS FC','BLACK MECANIC'],
+        ['Fuzeteam FC B','Hamoods CF'],
+        ['Billar FC','Coral Springs A']
+      ],
+      jornada2:[
+        ['Unió catalana','Catalunya Lliure'],
+        ['BLACK MECANIC','Ghost Unit'],
+        ['Hamoods CF','Alegria FCA'],
+        ['Coral Springs A','COVAYERS FC'],
+        ['Billar FC','Fuzeteam FC B']
+      ]
+    });
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message||error)});
+  }
+});
+/* === FIN TEL PATCH JORNADAS FOTO 1 Y 2 */
 
 
 app.get("/api/data", (req, res) => {
@@ -1014,12 +1273,14 @@ app.get("/api/data", (req, res) => {
     config: {}
   });
 
+  telFotoForceAndSave(data);
   res.json(telHydrateDataForClient(data));
 });
 
 app.get("/api/ligas", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {});
+  telFotoForceAndSave(data);
   res.json(getRealLeagues(data));
 });
 
@@ -1203,6 +1464,7 @@ app.get("/api/clubes/:clubId", (req, res) => {
 app.get("/api/competiciones", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, { competiciones: [] });
+  telFotoForceAndSave(data);
   res.json(data.competiciones || []);
 });
 
