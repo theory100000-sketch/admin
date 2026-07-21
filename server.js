@@ -1232,6 +1232,7 @@ function telFotoForceAndSave(data){
     telFinalReplaceApplyActive(data);
   }
   if(typeof telCleanRemovedApplyAll === 'function') telCleanRemovedApplyAll(data);
+  if(typeof telOnly10Apply === 'function') telOnly10Apply(data);
   telFotoSave(data);
   return data;
 }
@@ -1783,6 +1784,211 @@ app.get('/api/admin/limpiar-equipos-sacados', requireAdmin, (req,res)=>{
 });
 
 
+
+
+/* ============================================================
+   TEL FIX DURO: CLASIFICACIÓN SOLO 10 EQUIPOS OFICIALES
+   Evita que sigan saliendo 12 aunque el panel deje restos guardados.
+   ============================================================ */
+function telOnly10Norm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^\w]+/g,' ')
+    .trim();
+}
+function telOnly10Name(team){
+  return String(team?.nombre || team?.clubNombre || team?.name || team?.nombreVisual || '').trim();
+}
+function telOnly10IsCup(comp){
+  const txt = telOnly10Norm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telOnly10Norm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telOnly10OfficialNames(data){
+  const baseNames = [
+    'Catalunya Lliure',
+    'Ghost Unit',
+    'Alegria FCA',
+    'Unió catalana',
+    'COVAYERS FC',
+    'BLACK MECANIC',
+    'Fuzeteam FC B',
+    'Hamoods CF',
+    'Billar FC',
+    'Coral Springs A'
+  ];
+
+  const active = new Set(baseNames.map(telOnly10Norm));
+
+  // Si un equipo fue reemplazado, sale el antiguo y entra el nuevo.
+  for(const item of (data.equipoReemplazosActivos || [])){
+    if(item?.equipoSale) active.delete(telOnly10Norm(item.equipoSale));
+    if(item?.equipoEntra) active.add(telOnly10Norm(item.equipoEntra));
+  }
+
+  for(const item of (data.historialCambiosEquipos || [])){
+    if(item?.equipoSale) active.delete(telOnly10Norm(item.equipoSale));
+    if(item?.equipoEntra) active.add(telOnly10Norm(item.equipoEntra));
+  }
+
+  return active;
+}
+function telOnly10ValidScore(value){
+  return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
+}
+function telOnly10Played(match){
+  return !!match && (
+    match.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
+    (telOnly10ValidScore(match.localGoles) && telOnly10ValidScore(match.visitanteGoles)) ||
+    (telOnly10ValidScore(match.golesLocal) && telOnly10ValidScore(match.golesVisitante)) ||
+    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
+  );
+}
+function telOnly10Goals(match){
+  let local = match?.localGoles ?? match?.golesLocal;
+  let away = match?.visitanteGoles ?? match?.golesVisitante;
+
+  if((local === null || local === undefined || local === '' || away === null || away === undefined || away === '') && match?.resultado){
+    const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+    if(parsed){
+      local = Number(parsed[1]);
+      away = Number(parsed[2]);
+    }
+  }
+
+  return {
+    local:Number(local ?? 0),
+    away:Number(away ?? 0)
+  };
+}
+function telOnly10CleanCompetition(data, comp){
+  if(!comp || telOnly10IsCup(comp)) return;
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
+
+  const allowed = telOnly10OfficialNames(data);
+
+  // Índice de equipos por slot antes de filtrar.
+  const originalBySlot = new Map();
+  comp.equipos.forEach((team, index)=>{
+    const slot = String(team.slotId || team.id || team.clubId || team.clubNombre || team.nombre || `slot-${index+1}`);
+    originalBySlot.set(slot, team);
+  });
+
+  // Quita de equipos de liga todo lo que no sea uno de los 10 oficiales activos.
+  comp.equipos = comp.equipos.filter(team=>{
+    const name = telOnly10Norm(telOnly10Name(team));
+    if(!name) return false;
+    if(team.historico === true || team.equipoHistorico === true) return false;
+    if(team.excluidoClasificacion === true || team.eliminadoDeCompeticion === true || team.sacadoDeCompeticion === true) return false;
+    return allowed.has(name);
+  });
+
+  const rowsBySlot = new Map();
+
+  comp.equipos.forEach((team, index)=>{
+    const slotId = String(team.slotId || team.id || team.clubId || team.clubNombre || team.nombre || `slot-${index+1}`);
+    rowsBySlot.set(slotId, {
+      ...team,
+      slotId,
+      nombre: team.nombre || team.clubNombre || team.nombreVisual || team.name || `Equipo ${index+1}`,
+      clubNombre: team.clubNombre || team.nombre || team.nombreVisual || team.name || `Equipo ${index+1}`,
+      pj:0, pg:0, pe:0, pp:0, gf:0, gc:0, dg:0, pts:0
+    });
+  });
+
+  comp.partidos.forEach(match=>{
+    if(!telOnly10Played(match)) return;
+
+    const localSlot = String(match.localSlotId || '');
+    const awaySlot = String(match.visitanteSlotId || '');
+
+    const local = rowsBySlot.get(localSlot) || null;
+    const away = rowsBySlot.get(awaySlot) || null;
+
+    // Si el equipo no está activo, no aparece en la tabla.
+    // Si su rival sí está activo, el rival conserva el resultado.
+    if(!local && !away) return;
+
+    const goals = telOnly10Goals(match);
+    const lg = Number(goals.local || 0);
+    const vg = Number(goals.away || 0);
+
+    if(local){
+      local.pj++;
+      local.gf += lg;
+      local.gc += vg;
+      local.dg = local.gf - local.gc;
+    }
+
+    if(away){
+      away.pj++;
+      away.gf += vg;
+      away.gc += lg;
+      away.dg = away.gf - away.gc;
+    }
+
+    if(lg > vg){
+      if(local){ local.pg++; local.pts += 3; }
+      if(away){ away.pp++; }
+    }else if(lg < vg){
+      if(away){ away.pg++; away.pts += 3; }
+      if(local){ local.pp++; }
+    }else{
+      if(local){ local.pe++; local.pts += 1; }
+      if(away){ away.pe++; away.pts += 1; }
+    }
+  });
+
+  comp.clasificacion = Array.from(rowsBySlot.values()).sort((a,b)=>
+    (Number(b.pts||0) - Number(a.pts||0)) ||
+    (Number(b.dg||0) - Number(a.dg||0)) ||
+    (Number(b.gf||0) - Number(a.gf||0)) ||
+    String(a.nombre || a.clubNombre || '').localeCompare(String(b.nombre || b.clubNombre || ''), 'es')
+  );
+}
+function telOnly10Apply(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telOnly10CleanCompetition(data, comp));
+
+  return data;
+}
+function telOnly10ForceAndSave(data){
+  telOnly10Apply(data);
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+  return data;
+}
+app.get('/api/admin/forzar-clasificacion-10', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+
+    if(typeof telFinalReplaceApplyActive === 'function') telFinalReplaceApplyActive(data);
+    if(typeof telReplaceTeamApplyActive === 'function') telReplaceTeamApplyActive(data);
+    if(typeof telFotoApplyOfficialJornadas === 'function') telFotoApplyOfficialJornadas(data);
+
+    telOnly10ForceAndSave(data);
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Clasificación forzada a los 10 equipos oficiales activos.',
+      equiposActivos:[...telOnly10OfficialNames(data)]
+    });
+  }catch(error){
+    console.error('[forzar-clasificacion-10]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -1796,6 +2002,7 @@ app.get("/api/data", (req, res) => {
 
   telFotoForceAndSave(data);
   telCleanRemovedForceAndSave(data);
+  telOnly10ForceAndSave(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -1804,6 +2011,7 @@ app.get("/api/ligas", (req, res) => {
   const data = readJson(DATA_FILE, {});
   telFotoForceAndSave(data);
   telCleanRemovedForceAndSave(data);
+  telOnly10ForceAndSave(data);
   res.json(getRealLeagues(data));
 });
 
@@ -1989,6 +2197,7 @@ app.get("/api/competiciones", (req, res) => {
   const data = readJson(DATA_FILE, { competiciones: [] });
   telFotoForceAndSave(data);
   telCleanRemovedForceAndSave(data);
+  telOnly10ForceAndSave(data);
   res.json(data.competiciones || []);
 });
 
