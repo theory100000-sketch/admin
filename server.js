@@ -1841,16 +1841,10 @@ app.get('/api/admin/arreglar-jornadas-slot-historico', requireAdmin, (req,res)=>
    ============================================================ */
 function telPanelResultadosFixData(data){
   if(!data || typeof data !== 'object') return data;
-  if(typeof telPanelForceExactFixtures === 'function'){
-    telPanelForceExactFixtures(data);
-  }else if(typeof telHistSlotApplyToFixedJornadas === 'function'){
-    telHistSlotApplyToFixedJornadas(data);
-  }else if(typeof telFotoExactApply === 'function'){
-    telFotoExactApply(data);
-  }
-  if(typeof telCompTableApply === 'function'){
-    telCompTableApply(data);
-  }
+  if(typeof telPanelCardApply === 'function') telPanelCardApply(data);
+  else if(typeof telPanelForceExactFixtures === 'function') telPanelForceExactFixtures(data);
+  else if(typeof telHistSlotApplyToFixedJornadas === 'function') telHistSlotApplyToFixedJornadas(data);
+  if(typeof telCompTableApply === 'function') telCompTableApply(data);
   return data;
 }
 
@@ -2104,6 +2098,200 @@ app.get('/api/admin/forzar-panel-resultados-j1j2', requireAdmin, (req,res)=>{
 });
 
 
+
+
+/* ============================================================
+   TEL PANEL RESULTADOS: NOMBRES Y ESCUDOS FORZADOS
+   El panel admin busca por slotId y cambia nombres/escudos.
+   Aquí se inyectan los nombres + logos exactos dentro del match
+   en TODOS los formatos habituales que puede leer el panel.
+   ============================================================ */
+function telPanelCardNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telPanelCardSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telPanelCardLogo(data, comp, name){
+  const wanted = telPanelCardNorm(name);
+  const candidates = [];
+
+  for(const team of (comp?.equipos || [])) candidates.push(team);
+  for(const key of ['clubes','equipos','teams']){
+    for(const team of (data?.[key] || [])) candidates.push(team);
+  }
+
+  for(const team of candidates){
+    const teamName = telPanelCardNorm(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name);
+    if(teamName !== wanted) continue;
+
+    const values = [
+      team.escudoUrl,
+      team.logoUrl,
+      team.logo,
+      team.escudo,
+      team.imagen,
+      team.imagenUrl,
+      team.escudoPath,
+      team.escudoFilename
+    ].filter(Boolean);
+
+    for(let value of values){
+      value = String(value || '').trim().replaceAll('\\','/');
+      if(!value) continue;
+      if(value.startsWith('/api/club-logo')) return value;
+      if(/^https?:\/\//i.test(value)) return value;
+      if(value.startsWith('/escudos/')) return value;
+      if(value.startsWith('escudos/')) return '/' + value;
+      if(/\.(png|jpe?g|webp|gif|svg)$/i.test(value)){
+        const file = value.split('/').pop();
+        if(file) return '/escudos/' + file;
+      }
+    }
+
+    const key = team.clubId || team.rolId || team.id || team._id || team.idClub || team.nombre || team.clubNombre || team.nombreVisual || team.name;
+    if(key) return `/api/club-logo?key=${encodeURIComponent(String(key))}`;
+  }
+
+  return `/api/club-logo?key=${encodeURIComponent(name)}`;
+}
+function telPanelCardInjectTeam(match, side, name, slotId, logo){
+  const prefix = side === 'local' ? 'local' : 'visitante';
+  const altPrefix = side === 'local' ? 'Local' : 'Visitante';
+  const equipoKey = side === 'local' ? 'equipoLocal' : 'equipoVisitante';
+  const nombreKey = side === 'local' ? 'nombreLocal' : 'nombreVisitante';
+  const slotKey = side === 'local' ? 'localSlotId' : 'visitanteSlotId';
+  const idKey = side === 'local' ? 'localId' : 'visitanteId';
+  const clubIdKey = side === 'local' ? 'localClubId' : 'visitanteClubId';
+
+  match[`${prefix}Nombre`] = name;
+  match[nombreKey] = name;
+  match[equipoKey] = name;
+  match[slotKey] = slotId;
+  match[idKey] = slotId;
+  match[clubIdKey] = slotId;
+
+  match[`${prefix}Logo`] = logo;
+  match[`${prefix}Escudo`] = logo;
+  match[`escudo${altPrefix}`] = logo;
+  match[`logo${altPrefix}`] = logo;
+  match[`${prefix}Imagen`] = logo;
+
+  const obj = {
+    id:slotId,
+    slotId,
+    clubId:slotId,
+    nombre:name,
+    clubNombre:name,
+    nombreVisual:name,
+    name:name,
+    escudoUrl:logo,
+    logoUrl:logo,
+    logo,
+    escudo:logo
+  };
+
+  match[side] = obj;
+  match[`${prefix}Team`] = obj;
+  match[`${prefix}Equipo`] = obj;
+  match[`${prefix}Club`] = obj;
+}
+function telPanelCardApply(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const fixtures = {
+    1: [
+      ['Catalunya Lliure', 'Ghost Unit'],
+      ['Alegria FCA', 'Unió catalana'],
+      ['COVAYERS FC', 'BLACK MECANIC'],
+      ['Fuzeteam FC B', 'Hamoods CF'],
+      ['Billar FC', 'Coral Springs A']
+    ],
+    2: [
+      ['Unió catalana', 'Catalunya Lliure'],
+      ['BLACK MECANIC', 'Ghost Unit'],
+      ['Hamoods CF', 'Alegria FCA'],
+      ['Coral Springs A', 'COVAYERS FC'],
+      ['Billar FC', 'Fuzeteam FC B']
+    ]
+  };
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+
+  const target = comps.find(comp=>{
+    const text = `${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''}`.toLowerCase();
+    if(text.includes('copa') || text.includes('elimin')) return false;
+    const raw = JSON.stringify(comp?.partidos || []) + JSON.stringify(comp?.equipos || []);
+    return ['Catalunya Lliure','Ghost Unit','Alegria FCA','Unió catalana','COVAYERS FC','BLACK MECANIC','Fuzeteam FC B','Hamoods CF','Billar FC','Coral Springs A']
+      .filter(name=>raw.toLowerCase().includes(name.toLowerCase())).length >= 4;
+  }) || comps.find(comp=>{
+    const text = `${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''}`.toLowerCase();
+    return !text.includes('copa') && !text.includes('elimin');
+  });
+
+  if(!target) return data;
+
+  if(typeof telPanelForceExactFixtures === 'function') telPanelForceExactFixtures(data);
+  else if(typeof telHistSlotApplyToFixedJornadas === 'function') telHistSlotApplyToFixedJornadas(data);
+
+  target.partidos = Array.isArray(target.partidos) ? target.partidos : [];
+
+  for(const [jornada, games] of Object.entries(fixtures)){
+    games.forEach(([local, visitante], index)=>{
+      const match = target.partidos.find(m =>
+        Number(m.jornada || m.round || 0) === Number(jornada) &&
+        Number(m.ordenJornada || 0) === index + 1
+      ) || target.partidos.find(m =>
+        Number(m.jornada || m.round || 0) === Number(jornada) &&
+        telPanelCardNorm(m.localNombre || m.nombreLocal || m.equipoLocal) === telPanelCardNorm(local) &&
+        telPanelCardNorm(m.visitanteNombre || m.nombreVisitante || m.equipoVisitante) === telPanelCardNorm(visitante)
+      );
+
+      if(!match) return;
+
+      const localSlot = match.localSlotId || `hist-jornada-${telPanelCardSlug(local)}`;
+      const awaySlot = match.visitanteSlotId || `hist-jornada-${telPanelCardSlug(visitante)}`;
+
+      const localLogo = telPanelCardLogo(data, target, local);
+      const awayLogo = telPanelCardLogo(data, target, visitante);
+
+      telPanelCardInjectTeam(match, 'local', local, localSlot, localLogo);
+      telPanelCardInjectTeam(match, 'visitante', visitante, awaySlot, awayLogo);
+      match.panelResultadosNombreEscudoForzado = true;
+    });
+  }
+
+  if(typeof telCompTableApply === 'function') telCompTableApply(data);
+
+  return data;
+}
+app.get('/api/admin/forzar-panel-resultados-nombres-escudos', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telPanelCardApply(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Panel resultados corregido con nombres y escudos forzados.'
+    });
+  }catch(error){
+    console.error('[forzar-panel-resultados-nombres-escudos]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -2118,6 +2306,7 @@ app.get("/api/data", (req, res) => {
   telHistSlotApplyToFixedJornadas(data);
   telPanelResultadosFixData(data);
   telPanelForceExactFixtures(data);
+  telPanelCardApply(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -2314,6 +2503,7 @@ app.get("/api/competiciones", (req, res) => {
   telHistSlotApplyToFixedJornadas(data);
   telPanelResultadosFixData(data);
   telPanelForceExactFixtures(data);
+  telPanelCardApply(data);
   res.json(data.competiciones || []);
 });
 
@@ -4261,6 +4451,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     writeLeagueData(data);
 
     telPanelForceExactFixtures(data);
+    telPanelCardApply(data);
     const competiciones = telSimpleComps(data).map((comp, ci)=>{
       const compId = telSimpleCompId(comp, ci);
       const isCup = telSimpleIsCup(comp);
@@ -4290,6 +4481,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     });
 
     telPanelResultadosFixData(data);
+    telPanelCardApply(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
@@ -4879,6 +5071,7 @@ app.get('/data.json', (req,res)=>{
   // La web pública recibe los clubes hidratados con su ID y una ruta estable
   // de escudo, igual que /api/data. No se expone la ruta local del ordenador del bot.
   telPanelResultadosFixData(data);
+  telPanelCardApply(data);
   res.json(telHydrateDataForClient(data));
 });
 app.get('/api/data-live', (req,res)=>{
@@ -4917,6 +5110,7 @@ app.get('/api/admin/final-lista', requireAdmin, (req,res)=>{
     telFinalAdminWriteData(data);
 
     telPanelForceExactFixtures(data);
+    telPanelCardApply(data);
     const competiciones = telFinalAdminComps(data).map((comp, ci)=>{
       const compId = telFinalAdminCompId(comp, ci);
       const isCup = telFinalAdminIsCup(comp);
@@ -5415,6 +5609,7 @@ app.get('/api/admin/direct-lista', (req,res)=>{
 
     res.set('Cache-Control','no-store');
     telPanelResultadosFixData(data);
+    telPanelCardApply(data);
     res.json({ok:true, competiciones});
   }catch(e){
     console.error('[direct-lista]', e);
