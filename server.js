@@ -1832,6 +1832,74 @@ app.get('/api/admin/arreglar-jornadas-slot-historico', requireAdmin, (req,res)=>
 });
 
 
+
+
+/* ============================================================
+   TEL FIX PANEL RESULTADOS JORNADAS 1 Y 2
+   Aplica las jornadas exactas también antes de devolver datos al
+   panel admin de resultados, para que no use nombres por slot antiguo.
+   ============================================================ */
+function telPanelResultadosFixData(data){
+  if(!data || typeof data !== 'object') return data;
+
+  if(typeof telHistSlotApplyToFixedJornadas === 'function'){
+    telHistSlotApplyToFixedJornadas(data);
+  }else if(typeof telFotoExactApply === 'function'){
+    telFotoExactApply(data);
+  }
+
+  if(typeof telCompTableApply === 'function'){
+    telCompTableApply(data);
+  }
+
+  return data;
+}
+
+
+
+
+/* TEL middleware panel resultados: fija en memoria antes de respuestas públicas/admin panel */
+app.use((req,res,next)=>{
+  try{
+    const pathOnly = String(req.path || '').split('?')[0];
+    if(
+      pathOnly.startsWith('/api/tel-panel/') ||
+      pathOnly.startsWith('/api/admin/resultados') ||
+      pathOnly.startsWith('/api/admin/partidos')
+    ){
+      const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+      telPanelResultadosFixData(data);
+      // No guardamos en cada GET para evitar refrescos. Solo en POST/PUT/PATCH/DELETE.
+      const method = String(req.method || 'GET').toUpperCase();
+      if(method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS'){
+        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+      }
+    }
+  }catch(error){
+    console.warn('[panel-resultados-fix]', error?.message || error);
+  }
+  next();
+});
+
+
+
+app.get('/api/admin/arreglar-panel-resultados-jornadas', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telPanelResultadosFixData(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Panel de resultados corregido: Jornada 1 y 2 quedan exactas con slots históricos.'
+    });
+  }catch(error){
+    console.error('[arreglar-panel-resultados-jornadas]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -1844,6 +1912,7 @@ app.get("/api/data", (req, res) => {
   });
 
   telHistSlotApplyToFixedJornadas(data);
+  telPanelResultadosFixData(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -1863,6 +1932,7 @@ app.get("/api/raw-clubes", (req, res) => {
 app.get("/api/clubes", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, { clubes: [], jugadores: [], competiciones: [] });
+  if(typeof telPanelResultadosFixData === 'function') telPanelResultadosFixData(data);
   const rawClubes = findDataList(data, ["clubes", "equipos", "teams"]);
   const ligas = getRealLeagues(data);
   const ligaParam = String(req.query.liga || req.query.competicion || "").trim();
@@ -2008,6 +2078,7 @@ function telClubStatsForProfile(rawClub, normalizedClub, data){
 app.get("/api/clubes/:clubId", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, { clubes: [], jugadores: [], competiciones: [] });
+  if(typeof telPanelResultadosFixData === 'function') telPanelResultadosFixData(data);
   const rawClubes = findDataList(data, ["clubes", "equipos", "teams"]);
   const wanted = normalizeText(req.params.clubId);
   const rawClub = rawClubes.find(club =>
@@ -2034,7 +2105,9 @@ app.get("/api/clubes/:clubId", (req, res) => {
 app.get("/api/competiciones", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, { competiciones: [] });
+  if(typeof telPanelResultadosFixData === 'function') telPanelResultadosFixData(data);
   telHistSlotApplyToFixedJornadas(data);
+  telPanelResultadosFixData(data);
   res.json(data.competiciones || []);
 });
 
@@ -4009,6 +4082,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
       };
     });
 
+    telPanelResultadosFixData(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
@@ -4597,6 +4671,7 @@ app.get('/data.json', (req,res)=>{
   const data = readJson(DATA_FILE, {clubes:[],jugadores:[],competiciones:[]});
   // La web pública recibe los clubes hidratados con su ID y una ruta estable
   // de escudo, igual que /api/data. No se expone la ruta local del ordenador del bot.
+  telPanelResultadosFixData(data);
   res.json(telHydrateDataForClient(data));
 });
 app.get('/api/data-live', (req,res)=>{
@@ -5131,6 +5206,7 @@ app.get('/api/admin/direct-lista', (req,res)=>{
     });
 
     res.set('Cache-Control','no-store');
+    telPanelResultadosFixData(data);
     res.json({ok:true, competiciones});
   }catch(e){
     console.error('[direct-lista]', e);
