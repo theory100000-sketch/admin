@@ -1231,8 +1231,7 @@ function telFotoForceAndSave(data){
   if(typeof telFinalReplaceApplyActive === 'function'){
     telFinalReplaceApplyActive(data);
   }
-  if(typeof telCleanRemovedApplyAll === 'function') telCleanRemovedApplyAll(data);
-  if(typeof telOnly10Apply === 'function') telOnly10Apply(data);
+  if(typeof telPanelTeamsApply === 'function') telPanelTeamsApply(data);
   telFotoSave(data);
   return data;
 }
@@ -1770,7 +1769,7 @@ app.get('/api/admin/limpiar-equipos-sacados', requireAdmin, (req,res)=>{
       telReplaceTeamApplyActive(data);
     }
 
-    telCleanRemovedForceAndSave(data);
+    telPanelTeamsForceAndSave(data);
 
     res.set('Cache-Control','no-store');
     res.json({
@@ -1974,7 +1973,7 @@ app.get('/api/admin/forzar-clasificacion-10', requireAdmin, (req,res)=>{
     if(typeof telReplaceTeamApplyActive === 'function') telReplaceTeamApplyActive(data);
     if(typeof telFotoApplyOfficialJornadas === 'function') telFotoApplyOfficialJornadas(data);
 
-    telOnly10ForceAndSave(data);
+    telPanelTeamsForceAndSave(data);
 
     res.set('Cache-Control','no-store');
     res.json({
@@ -1984,6 +1983,229 @@ app.get('/api/admin/forzar-clasificacion-10', requireAdmin, (req,res)=>{
     });
   }catch(error){
     console.error('[forzar-clasificacion-10]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* ============================================================
+   TEL CLASIFICACIÓN = EQUIPOS ACTIVOS DEL PANEL ADMIN
+   - No usa lista fija de 10.
+   - Salen los equipos que estén activos en comp.equipos.
+   - Si el panel admin saca un equipo, no sale en clasificación.
+   - Los resultados no se reinician.
+   - Los partidos jugados contra equipos sacados siguen contando
+     para el rival activo.
+   ============================================================ */
+function telPanelTeamsNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^\w]+/g,' ')
+    .trim();
+}
+function telPanelTeamsName(team){
+  return String(team?.nombre || team?.clubNombre || team?.name || team?.nombreVisual || '').trim();
+}
+function telPanelTeamsIsCup(comp){
+  const txt = telPanelTeamsNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telPanelTeamsNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telPanelTeamsIsRemoved(team){
+  if(!team) return true;
+
+  if(team.historico === true) return true;
+  if(team.equipoHistorico === true) return true;
+  if(team.excluidoClasificacion === true) return true;
+  if(team.eliminadoDeCompeticion === true) return true;
+  if(team.sacadoDeCompeticion === true) return true;
+  if(team.removidoDeCompeticion === true) return true;
+  if(team.inactivoCompeticion === true) return true;
+  if(team.activo === false) return true;
+  if(team.active === false) return true;
+
+  const estado = telPanelTeamsNorm(team.estado || team.status || '');
+  if(estado.includes('sacado')) return true;
+  if(estado.includes('eliminado')) return true;
+  if(estado.includes('inactivo')) return true;
+  if(estado.includes('baja')) return true;
+  if(estado.includes('fuera')) return true;
+
+  return false;
+}
+function telPanelTeamsSlot(team, index){
+  return String(team?.slotId || team?.id || team?.clubId || team?.idClub || team?.clubNombre || team?.nombre || `slot-${index+1}`);
+}
+function telPanelTeamsValidScore(value){
+  return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
+}
+function telPanelTeamsPlayed(match){
+  return !!match && (
+    match.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
+    (telPanelTeamsValidScore(match.localGoles) && telPanelTeamsValidScore(match.visitanteGoles)) ||
+    (telPanelTeamsValidScore(match.golesLocal) && telPanelTeamsValidScore(match.golesVisitante)) ||
+    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
+  );
+}
+function telPanelTeamsGoals(match){
+  let local = match?.localGoles ?? match?.golesLocal;
+  let away = match?.visitanteGoles ?? match?.golesVisitante;
+
+  if((local === null || local === undefined || local === '' || away === null || away === undefined || away === '') && match?.resultado){
+    const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+    if(parsed){
+      local = Number(parsed[1]);
+      away = Number(parsed[2]);
+    }
+  }
+
+  return {
+    local:Number(local ?? 0),
+    away:Number(away ?? 0)
+  };
+}
+function telPanelTeamsRecalcCompetition(comp){
+  if(!comp || telPanelTeamsIsCup(comp)) return;
+
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
+
+  const rowsBySlot = new Map();
+
+  // Aquí está la clave: la clasificación sale de los equipos activos del panel admin.
+  comp.equipos.forEach((team, index)=>{
+    if(telPanelTeamsIsRemoved(team)) return;
+
+    const slotId = telPanelTeamsSlot(team, index);
+    const name = telPanelTeamsName(team);
+
+    if(!name) return;
+
+    rowsBySlot.set(slotId, {
+      ...team,
+      slotId,
+      nombre: team.nombre || team.clubNombre || team.nombreVisual || team.name || name,
+      clubNombre: team.clubNombre || team.nombre || team.nombreVisual || team.name || name,
+      pj:0,
+      pg:0,
+      pe:0,
+      pp:0,
+      gf:0,
+      gc:0,
+      dg:0,
+      pts:0
+    });
+  });
+
+  comp.partidos.forEach(match=>{
+    if(!telPanelTeamsPlayed(match)) return;
+
+    const localSlot = String(match.localSlotId || '');
+    const awaySlot = String(match.visitanteSlotId || '');
+
+    const local = rowsBySlot.get(localSlot) || null;
+    const away = rowsBySlot.get(awaySlot) || null;
+
+    // Si un equipo fue sacado del panel, no aparece en tabla.
+    // Pero si el rival sigue activo, el resultado sigue contando para el rival.
+    if(!local && !away) return;
+
+    const goals = telPanelTeamsGoals(match);
+    const lg = Number(goals.local || 0);
+    const vg = Number(goals.away || 0);
+
+    if(local){
+      local.pj += 1;
+      local.gf += lg;
+      local.gc += vg;
+      local.dg = local.gf - local.gc;
+    }
+
+    if(away){
+      away.pj += 1;
+      away.gf += vg;
+      away.gc += lg;
+      away.dg = away.gf - away.gc;
+    }
+
+    if(lg > vg){
+      if(local){ local.pg += 1; local.pts += 3; }
+      if(away){ away.pp += 1; }
+    }else if(lg < vg){
+      if(away){ away.pg += 1; away.pts += 3; }
+      if(local){ local.pp += 1; }
+    }else{
+      if(local){ local.pe += 1; local.pts += 1; }
+      if(away){ away.pe += 1; away.pts += 1; }
+    }
+  });
+
+  comp.clasificacion = Array.from(rowsBySlot.values()).sort((a,b)=>
+    (Number(b.pts||0) - Number(a.pts||0)) ||
+    (Number(b.dg||0) - Number(a.dg||0)) ||
+    (Number(b.gf||0) - Number(a.gf||0)) ||
+    String(a.nombre || a.clubNombre || '').localeCompare(String(b.nombre || b.clubNombre || ''), 'es')
+  );
+}
+function telPanelTeamsApply(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+
+  comps.forEach(comp=>{
+    telPanelTeamsRecalcCompetition(comp);
+  });
+
+  return data;
+}
+function telPanelTeamsForceAndSave(data){
+  telPanelTeamsApply(data);
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+  return data;
+}
+
+/* Anula el parche anterior de lista fija de 10, si existe. */
+function telOnly10Apply(data){
+  return telPanelTeamsApply(data);
+}
+function telOnly10ForceAndSave(data){
+  return telPanelTeamsForceAndSave(data);
+}
+
+app.get('/api/admin/recalcular-clasificacion-panel', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+
+    if(typeof telFinalReplaceApplyActive === 'function'){
+      telFinalReplaceApplyActive(data);
+    }
+    if(typeof telReplaceTeamApplyActive === 'function'){
+      telReplaceTeamApplyActive(data);
+    }
+
+    telPanelTeamsForceAndSave(data);
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      equiposClasificacion: Array.isArray(comp.clasificacion) ? comp.clasificacion.length : 0
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Clasificación recalculada con los equipos activos del panel admin.',
+      resumen
+    });
+  }catch(error){
+    console.error('[recalcular-clasificacion-panel]', error);
     res.status(500).json({ok:false,message:String(error.message || error)});
   }
 });
@@ -2001,8 +2223,8 @@ app.get("/api/data", (req, res) => {
   });
 
   telFotoForceAndSave(data);
-  telCleanRemovedForceAndSave(data);
-  telOnly10ForceAndSave(data);
+  telPanelTeamsForceAndSave(data);
+  telPanelTeamsForceAndSave(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -2010,8 +2232,8 @@ app.get("/api/ligas", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {});
   telFotoForceAndSave(data);
-  telCleanRemovedForceAndSave(data);
-  telOnly10ForceAndSave(data);
+  telPanelTeamsForceAndSave(data);
+  telPanelTeamsForceAndSave(data);
   res.json(getRealLeagues(data));
 });
 
@@ -2196,8 +2418,8 @@ app.get("/api/competiciones", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, { competiciones: [] });
   telFotoForceAndSave(data);
-  telCleanRemovedForceAndSave(data);
-  telOnly10ForceAndSave(data);
+  telPanelTeamsForceAndSave(data);
+  telPanelTeamsForceAndSave(data);
   res.json(data.competiciones || []);
 });
 
