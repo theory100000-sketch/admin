@@ -2292,6 +2292,298 @@ app.get('/api/admin/forzar-panel-resultados-nombres-escudos', requireAdmin, (req
 });
 
 
+
+
+/* ============================================================
+   TEL FIX REAL PANEL RESULTADOS ENDPOINT
+   El panel de resultados vuelve a resolver los equipos por slotId.
+   Esta función transforma directamente cualquier JSON de competiciones
+   antes de responder al panel, para que J1/J2 no se puedan pisar.
+   ============================================================ */
+function telAdminPanelRealNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telAdminPanelRealSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telAdminPanelRealLogo(data, comp, name){
+  const wanted = telAdminPanelRealNorm(name);
+  const candidates = [];
+
+  for(const team of (comp?.equipos || [])) candidates.push(team);
+  for(const key of ['clubes','equipos','teams']){
+    for(const team of (data?.[key] || [])) candidates.push(team);
+  }
+
+  for(const team of candidates){
+    const n = telAdminPanelRealNorm(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name);
+    if(n !== wanted) continue;
+
+    const values = [
+      team.escudoUrl, team.logoUrl, team.logo, team.escudo,
+      team.imagenUrl, team.imagen, team.escudoPath, team.escudoFilename
+    ].filter(Boolean);
+
+    for(let value of values){
+      value = String(value).trim().replaceAll('\\','/');
+      if(!value) continue;
+      if(value.startsWith('/api/club-logo')) return value;
+      if(/^https?:\/\//i.test(value)) return value;
+      if(value.startsWith('/escudos/')) return value;
+      if(value.startsWith('escudos/')) return '/' + value;
+      if(/\.(png|jpe?g|webp|gif|svg)$/i.test(value)){
+        return '/escudos/' + value.split('/').pop();
+      }
+    }
+
+    const key = team.clubId || team.rolId || team.id || team._id || team.idClub || team.nombre || team.clubNombre || team.nombreVisual || team.name;
+    if(key) return `/api/club-logo?key=${encodeURIComponent(String(key))}`;
+  }
+
+  return `/api/club-logo?key=${encodeURIComponent(name)}`;
+}
+function telAdminPanelRealEnsurePanelTeam(comp, name, logo){
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+
+  const slot = `panel-jornada-${telAdminPanelRealSlug(name)}`;
+
+  let team = comp.equipos.find(t => String(t.slotId || '') === slot);
+
+  if(!team){
+    team = {
+      id: slot,
+      slotId: slot,
+      clubId: slot,
+      idClub: slot
+    };
+    comp.equipos.push(team);
+  }
+
+  team.nombre = name;
+  team.clubNombre = name;
+  team.nombreVisual = name;
+  team.name = name;
+  team.escudoUrl = logo;
+  team.logoUrl = logo;
+  team.logo = logo;
+  team.escudo = logo;
+
+  // Importante: no aparece en clasificación si no era activo.
+  team.fixturePanel = true;
+  team.historico = true;
+  team.equipoHistorico = true;
+  team.excluidoClasificacion = true;
+  team.eliminadoDeCompeticion = true;
+
+  return slot;
+}
+function telAdminPanelRealInject(match, side, name, slot, logo){
+  const prefix = side === 'local' ? 'local' : 'visitante';
+  const cap = side === 'local' ? 'Local' : 'Visitante';
+  const equipoKey = side === 'local' ? 'equipoLocal' : 'equipoVisitante';
+  const nombreKey = side === 'local' ? 'nombreLocal' : 'nombreVisitante';
+
+  const obj = {
+    id: slot,
+    slotId: slot,
+    clubId: slot,
+    idClub: slot,
+    nombre: name,
+    clubNombre: name,
+    nombreVisual: name,
+    name: name,
+    escudoUrl: logo,
+    logoUrl: logo,
+    logo: logo,
+    escudo: logo
+  };
+
+  match[`${prefix}SlotId`] = slot;
+  match[`${prefix}Id`] = slot;
+  match[`${prefix}ClubId`] = slot;
+  match[`${prefix}Nombre`] = name;
+  match[nombreKey] = name;
+  match[equipoKey] = name;
+
+  match[`${prefix}Logo`] = logo;
+  match[`${prefix}Escudo`] = logo;
+  match[`logo${cap}`] = logo;
+  match[`escudo${cap}`] = logo;
+
+  match[side] = obj;
+  match[`${prefix}Team`] = obj;
+  match[`${prefix}Equipo`] = obj;
+  match[`${prefix}Club`] = obj;
+}
+function telAdminPanelRealFix(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const fixtures = {
+    1: [
+      ['Catalunya Lliure', 'Ghost Unit'],
+      ['Alegria FCA', 'Unió catalana'],
+      ['COVAYERS FC', 'BLACK MECANIC'],
+      ['Fuzeteam FC B', 'Hamoods CF'],
+      ['Billar FC', 'Coral Springs A']
+    ],
+    2: [
+      ['Unió catalana', 'Catalunya Lliure'],
+      ['BLACK MECANIC', 'Ghost Unit'],
+      ['Hamoods CF', 'Alegria FCA'],
+      ['Coral Springs A', 'COVAYERS FC'],
+      ['Billar FC', 'Fuzeteam FC B']
+    ]
+  };
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+
+  const target = comps.find(comp=>{
+    const text = `${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''}`.toLowerCase();
+    if(text.includes('copa') || text.includes('elimin')) return false;
+    return true;
+  });
+
+  if(!target) return data;
+
+  target.partidos = Array.isArray(target.partidos) ? target.partidos : [];
+  target.equipos = Array.isArray(target.equipos) ? target.equipos : [];
+
+  const old = target.partidos.slice();
+
+  function sameExact(match, jornada, local, visitante){
+    return Number(match.jornada || match.round || 0) === Number(jornada) &&
+      telAdminPanelRealNorm(match.localNombre || match.nombreLocal || match.equipoLocal) === telAdminPanelRealNorm(local) &&
+      telAdminPanelRealNorm(match.visitanteNombre || match.nombreVisitante || match.equipoVisitante) === telAdminPanelRealNorm(visitante);
+  }
+
+  function getScore(match, side){
+    if(!match) return null;
+    if(side === 'local'){
+      return match.localGoles ?? match.golesLocal ?? null;
+    }
+    return match.visitanteGoles ?? match.golesVisitante ?? null;
+  }
+
+  const future = old.filter(m=>{
+    const j = Number(m.jornada || m.round || 0);
+    return j !== 1 && j !== 2;
+  });
+
+  const fixed = [];
+
+  for(const [jornada, games] of Object.entries(fixtures)){
+    games.forEach(([local, visitante], index)=>{
+      const previous = old.find(m=>sameExact(m, jornada, local, visitante)) || {};
+
+      const localLogo = telAdminPanelRealLogo(data, target, local);
+      const awayLogo = telAdminPanelRealLogo(data, target, visitante);
+
+      const localSlot = telAdminPanelRealEnsurePanelTeam(target, local, localLogo);
+      const awaySlot = telAdminPanelRealEnsurePanelTeam(target, visitante, awayLogo);
+
+      const localGoles = getScore(previous, 'local');
+      const visitanteGoles = getScore(previous, 'visitante');
+      const scored = localGoles !== null && localGoles !== undefined && localGoles !== '' &&
+        visitanteGoles !== null && visitanteGoles !== undefined && visitanteGoles !== '';
+
+      const match = {
+        ...previous,
+        id: `${target.id || target.nombre || 'liga'}-panel-j${jornada}-p${index+1}`,
+        jornada: Number(jornada),
+        round: Number(jornada),
+        ordenJornada: index + 1,
+        localGoles,
+        visitanteGoles,
+        golesLocal: localGoles,
+        golesVisitante: visitanteGoles,
+        resultado: scored ? `${localGoles}-${visitanteGoles}` : (previous.resultado || ''),
+        estado: scored || previous.finalizado === true ? 'finalizado' : (previous.estado || 'pendiente'),
+        finalizado: scored || previous.finalizado === true,
+        panelForcedFinal: true
+      };
+
+      telAdminPanelRealInject(match, 'local', local, localSlot, localLogo);
+      telAdminPanelRealInject(match, 'visitante', visitante, awaySlot, awayLogo);
+
+      fixed.push(match);
+    });
+  }
+
+  target.partidos = [...fixed, ...future].sort((a,b)=>{
+    const ja = Number(a.jornada || 9999);
+    const jb = Number(b.jornada || 9999);
+    if(ja !== jb) return ja - jb;
+    return Number(a.ordenJornada || 9999) - Number(b.ordenJornada || 9999);
+  });
+
+  if(typeof telCompTableApply === 'function'){
+    telCompTableApply(data);
+  }
+
+  return data;
+}
+app.get('/api/admin/fix-panel-final', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telAdminPanelRealFix(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,message:'Panel resultados arreglado definitivamente.'});
+  }catch(error){
+    console.error('[fix-panel-final]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Interceptor real para el panel-resultados.html */
+app.use((req,res,next)=>{
+  const pathOnly = String(req.path || '').split('?')[0];
+  const isPanelData =
+    pathOnly.startsWith('/api/tel-panel/') ||
+    pathOnly.includes('panel') ||
+    pathOnly.includes('resultados') ||
+    pathOnly === '/api/data' ||
+    pathOnly === '/api/competiciones';
+
+  if(!isPanelData) return next();
+
+  const originalJson = res.json.bind(res);
+  res.json = function(payload){
+    try{
+      if(payload && typeof payload === 'object'){
+        if(payload.competiciones || payload.ligas || payload.torneos){
+          telAdminPanelRealFix(payload);
+        }else if(payload.data && typeof payload.data === 'object'){
+          telAdminPanelRealFix(payload.data);
+        }else if(Array.isArray(payload)){
+          const wrapper = {competiciones:payload};
+          telAdminPanelRealFix(wrapper);
+          payload = wrapper.competiciones;
+        }
+      }
+    }catch(error){
+      console.warn('[panel-resultados-json-interceptor]', error?.message || error);
+    }
+    return originalJson(payload);
+  };
+
+  next();
+});
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -2307,6 +2599,7 @@ app.get("/api/data", (req, res) => {
   telPanelResultadosFixData(data);
   telPanelForceExactFixtures(data);
   telPanelCardApply(data);
+  telAdminPanelRealFix(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -2504,6 +2797,7 @@ app.get("/api/competiciones", (req, res) => {
   telPanelResultadosFixData(data);
   telPanelForceExactFixtures(data);
   telPanelCardApply(data);
+  telAdminPanelRealFix(data);
   res.json(data.competiciones || []);
 });
 
