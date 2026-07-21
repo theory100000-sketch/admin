@@ -1228,9 +1228,310 @@ function telFotoSave(data){
 }
 function telFotoForceAndSave(data){
   telFotoApplyOfficialJornadas(data);
+  if(typeof telFinalReplaceApplyActive === 'function'){
+    telFinalReplaceApplyActive(data);
+  }
   telFotoSave(data);
   return data;
 }
+
+
+
+/* ============================================================
+   TEL FIX FINAL CAMBIO EQUIPO
+   - No resetea resultados.
+   - El equipo que sale no aparece en clasificación.
+   - Los partidos jugados siguen contando para el rival activo.
+   - Los pendientes pasan al equipo nuevo.
+   ============================================================ */
+function telFinalReplaceNorm(value){
+  return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,' ').trim();
+}
+function telFinalReplaceSlug(value){
+  return String(value || 'equipo').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'-').replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telFinalReplaceName(team){
+  return String(team?.nombre || team?.clubNombre || team?.name || team?.nombreVisual || '').trim();
+}
+function telFinalReplaceSlot(team){
+  if(!team.slotId) team.slotId = String(team.id || team.clubId || team.idClub || telFinalReplaceSlug(telFinalReplaceName(team)));
+  return String(team.slotId);
+}
+function telFinalReplacePlayed(match){
+  const valid = v => v !== null && v !== undefined && v !== '' && !Number.isNaN(Number(v));
+  return !!match && (
+    match.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
+    (valid(match.localGoles) && valid(match.visitanteGoles)) ||
+    (valid(match.golesLocal) && valid(match.golesVisitante)) ||
+    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
+  );
+}
+function telFinalReplaceComps(data){
+  return data.competiciones || data.ligas || data.torneos || [];
+}
+function telFinalReplaceCompId(comp,index){
+  if(!comp.id) comp.id = telFinalReplaceSlug(comp.nombre || comp.name || `competicion-${index+1}`);
+  return String(comp.id);
+}
+function telFinalReplaceFindTeam(data, comp, search){
+  const raw = String(search || '').trim();
+  const wanted = telFinalReplaceNorm(raw);
+
+  for(const team of (comp?.equipos || [])){
+    const values = [team.slotId, team.id, team.clubId, team.idClub, team.nombre, team.clubNombre, team.nombreVisual, team.name].filter(Boolean);
+    if(values.some(v => String(v) === raw || telFinalReplaceNorm(v) === wanted)) return team;
+  }
+
+  for(const key of ['clubes','equipos','teams']){
+    for(const team of (data[key] || [])){
+      const values = [team.slotId, team.id, team.clubId, team.idClub, team.nombre, team.clubNombre, team.nombreVisual, team.name].filter(Boolean);
+      if(values.some(v => String(v) === raw || telFinalReplaceNorm(v) === wanted)) return JSON.parse(JSON.stringify(team));
+    }
+  }
+
+  for(const other of telFinalReplaceComps(data)){
+    for(const team of (other.equipos || [])){
+      const values = [team.slotId, team.id, team.clubId, team.idClub, team.nombre, team.clubNombre, team.nombreVisual, team.name].filter(Boolean);
+      if(values.some(v => String(v) === raw || telFinalReplaceNorm(v) === wanted)) return JSON.parse(JSON.stringify(team));
+    }
+  }
+
+  return null;
+}
+function telFinalReplaceMakeTeam(data, comp, name){
+  let team = telFinalReplaceFindTeam(data, comp, name);
+  if(!team){
+    team = {
+      id: telFinalReplaceSlug(name),
+      slotId: telFinalReplaceSlug(name),
+      nombre: name,
+      clubNombre: name,
+      escudoUrl: `/escudos/${telFinalReplaceSlug(name)}.png`,
+      escudoPath: `escudos/${telFinalReplaceSlug(name)}.png`,
+      escudoFilename: `${telFinalReplaceSlug(name)}.png`
+    };
+  }
+
+  team.nombre = name;
+  team.clubNombre = name;
+  team.nombreVisual = name;
+  team.name = name;
+
+  if(!team.id) team.id = telFinalReplaceSlug(name);
+  if(!team.slotId) team.slotId = String(team.id || telFinalReplaceSlug(name));
+
+  return team;
+}
+function telFinalReplaceGetComp(data, compId){
+  const comps = telFinalReplaceComps(data);
+  return comps.find((comp,index) => {
+    const id = telFinalReplaceCompId(comp,index);
+    return compId ? String(id) === String(compId) : index === 0;
+  }) || null;
+}
+function telFinalReplaceEnsureHistoricTeam(comp, oldTeam, oldName, oldSlot){
+  comp.equipos = comp.equipos || [];
+  const historicSlot = `${oldSlot}__historico__${telFinalReplaceSlug(oldName)}`;
+
+  let historic = comp.equipos.find(team => String(team.slotId || '') === historicSlot);
+  if(!historic){
+    historic = JSON.parse(JSON.stringify(oldTeam || {}));
+    historic.id = historic.id || historicSlot;
+    historic.slotId = historicSlot;
+    comp.equipos.push(historic);
+  }
+
+  historic.nombre = oldName;
+  historic.clubNombre = oldName;
+  historic.nombreVisual = oldName;
+  historic.name = oldName;
+  historic.historico = true;
+  historic.equipoHistorico = true;
+  historic.excluidoClasificacion = true;
+  historic.eliminadoDeCompeticion = true;
+  historic.slotOriginalAntesDeCambio = oldSlot;
+
+  return historicSlot;
+}
+function telFinalReplaceApply(data, replacement){
+  const comp = telFinalReplaceGetComp(data, replacement.compId || '');
+  if(!comp) return {ok:false, reason:'competition_not_found'};
+
+  comp.equipos = comp.equipos || [];
+  comp.partidos = comp.partidos || [];
+
+  const sale = String(replacement.equipoSale || replacement.sale || '').trim();
+  const entra = String(replacement.equipoEntra || replacement.entra || '').trim();
+
+  if(!sale || !entra) return {ok:false, reason:'missing_names'};
+
+  let oldTeam = telFinalReplaceFindTeam(data, comp, replacement.oldSlot || sale);
+
+  if(!oldTeam){
+    oldTeam = {
+      id: telFinalReplaceSlug(sale),
+      slotId: telFinalReplaceSlug(sale),
+      nombre: sale,
+      clubNombre: sale
+    };
+    comp.equipos.push(oldTeam);
+  }
+
+  if(!comp.equipos.includes(oldTeam)){
+    const existing = comp.equipos.find(t => telFinalReplaceNorm(telFinalReplaceName(t)) === telFinalReplaceNorm(sale));
+    if(existing) oldTeam = existing;
+    else comp.equipos.push(oldTeam);
+  }
+
+  const oldName = replacement.equipoSaleNombreReal || telFinalReplaceName(oldTeam) || sale;
+  const oldSlot = String(replacement.oldSlot || telFinalReplaceSlot(oldTeam));
+  const newTeam = telFinalReplaceMakeTeam(data, comp, entra);
+  const historicSlot = telFinalReplaceEnsureHistoricTeam(comp, oldTeam, oldName, oldSlot);
+
+  // El slot original queda para el equipo nuevo. Así el calendario futuro se mantiene.
+  oldTeam.nombre = entra;
+  oldTeam.clubNombre = entra;
+  oldTeam.nombreVisual = entra;
+  oldTeam.name = entra;
+  oldTeam.slotId = oldSlot;
+  oldTeam.reemplazaA = oldName;
+  oldTeam.historico = false;
+  oldTeam.equipoHistorico = false;
+  oldTeam.excluidoClasificacion = false;
+  oldTeam.eliminadoDeCompeticion = false;
+  oldTeam.equipoOriginalHistorico = oldTeam.equipoOriginalHistorico || {nombre:oldName, slotId:oldSlot};
+
+  for(const key of ['escudoUrl','logoUrl','escudoPath','escudoFilename','logo']){
+    if(newTeam[key]) oldTeam[key] = newTeam[key];
+  }
+
+  let playedKept = 0;
+  let futureChanged = 0;
+
+  for(const match of comp.partidos){
+    const localOldSlot = String(match.localSlotId || '') === oldSlot;
+    const awayOldSlot = String(match.visitanteSlotId || '') === oldSlot;
+    const localOldName = telFinalReplaceNorm(match.localNombre || match.nombreLocal || match.equipoLocal) === telFinalReplaceNorm(oldName);
+    const awayOldName = telFinalReplaceNorm(match.visitanteNombre || match.nombreVisitante || match.equipoVisitante) === telFinalReplaceNorm(oldName);
+
+    if(!localOldSlot && !awayOldSlot && !localOldName && !awayOldName) continue;
+
+    if(telFinalReplacePlayed(match)){
+      // IMPORTANTE: no tocar marcador. Solo movemos el equipo antiguo a slot histórico.
+      if(localOldSlot || localOldName){
+        match.localSlotId = historicSlot;
+        match.localNombre = oldName;
+        match.nombreLocal = oldName;
+        match.localEquipoHistorico = oldName;
+      }
+
+      if(awayOldSlot || awayOldName){
+        match.visitanteSlotId = historicSlot;
+        match.visitanteNombre = oldName;
+        match.nombreVisitante = oldName;
+        match.visitanteEquipoHistorico = oldName;
+      }
+
+      match.historicoCambioEquipo = true;
+      match.equipoOriginal = oldName;
+      match.equipoNuevo = entra;
+      playedKept++;
+    }else{
+      // Pendientes/futuros van al equipo nuevo.
+      if(localOldSlot || localOldName){
+        match.localSlotId = oldSlot;
+        match.localNombre = entra;
+        match.nombreLocal = entra;
+      }
+
+      if(awayOldSlot || awayOldName){
+        match.visitanteSlotId = oldSlot;
+        match.visitanteNombre = entra;
+        match.nombreVisitante = entra;
+      }
+
+      match.equipoReemplazado = oldName;
+      match.equipoNuevo = entra;
+      futureChanged++;
+    }
+  }
+
+  if(typeof recalcLeagueClassificationAdmin === 'function'){
+    recalcLeagueClassificationAdmin(comp);
+  }
+
+  return {
+    ok:true,
+    compId:String(comp.id || ''),
+    equipoSale:oldName,
+    equipoEntra:entra,
+    oldSlot,
+    historicSlot,
+    partidosJugadosConservados:playedKept,
+    partidosFuturosActualizados:futureChanged
+  };
+}
+function telFinalReplaceApplyActive(data){
+  const list = Array.isArray(data.equipoReemplazosActivos) ? data.equipoReemplazosActivos : [];
+  return list.map(item => telFinalReplaceApply(data, item));
+}
+
+app.get('/admin-reemplazar-equipo', requireAdmin, (req,res)=>{
+  res.set('Cache-Control','no-store');
+  res.type('html').send(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reemplazar equipo</title><style>body{margin:0;background:#071020;color:#fff;font-family:Arial,sans-serif;padding:36px}.card{max-width:900px;margin:auto;background:#0b1428;border:1px solid rgba(255,255,255,.14);border-radius:20px;padding:28px}input,button{width:100%;box-sizing:border-box;padding:15px;border-radius:12px;margin-top:8px}input{border:1px solid rgba(255,255,255,.18);background:#071020;color:#fff;font-weight:900}button{border:0;background:#9d35ff;color:#fff;font-weight:1000}label{display:block;margin-top:16px;font-weight:900}.ok{color:#baff35}.bad{color:#ff6680}</style></head><body><div class="card"><h1>Reemplazar equipo</h1><p>Los partidos ya jugados mantienen el equipo antiguo y su resultado. Los pendientes/futuros pasan al equipo nuevo.</p><label>ID competición opcional</label><input id="compId" placeholder="vacío = primera competición"><label>Equipo que sale</label><input id="sale" placeholder="Ej: BLACK MECANIC"><label>Equipo que entra</label><input id="entra" placeholder="Ej: Nuevo FC"><button onclick="guardar()">Guardar reemplazo</button><p id="msg"></p></div><script>async function guardar(){const msg=document.getElementById('msg');msg.textContent='Guardando...';msg.className='';const body={compId:compId.value.trim(),equipoSale:sale.value.trim(),equipoEntra:entra.value.trim()};const res=await fetch('/api/admin/reemplazar-equipo-competicion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json().catch(()=>({ok:false,message:'Error'}));if(!data.ok){msg.textContent=data.message||'No se pudo guardar';msg.className='bad';return;}msg.textContent='Guardado. Jugados conservados: '+(data.result?.partidosJugadosConservados||0)+' · Futuros actualizados: '+(data.result?.partidosFuturosActualizados||0);msg.className='ok';}</script></body></html>`);
+});
+
+app.post('/api/admin/reemplazar-equipo-competicion', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    const compId = String(req.body?.compId || '').trim();
+    const equipoSale = String(req.body?.equipoSale || req.body?.sale || '').trim();
+    const equipoEntra = String(req.body?.equipoEntra || req.body?.entra || '').trim();
+
+    if(!equipoSale || !equipoEntra){
+      return res.status(400).json({ok:false,message:'Falta equipoSale o equipoEntra.'});
+    }
+
+    data.equipoReemplazosActivos = Array.isArray(data.equipoReemplazosActivos) ? data.equipoReemplazosActivos : [];
+
+    data.equipoReemplazosActivos = data.equipoReemplazosActivos.filter(item =>
+      !(String(item.compId || '') === compId && telFinalReplaceNorm(item.equipoSale) === telFinalReplaceNorm(equipoSale))
+    );
+
+    const replacement = {
+      fecha:new Date().toISOString(),
+      compId,
+      equipoSale,
+      equipoEntra
+    };
+
+    data.equipoReemplazosActivos.push(replacement);
+
+    const result = telFinalReplaceApply(data, replacement);
+
+    data.historialCambiosEquipos = Array.isArray(data.historialCambiosEquipos) ? data.historialCambiosEquipos : [];
+    data.historialCambiosEquipos.push({
+      fecha:new Date().toISOString(),
+      compId:result.compId || compId,
+      equipoSale,
+      equipoEntra,
+      oldSlot:result.oldSlot || '',
+      historicSlot:result.historicSlot || '',
+      partidosJugadosConservados:result.partidosJugadosConservados || 0,
+      partidosFuturosActualizados:result.partidosFuturosActualizados || 0
+    });
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,message:'Equipo reemplazado sin resetear resultados ni dejar el equipo antiguo en clasificación.',result});
+  }catch(error){
+    console.error('[reemplazar-equipo-competicion]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
 
 app.get('/api/admin/aplicar-jornadas-foto', requireAdmin, (req,res)=>{
   try{
@@ -1858,7 +2159,10 @@ function teamLabelAdmin(team){
 function recalcLeagueClassificationAdmin(comp){
   const rowsBySlot = new Map();
 
+  // Solo equipos activos en clasificación. Los históricos/sacados no aparecen.
   (comp.equipos || []).forEach((team, index) => {
+    if(team.historico === true || team.equipoHistorico === true || team.excluidoClasificacion === true || team.eliminadoDeCompeticion === true) return;
+
     const slotId = String(team.slotId || team.id || team.clubNombre || team.nombre || `slot-${index+1}`);
     rowsBySlot.set(slotId, {
       ...team,
@@ -1874,36 +2178,61 @@ function recalcLeagueClassificationAdmin(comp){
       match.estado === 'finalizado' ||
       match.estado === 'jugado' ||
       match.estado === 'completado' ||
-      (match.localGoles !== null && match.localGoles !== undefined && match.visitanteGoles !== null && match.visitanteGoles !== undefined)
+      match.finalizado === true ||
+      (match.localGoles !== null && match.localGoles !== undefined && match.visitanteGoles !== null && match.visitanteGoles !== undefined) ||
+      (match.golesLocal !== null && match.golesLocal !== undefined && match.golesVisitante !== null && match.golesVisitante !== undefined) ||
+      /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''))
     );
 
     if(!played) return;
 
     const localSlot = String(match.localSlotId || '');
     const awaySlot = String(match.visitanteSlotId || '');
-    if(!rowsBySlot.has(localSlot) || !rowsBySlot.has(awaySlot)) return;
 
-    const local = rowsBySlot.get(localSlot);
-    const away = rowsBySlot.get(awaySlot);
-    const lg = Number(match.localGoles || 0);
-    const vg = Number(match.visitanteGoles || 0);
+    const local = rowsBySlot.get(localSlot) || null;
+    const away = rowsBySlot.get(awaySlot) || null;
 
-    local.pj++; away.pj++;
-    local.gf += lg; local.gc += vg;
-    away.gf += vg; away.gc += lg;
-    local.dg = local.gf - local.gc;
-    away.dg = away.gf - away.gc;
+    // Si un equipo fue sacado, no aparece en clasificación,
+    // pero el rival activo SÍ conserva su partido, goles y puntos.
+    if(!local && !away) return;
+
+    let lg = match.localGoles ?? match.golesLocal;
+    let vg = match.visitanteGoles ?? match.golesVisitante;
+
+    if((lg === null || lg === undefined || lg === '' || vg === null || vg === undefined || vg === '') && match.resultado){
+      const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+      if(parsed){
+        lg = Number(parsed[1]);
+        vg = Number(parsed[2]);
+      }
+    }
+
+    lg = Number(lg ?? 0);
+    vg = Number(vg ?? 0);
+
+    if(local){
+      local.pj++;
+      local.gf += lg;
+      local.gc += vg;
+      local.dg = local.gf - local.gc;
+    }
+
+    if(away){
+      away.pj++;
+      away.gf += vg;
+      away.gc += lg;
+      away.dg = away.gf - away.gc;
+    }
 
     if(lg > vg){
-      local.pg++; away.pp++;
-      local.pts += 3;
+      if(local){ local.pg++; local.pts += 3; }
+      if(away){ away.pp++; }
     }else if(lg < vg){
-      away.pg++; local.pp++;
-      away.pts += 3;
+      if(away){ away.pg++; away.pts += 3; }
+      if(local){ local.pp++; }
     }else{
-      local.pe++; away.pe++;
-      local.pts += 1;
-      away.pts += 1;
+      if(local){ local.pe++; local.pts += 1; }
+      if(away){ away.pe++; away.pts += 1; }
     }
   });
 
