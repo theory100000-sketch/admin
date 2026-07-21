@@ -1841,17 +1841,16 @@ app.get('/api/admin/arreglar-jornadas-slot-historico', requireAdmin, (req,res)=>
    ============================================================ */
 function telPanelResultadosFixData(data){
   if(!data || typeof data !== 'object') return data;
-
-  if(typeof telHistSlotApplyToFixedJornadas === 'function'){
+  if(typeof telPanelForceExactFixtures === 'function'){
+    telPanelForceExactFixtures(data);
+  }else if(typeof telHistSlotApplyToFixedJornadas === 'function'){
     telHistSlotApplyToFixedJornadas(data);
   }else if(typeof telFotoExactApply === 'function'){
     telFotoExactApply(data);
   }
-
   if(typeof telCompTableApply === 'function'){
     telCompTableApply(data);
   }
-
   return data;
 }
 
@@ -1900,6 +1899,211 @@ app.get('/api/admin/arreglar-panel-resultados-jornadas', requireAdmin, (req,res)
 });
 
 
+
+
+/* ============================================================
+   TEL PANEL RESULTADOS J1/J2 FORZADO FINAL
+   Esta función fuerza los nombres EXACTOS de J1/J2 en cualquier respuesta
+   del panel admin, aunque el panel use otra ruta o el slotId antiguo.
+   ============================================================ */
+function telPanelForceNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telPanelForceSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telPanelForceIsCup(comp){
+  const txt = telPanelForceNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telPanelForceNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telPanelForceExactFixtures(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const fixtures = {
+    1: [
+      ['Catalunya Lliure', 'Ghost Unit'],
+      ['Alegria FCA', 'Unió catalana'],
+      ['COVAYERS FC', 'BLACK MECANIC'],
+      ['Fuzeteam FC B', 'Hamoods CF'],
+      ['Billar FC', 'Coral Springs A']
+    ],
+    2: [
+      ['Unió catalana', 'Catalunya Lliure'],
+      ['BLACK MECANIC', 'Ghost Unit'],
+      ['Hamoods CF', 'Alegria FCA'],
+      ['Coral Springs A', 'COVAYERS FC'],
+      ['Billar FC', 'Fuzeteam FC B']
+    ]
+  };
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  const target = comps.find(comp=>!telPanelForceIsCup(comp)) || comps[0];
+  if(!target) return data;
+
+  target.partidos = Array.isArray(target.partidos) ? target.partidos : [];
+  target.equipos = Array.isArray(target.equipos) ? target.equipos : [];
+
+  function activeTeam(name){
+    const wanted = telPanelForceNorm(name);
+    return target.equipos.find(team=>{
+      const teamName = telPanelForceNorm(team.nombre || team.clubNombre || team.nombreVisual || team.name);
+      if(teamName !== wanted) return false;
+      if(team.historico === true || team.equipoHistorico === true) return false;
+      if(team.excluidoClasificacion === true || team.eliminadoDeCompeticion === true || team.sacadoDeCompeticion === true) return false;
+      if(team.activo === false || team.active === false) return false;
+      return true;
+    }) || null;
+  }
+
+  function ensureFixtureSlot(name){
+    const active = activeTeam(name);
+    if(active){
+      if(!active.slotId) active.slotId = String(active.id || active.clubId || active.idClub || telPanelForceSlug(name));
+      active.nombre = name;
+      active.clubNombre = name;
+      active.nombreVisual = name;
+      active.name = name;
+      return String(active.slotId);
+    }
+
+    const slot = `hist-jornada-${telPanelForceSlug(name)}`;
+    let hist = target.equipos.find(team=>String(team.slotId || '') === slot);
+    if(!hist){
+      hist = {
+        id:slot,
+        slotId:slot,
+        nombre:name,
+        clubNombre:name,
+        nombreVisual:name,
+        name:name,
+        historico:true,
+        equipoHistorico:true,
+        excluidoClasificacion:true,
+        eliminadoDeCompeticion:true,
+        fixtureHistorico:true
+      };
+      target.equipos.push(hist);
+    }
+
+    hist.nombre = name;
+    hist.clubNombre = name;
+    hist.nombreVisual = name;
+    hist.name = name;
+    hist.historico = true;
+    hist.equipoHistorico = true;
+    hist.excluidoClasificacion = true;
+    hist.eliminadoDeCompeticion = true;
+    hist.fixtureHistorico = true;
+
+    return slot;
+  }
+
+  function sameFixture(match, jornada, local, visitante){
+    if(Number(match.jornada || match.round || 0) !== Number(jornada)) return false;
+    return telPanelForceNorm(match.localNombre || match.nombreLocal || match.equipoLocal) === telPanelForceNorm(local) &&
+      telPanelForceNorm(match.visitanteNombre || match.nombreVisitante || match.equipoVisitante) === telPanelForceNorm(visitante);
+  }
+
+  function getGoals(match){
+    if(!match) return {local:null, away:null};
+    let local = match.localGoles ?? match.golesLocal ?? null;
+    let away = match.visitanteGoles ?? match.golesVisitante ?? null;
+    if((local === null || local === undefined || local === '' || away === null || away === undefined || away === '') && match.resultado){
+      const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+      if(parsed){
+        local = Number(parsed[1]);
+        away = Number(parsed[2]);
+      }
+    }
+    return {local, away};
+  }
+
+  const old = target.partidos.slice();
+  const rest = old.filter(match=>{
+    const j = Number(match.jornada || match.round || 0);
+    return j !== 1 && j !== 2;
+  });
+
+  const fixed = [];
+
+  Object.entries(fixtures).forEach(([jornada, games])=>{
+    games.forEach(([local, visitante], index)=>{
+      const previous = old.find(match=>sameFixture(match, jornada, local, visitante)) || {};
+      const goals = getGoals(previous);
+      const scored = goals.local !== null && goals.local !== undefined && goals.local !== '' &&
+        goals.away !== null && goals.away !== undefined && goals.away !== '';
+
+      fixed.push({
+        ...previous,
+        id:`${target.id || target.nombre || 'liga'}-j${jornada}-p${index+1}`,
+        jornada:Number(jornada),
+        round:Number(jornada),
+        ordenJornada:index+1,
+        localSlotId:ensureFixtureSlot(local),
+        visitanteSlotId:ensureFixtureSlot(visitante),
+        localNombre:local,
+        nombreLocal:local,
+        equipoLocal:local,
+        visitanteNombre:visitante,
+        nombreVisitante:visitante,
+        equipoVisitante:visitante,
+        localGoles:goals.local,
+        visitanteGoles:goals.away,
+        golesLocal:goals.local,
+        golesVisitante:goals.away,
+        resultado:scored ? `${goals.local}-${goals.away}` : (previous.resultado || ''),
+        estado:scored || previous.finalizado === true ? 'finalizado' : (previous.estado || 'pendiente'),
+        finalizado:scored || previous.finalizado === true,
+        fixtureOriginalFoto:true,
+        panelResultadosFixed:true
+      });
+    });
+  });
+
+  target.partidos = [...fixed, ...rest].sort((a,b)=>{
+    const ja = Number(a.jornada || 9999);
+    const jb = Number(b.jornada || 9999);
+    if(ja !== jb) return ja - jb;
+    return Number(a.ordenJornada || 9999) - Number(b.ordenJornada || 9999);
+  });
+
+  if(typeof telCompTableApply === 'function'){
+    telCompTableApply(data);
+  }
+
+  return data;
+}
+app.get('/api/admin/forzar-panel-resultados-j1j2', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telPanelForceExactFixtures(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Panel resultados corregido: Jornada 1 y Jornada 2 forzadas exactamente.'
+    });
+  }catch(error){
+    console.error('[forzar-panel-resultados-j1j2]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -1913,6 +2117,7 @@ app.get("/api/data", (req, res) => {
 
   telHistSlotApplyToFixedJornadas(data);
   telPanelResultadosFixData(data);
+  telPanelForceExactFixtures(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -2108,6 +2313,7 @@ app.get("/api/competiciones", (req, res) => {
   if(typeof telPanelResultadosFixData === 'function') telPanelResultadosFixData(data);
   telHistSlotApplyToFixedJornadas(data);
   telPanelResultadosFixData(data);
+  telPanelForceExactFixtures(data);
   res.json(data.competiciones || []);
 });
 
@@ -4054,6 +4260,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     telSimpleRecalcAll(data);
     writeLeagueData(data);
 
+    telPanelForceExactFixtures(data);
     const competiciones = telSimpleComps(data).map((comp, ci)=>{
       const compId = telSimpleCompId(comp, ci);
       const isCup = telSimpleIsCup(comp);
@@ -4709,6 +4916,7 @@ app.get('/api/admin/final-lista', requireAdmin, (req,res)=>{
     telFinalAdminRecalcAll(data);
     telFinalAdminWriteData(data);
 
+    telPanelForceExactFixtures(data);
     const competiciones = telFinalAdminComps(data).map((comp, ci)=>{
       const compId = telFinalAdminCompId(comp, ci);
       const isCup = telFinalAdminIsCup(comp);
