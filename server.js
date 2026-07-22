@@ -479,255 +479,6 @@ app.use((req,res,next)=>{
  */
 
 
-/* ============================================================
-   TEL INYECCIÓN FIX VISUAL PANEL RESULTADOS
-   El panel-resultados.html pisa nombres por JS del cliente.
-   Este script corrige J1/J2 dentro del propio HTML del panel.
-   ============================================================ */
-function telInjectPanelResultadosFix(html){
-  if(!html || typeof html !== 'string') return html;
-  if(html.includes('TEL_PANEL_RESULTADOS_FIX_VISUAL_J1_J2')) return html;
-
-  const script = `
-<script id="TEL_PANEL_RESULTADOS_FIX_VISUAL_J1_J2">
-(function(){
-  const FIX = {
-    1: [
-      ['Catalunya Lliure','Ghost Unit'],
-      ['Alegria FCA','Unió catalana'],
-      ['COVAYERS FC','BLACK MECANIC'],
-      ['Fuzeteam FC B','Hamoods CF'],
-      ['Billar FC','Coral Springs A']
-    ],
-    2: [
-      ['Unió catalana','Catalunya Lliure'],
-      ['BLACK MECANIC','Ghost Unit'],
-      ['Hamoods CF','Alegria FCA'],
-      ['Coral Springs A','COVAYERS FC'],
-      ['Billar FC','Fuzeteam FC B']
-    ]
-  };
-
-  const norm = v => String(v||'')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g,'')
-    .replace(/[^a-z0-9]+/g,' ')
-    .trim();
-
-  const slug = v => String(v||'equipo')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g,'')
-    .replace(/[^a-z0-9]+/g,'-')
-    .replace(/^-+|-+$/g,'') || 'equipo';
-
-  function logoFor(name, data){
-    const wanted = norm(name);
-    const candidates = [];
-    try{
-      const root = data && data.data ? data.data : data;
-      ['clubes','equipos','teams'].forEach(k=>{
-        if(Array.isArray(root?.[k])) candidates.push(...root[k]);
-      });
-      const comps = root?.competiciones || root?.ligas || root?.torneos || [];
-      comps.forEach(c=>{
-        if(Array.isArray(c.equipos)) candidates.push(...c.equipos);
-      });
-    }catch(e){}
-
-    for(const t of candidates){
-      const n = norm(t?.nombre || t?.clubNombre || t?.nombreVisual || t?.name);
-      if(n !== wanted) continue;
-      const vals = [t.escudoUrl,t.logoUrl,t.logo,t.escudo,t.imagenUrl,t.imagen,t.escudoPath,t.escudoFilename].filter(Boolean);
-      for(let v of vals){
-        v = String(v).replaceAll('\\\\','/').trim();
-        if(!v) continue;
-        if(v.startsWith('/api/club-logo')) return v;
-        if(/^https?:\\/\\//i.test(v)) return v;
-        if(v.startsWith('/escudos/')) return v;
-        if(v.startsWith('escudos/')) return '/' + v;
-        if(/\\.(png|jpe?g|webp|gif|svg)$/i.test(v)) return '/escudos/' + v.split('/').pop();
-      }
-      const key = t.clubId || t.rolId || t.id || t._id || t.idClub || t.nombre || t.clubNombre || t.nombreVisual || t.name;
-      if(key) return '/api/club-logo?key=' + encodeURIComponent(String(key));
-    }
-    return '/api/club-logo?key=' + encodeURIComponent(name);
-  }
-
-  function forceMatchObject(match, jornada, idx, data){
-    const pair = FIX[jornada]?.[idx];
-    if(!match || !pair) return match;
-    const [home, away] = pair;
-    const homeSlot = 'panel-jornada-' + slug(home);
-    const awaySlot = 'panel-jornada-' + slug(away);
-    const homeLogo = logoFor(home, data);
-    const awayLogo = logoFor(away, data);
-
-    function team(name, slot, logo){
-      return {id:slot, slotId:slot, clubId:slot, idClub:slot, nombre:name, clubNombre:name, nombreVisual:name, name:name, escudoUrl:logo, logoUrl:logo, logo:logo, escudo:logo};
-    }
-
-    const homeObj = team(home, homeSlot, homeLogo);
-    const awayObj = team(away, awaySlot, awayLogo);
-
-    Object.assign(match, {
-      jornada:Number(jornada),
-      round:Number(jornada),
-      ordenJornada:idx+1,
-      localSlotId:homeSlot,
-      visitanteSlotId:awaySlot,
-      localId:homeSlot,
-      visitanteId:awaySlot,
-      localClubId:homeSlot,
-      visitanteClubId:awaySlot,
-      localNombre:home,
-      visitanteNombre:away,
-      nombreLocal:home,
-      nombreVisitante:away,
-      equipoLocal:home,
-      equipoVisitante:away,
-      localLogo:homeLogo,
-      visitanteLogo:awayLogo,
-      localEscudo:homeLogo,
-      visitanteEscudo:awayLogo,
-      logoLocal:homeLogo,
-      logoVisitante:awayLogo,
-      escudoLocal:homeLogo,
-      escudoVisitante:awayLogo,
-      local:homeObj,
-      visitante:awayObj,
-      localTeam:homeObj,
-      visitanteTeam:awayObj,
-      localEquipo:homeObj,
-      visitanteEquipo:awayObj,
-      localClub:homeObj,
-      visitanteClub:awayObj,
-      panelVisualFixed:true
-    });
-    return match;
-  }
-
-  function fixDataPayload(payload){
-    try{
-      const root = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
-      const comps = root?.competiciones || root?.ligas || root?.torneos || (Array.isArray(root) ? root : null);
-      if(!Array.isArray(comps)) return payload;
-      const comp = comps.find(c => {
-        const text = String((c?.nombre||'') + ' ' + (c?.tipo||'') + ' ' + (c?.formato||'')).toLowerCase();
-        return !text.includes('copa') && !text.includes('elimin');
-      }) || comps[0];
-      if(!comp || !Array.isArray(comp.partidos)) return payload;
-
-      const rest = comp.partidos.filter(m => ![1,2].includes(Number(m?.jornada || m?.round || 0)));
-      const fixed = [];
-
-      [1,2].forEach(j=>{
-        FIX[j].forEach((pair, idx)=>{
-          const old = comp.partidos.find(m => Number(m?.jornada || m?.round || 0) === j && norm(m.localNombre || m.nombreLocal || m.equipoLocal) === norm(pair[0]) && norm(m.visitanteNombre || m.nombreVisitante || m.equipoVisitante) === norm(pair[1])) || {};
-          fixed.push(forceMatchObject({...old, id: old.id || 'panel-j'+j+'-p'+(idx+1)}, j, idx, payload));
-        });
-      });
-
-      comp.partidos = fixed.concat(rest);
-    }catch(e){}
-    return payload;
-  }
-
-  const nativeFetch = window.fetch;
-  window.fetch = async function(){
-    const res = await nativeFetch.apply(this, arguments);
-    try{
-      const url = String(arguments[0]?.url || arguments[0] || '');
-      if(url.includes('/api/')){
-        const clone = res.clone();
-        const type = clone.headers.get('content-type') || '';
-        if(type.includes('application/json')){
-          const data = await clone.json();
-          fixDataPayload(data);
-          return new Response(JSON.stringify(data), {
-            status: res.status,
-            statusText: res.statusText,
-            headers: {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}
-          });
-        }
-      }
-    }catch(e){}
-    return res;
-  };
-
-  function getCards(){
-    const badges = Array.from(document.querySelectorAll('*')).filter(el => /^JORNADA\\s*[12]$/i.test((el.textContent||'').trim()));
-    const cards = [];
-    for(const badge of badges){
-      let node = badge;
-      for(let i=0;i<8 && node;i++,node=node.parentElement){
-        const txt = node.textContent || '';
-        if(txt.includes('Guardar resultado') && txt.includes('Sin resultado')){
-          cards.push(node);
-          break;
-        }
-      }
-    }
-    return cards;
-  }
-
-  function setTextNear(card, oldNames, newName){
-    const olds = oldNames.map(norm);
-    const els = Array.from(card.querySelectorAll('*')).filter(el => {
-      const childrenText = Array.from(el.children||[]).map(c=>c.textContent||'').join(' ');
-      const own = (el.textContent||'').replace(childrenText,'').trim();
-      const t = norm(own || el.textContent);
-      return olds.includes(t);
-    });
-    if(els[0]) els[0].textContent = newName;
-  }
-
-  function forceVisibleCards(){
-    const cards = getCards();
-    let j1 = 0, j2 = 0;
-    for(const card of cards){
-      const jornada = /JORNADA\\s*1/i.test(card.textContent) ? 1 : (/JORNADA\\s*2/i.test(card.textContent) ? 2 : 0);
-      if(!jornada) continue;
-      const idx = jornada === 1 ? j1++ : j2++;
-      const pair = FIX[jornada]?.[idx];
-      if(!pair) continue;
-      const [home, away] = pair;
-
-      const possibleNames = ['Catalunya Lliure','Ghost Unit','Alegria FCA','Unió catalana','COVAYERS FC','BLACK MECANIC','Fuzeteam FC B','Hamoods CF','Billar FC','Coral Springs A','UD INMORTALES'];
-      // Cambia el primer bloque de equipo izquierdo y derecho por texto exacto según orden de tarjeta.
-      const textEls = Array.from(card.querySelectorAll('*')).filter(el=>{
-        const t = (el.textContent||'').trim();
-        return possibleNames.some(n=>norm(n)===norm(t));
-      });
-      if(textEls[0]) textEls[0].textContent = home;
-      if(textEls[textEls.length-1]) textEls[textEls.length-1].textContent = away;
-
-      // Refuerzo por nombres incorrectos conocidos.
-      if(jornada === 1 && idx === 2) setTextNear(card, ['Unió catalana','UD INMORTALES','COVAYERS FC'], home), setTextNear(card, ['Unió catalana'], away);
-      if(jornada === 1 && idx === 4) setTextNear(card, ['Hamoods CF'], away);
-      if(jornada === 2 && idx === 1) setTextNear(card, ['Unió catalana','UD INMORTALES'], home);
-      if(jornada === 2 && idx === 3) setTextNear(card, ['Hamoods CF','COVAYERS FC'], home);
-    }
-  }
-
-  let timer = null;
-  const schedule = () => {
-    clearTimeout(timer);
-    timer = setTimeout(forceVisibleCards, 100);
-  };
-
-  document.addEventListener('DOMContentLoaded', schedule);
-  window.addEventListener('load', schedule);
-  setInterval(forceVisibleCards, 1000);
-  new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true, characterData:true});
-})();
-</script>`;
-
-  if(html.includes('</body>')) return html.replace('</body>', script + '</body>');
-  return html + script;
-}
-
 
 app.get([...telProtectedAdminRoutes], (req,res)=>{
   const html = TEL_ADMIN_PAGES[req.path];
@@ -737,8 +488,7 @@ app.get([...telProtectedAdminRoutes], (req,res)=>{
     'Pragma':'no-cache',
     'Expires':'0'
   });
-  const finalHtml = req.path === '/panel-resultados.html' ? telInjectPanelResultadosFix(html) : html;
-  return res.status(200).type('html').send(finalHtml);
+  return res.status(200).type('html').send(html);
 });
 
 
@@ -2949,6 +2699,31 @@ if(!global.__TEL_LOCK12_WRITE_PATCHED__){
 }
 
 
+
+
+/* ============================================================
+   TEL J12 DATA SAFE PANEL
+   Sin script visual por orden. Solo corrige datos.
+   ============================================================ */
+function telJ12SafePanelApply(data){
+  if(!data || typeof data !== 'object') return data;
+  if(typeof telLock12Apply === 'function') telLock12Apply(data);
+  if(typeof telCompTableApply === 'function') telCompTableApply(data);
+  return data;
+}
+app.get('/api/admin/fix-j12-safe-panel', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telJ12SafePanelApply(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,message:'Jornada 1 y 2 corregidas sin script visual agresivo.'});
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -2966,6 +2741,7 @@ app.get("/api/data", (req, res) => {
   telPanelCardApply(data);
   telAdminPanelRealFix(data);
   telLock12Apply(data);
+  telJ12SafePanelApply(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -3165,6 +2941,7 @@ app.get("/api/competiciones", (req, res) => {
   telPanelCardApply(data);
   telAdminPanelRealFix(data);
   telLock12Apply(data);
+  telJ12SafePanelApply(data);
   res.json(data.competiciones || []);
 });
 
@@ -5145,6 +4922,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     telPanelResultadosFixData(data);
     telPanelCardApply(data);
     telLock12Apply(data);
+    telJ12SafePanelApply(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
