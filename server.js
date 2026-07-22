@@ -10282,6 +10282,373 @@ if(!global.__TEL_OVERRIDE_FINAL_CALENDAR_WRITE_PATCHED__){
 }
 
 
+
+
+/* ============================================================
+   TEL FIX REAL DUPLICADOS POR JORNADA
+   Si en Jornada 12 aparece Unió vs Catalunya y ya se enfrentaron
+   2 veces antes, NO se borra el partido: se cambia el rival usando
+   otro partido de esa misma jornada.
+   Mantiene:
+   - 5 partidos por jornada
+   - ningún equipo juega dos veces en la jornada
+   - ningún equipo falta
+   - máximo 2 veces el mismo cruce en toda la liga
+   ============================================================ */
+function telRealDupNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telRealDupIsCup(comp){
+  const txt = telRealDupNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telRealDupNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telRealDupName(match, side){
+  if(side === 'local'){
+    return String(match?.localNombre || match?.nombreLocal || match?.equipoLocal || match?.local?.nombre || match?.local?.clubNombre || match?.localTeam?.nombre || match?.localEquipo?.nombre || '').trim();
+  }
+  return String(match?.visitanteNombre || match?.nombreVisitante || match?.equipoVisitante || match?.visitante?.nombre || match?.visitante?.clubNombre || match?.visitanteTeam?.nombre || match?.visitanteEquipo?.nombre || '').trim();
+}
+function telRealDupPairKey(a,b){
+  const x = telRealDupNorm(a);
+  const y = telRealDupNorm(b);
+  if(!x || !y) return '';
+  return [x,y].sort().join(' vs ');
+}
+function telRealDupPairKeyMatch(match){
+  return telRealDupPairKey(telRealDupName(match,'local'), telRealDupName(match,'visitante'));
+}
+function telRealDupSort(list){
+  return list.sort((a,b)=>{
+    const ja = Number(a.jornada || a.round || 9999);
+    const jb = Number(b.jornada || b.round || 9999);
+    if(ja !== jb) return ja - jb;
+    const oa = Number(a.ordenJornada || a.orden || 9999);
+    const ob = Number(b.ordenJornada || b.orden || 9999);
+    if(oa !== ob) return oa - ob;
+    return String(a.id || '').localeCompare(String(b.id || ''), 'es');
+  });
+}
+function telRealDupPlayed(match){
+  if(!match) return false;
+  const score = [match.localGoles, match.visitanteGoles, match.golesLocal, match.golesVisitante].some(value =>
+    value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value))
+  );
+  return match.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
+    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || '')) ||
+    score;
+}
+function telRealDupCloneSide(match, side){
+  const p = side === 'local' ? 'local' : 'visitante';
+  const cap = side === 'local' ? 'Local' : 'Visitante';
+  return {
+    slotId: match[`${p}SlotId`] || match[`${p}Id`] || match[`${p}ClubId`] || '',
+    id: match[`${p}Id`] || match[`${p}SlotId`] || match[`${p}ClubId`] || '',
+    clubId: match[`${p}ClubId`] || match[`${p}Id`] || match[`${p}SlotId`] || '',
+    nombre: match[`${p}Nombre`] || match[side === 'local' ? 'nombreLocal' : 'nombreVisitante'] || match[side === 'local' ? 'equipoLocal' : 'equipoVisitante'] || match[p]?.nombre || match[p]?.clubNombre || '',
+    logo: match[`${p}Logo`] || match[`${p}Escudo`] || match[`logo${cap}`] || match[`escudo${cap}`] || match[p]?.escudoUrl || match[p]?.logoUrl || match[p]?.logo || match[p]?.escudo || '',
+    obj: match[p] || match[`${p}Team`] || match[`${p}Equipo`] || match[`${p}Club`] || {}
+  };
+}
+function telRealDupSetSide(match, side, team){
+  const p = side === 'local' ? 'local' : 'visitante';
+  const cap = side === 'local' ? 'Local' : 'Visitante';
+  const name = String(team.nombre || team.clubNombre || team.nombreVisual || team.name || '').trim();
+  const slot = String(team.slotId || team.id || team.clubId || '');
+  const logo = String(team.logo || team.escudoUrl || team.logoUrl || team.escudo || '').trim();
+  const obj = {
+    ...(team.obj || {}),
+    id: slot,
+    slotId: slot,
+    clubId: team.clubId || slot,
+    nombre:name,
+    clubNombre:name,
+    nombreVisual:name,
+    name:name,
+    escudoUrl:logo,
+    logoUrl:logo,
+    logo,
+    escudo:logo
+  };
+  match[`${p}SlotId`] = slot;
+  match[`${p}Id`] = slot;
+  match[`${p}ClubId`] = team.clubId || slot;
+  match[`${p}Nombre`] = name;
+  match[side === 'local' ? 'nombreLocal' : 'nombreVisitante'] = name;
+  match[side === 'local' ? 'equipoLocal' : 'equipoVisitante'] = name;
+  match[`${p}Logo`] = logo;
+  match[`${p}Escudo`] = logo;
+  match[`logo${cap}`] = logo;
+  match[`escudo${cap}`] = logo;
+  match[p] = obj;
+  match[`${p}Team`] = obj;
+  match[`${p}Equipo`] = obj;
+  match[`${p}Club`] = obj;
+}
+function telRealDupWouldBeOk(counts, a,b){
+  const key = telRealDupPairKey(a,b);
+  if(!key) return false;
+  return (counts.get(key) || 0) < 2;
+}
+function telRealDupRoundTeams(matches){
+  const used = new Set();
+  for(const m of matches){
+    const l = telRealDupNorm(telRealDupName(m,'local'));
+    const a = telRealDupNorm(telRealDupName(m,'visitante'));
+    if(l) used.add(l);
+    if(a) used.add(a);
+  }
+  return used;
+}
+function telRealDupFixRound(roundMatches, previousCounts){
+  const cambios = [];
+
+  // Trabaja con una copia de estado por ronda.
+  for(let i=0; i<roundMatches.length; i++){
+    const m = roundMatches[i];
+    const l1 = telRealDupName(m,'local');
+    const a1 = telRealDupName(m,'visitante');
+    const key = telRealDupPairKey(l1,a1);
+
+    // Si aún no ha salido 2 veces antes, se queda.
+    if(!key || (previousCounts.get(key) || 0) < 2) continue;
+
+    // Si ya tiene resultado, no tocarlo: se marca para revisión.
+    if(telRealDupPlayed(m)){
+      m.necesitaRevisionCalendario = true;
+      m.motivoRevisionCalendario = 'Cruce repetido más de 2 veces, pero tiene resultado y no se modifica automáticamente.';
+      continue;
+    }
+
+    let fixed = false;
+
+    for(let j=0; j<roundMatches.length && !fixed; j++){
+      if(i === j) continue;
+
+      const other = roundMatches[j];
+      if(telRealDupPlayed(other)) continue;
+
+      const l2 = telRealDupName(other,'local');
+      const a2 = telRealDupName(other,'visitante');
+
+      const mLocal = telRealDupCloneSide(m,'local');
+      const mAway = telRealDupCloneSide(m,'visitante');
+      const oLocal = telRealDupCloneSide(other,'local');
+      const oAway = telRealDupCloneSide(other,'visitante');
+
+      // Probar intercambiar visitantes:
+      // m: l1 vs a2
+      // other: l2 vs a1
+      if(
+        telRealDupNorm(l1) !== telRealDupNorm(a2) &&
+        telRealDupNorm(l2) !== telRealDupNorm(a1) &&
+        telRealDupWouldBeOk(previousCounts,l1,a2) &&
+        telRealDupWouldBeOk(previousCounts,l2,a1)
+      ){
+        const before1 = `${l1} vs ${a1}`;
+        const before2 = `${l2} vs ${a2}`;
+
+        telRealDupSetSide(m,'visitante',oAway);
+        telRealDupSetSide(other,'visitante',mAway);
+
+        m.reparadoDuplicadoReal = true;
+        other.reparadoDuplicadoReal = true;
+
+        cambios.push({
+          jornada:Number(m.jornada || m.round || 0),
+          antes:[before1,before2],
+          ahora:[`${telRealDupName(m,'local')} vs ${telRealDupName(m,'visitante')}`,`${telRealDupName(other,'local')} vs ${telRealDupName(other,'visitante')}`],
+          metodo:'intercambio_visitantes'
+        });
+
+        fixed = true;
+        break;
+      }
+
+      // Probar intercambiar locales:
+      // m: l2 vs a1
+      // other: l1 vs a2
+      if(
+        telRealDupNorm(l2) !== telRealDupNorm(a1) &&
+        telRealDupNorm(l1) !== telRealDupNorm(a2) &&
+        telRealDupWouldBeOk(previousCounts,l2,a1) &&
+        telRealDupWouldBeOk(previousCounts,l1,a2)
+      ){
+        const before1 = `${l1} vs ${a1}`;
+        const before2 = `${l2} vs ${a2}`;
+
+        telRealDupSetSide(m,'local',oLocal);
+        telRealDupSetSide(other,'local',mLocal);
+
+        m.reparadoDuplicadoReal = true;
+        other.reparadoDuplicadoReal = true;
+
+        cambios.push({
+          jornada:Number(m.jornada || m.round || 0),
+          antes:[before1,before2],
+          ahora:[`${telRealDupName(m,'local')} vs ${telRealDupName(m,'visitante')}`,`${telRealDupName(other,'local')} vs ${telRealDupName(other,'visitante')}`],
+          metodo:'intercambio_locales'
+        });
+
+        fixed = true;
+        break;
+      }
+    }
+
+    if(!fixed){
+      m.necesitaRevisionCalendario = true;
+      m.motivoRevisionCalendario = 'No se encontró intercambio válido en la misma jornada.';
+    }
+  }
+
+  return cambios;
+}
+function telRealDupValidate(comp){
+  const problemas = [];
+  const counts = new Map();
+  const byRound = new Map();
+
+  for(const m of (Array.isArray(comp?.partidos) ? comp.partidos : [])){
+    const j = Number(m.jornada || m.round || 0);
+    if(!byRound.has(j)) byRound.set(j, []);
+    byRound.get(j).push(m);
+    const key = telRealDupPairKeyMatch(m);
+    if(key) counts.set(key,(counts.get(key)||0)+1);
+  }
+
+  for(const [j,matches] of byRound.entries()){
+    const used = new Map();
+    for(const m of matches){
+      for(const name of [telRealDupName(m,'local'), telRealDupName(m,'visitante')]){
+        const k = telRealDupNorm(name);
+        if(!k) continue;
+        used.set(k,(used.get(k)||0)+1);
+      }
+    }
+    const repeated = Array.from(used.entries()).filter(([,count])=>count>1);
+    if(repeated.length) problemas.push({jornada:j,tipo:'equipo_repetido_en_jornada',equipos:repeated});
+  }
+
+  for(const [key,count] of counts.entries()){
+    if(count > 2) problemas.push({tipo:'cruce_repetido_mas_de_2',cruce:key,veces:count});
+  }
+
+  return problemas;
+}
+function telRealDupRepairCompetition(comp){
+  if(!comp || telRealDupIsCup(comp)) return comp;
+  if(!Array.isArray(comp.partidos)) return comp;
+
+  const sorted = telRealDupSort(comp.partidos);
+  const byRound = new Map();
+
+  for(const match of sorted){
+    const jornada = Number(match.jornada || match.round || 0);
+    if(!byRound.has(jornada)) byRound.set(jornada, []);
+    byRound.get(jornada).push(match);
+  }
+
+  const previousCounts = new Map();
+  const cambios = [];
+
+  const jornadas = Array.from(byRound.keys()).sort((a,b)=>a-b);
+
+  for(const jornada of jornadas){
+    const roundMatches = byRound.get(jornada) || [];
+
+    cambios.push(...telRealDupFixRound(roundMatches, previousCounts));
+
+    // Después de reparar la jornada, cuenta sus cruces definitivos.
+    for(const match of roundMatches){
+      const key = telRealDupPairKeyMatch(match);
+      if(key) previousCounts.set(key, (previousCounts.get(key) || 0) + 1);
+    }
+  }
+
+  comp.partidos = telRealDupSort(sorted);
+  comp._duplicadosRealesCambiados = cambios;
+  comp._duplicadosRealesProblemas = telRealDupValidate(comp);
+
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply({competiciones:[comp]}); }catch(error){}
+  }
+
+  return comp;
+}
+function telRealDupRepairData(data){
+  if(!data || typeof data !== 'object') return data;
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telRealDupRepairCompetition(comp));
+
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+
+  return data;
+}
+app.get('/api/admin/arreglar-duplicados-reales-jornadas', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+
+    // NO regenerar calendario aquí. Solo arreglar el calendario actual.
+    telRealDupRepairData(data);
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      partidos: Array.isArray(comp.partidos) ? comp.partidos.length : 0,
+      cambios: comp._duplicadosRealesCambiados || [],
+      problemas: comp._duplicadosRealesProblemas || []
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Duplicados reales corregidos revisando jornadas anteriores y cambiando cruces dentro de la misma jornada.',
+      resumen
+    });
+  }catch(error){
+    console.error('[arreglar-duplicados-reales-jornadas]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Protección final: arregla duplicados reales sin regenerar todo el calendario */
+if(!global.__TEL_REAL_DUP_REPAIR_WRITE_PATCHED__){
+  global.__TEL_REAL_DUP_REPAIR_WRITE_PATCHED__ = true;
+  const __telRealDupOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telRealDupInside = false;
+
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telRealDupInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+        if(parsed && typeof parsed === 'object' && typeof telRealDupRepairData === 'function'){
+          telRealDupRepairData(parsed);
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(error){}
+    __telRealDupInside = true;
+    try{ return __telRealDupOriginalWrite(filePath, data, ...args); }
+    finally{ __telRealDupInside = false; }
+  };
+}
+
+
 app.listen(PORT, () => {
     console.log(`🌐 Web Thunder Elite League lista en http://localhost:${PORT}`);
   });
