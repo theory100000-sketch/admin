@@ -10649,6 +10649,378 @@ if(!global.__TEL_REAL_DUP_REPAIR_WRITE_PATCHED__){
 }
 
 
+
+
+/* ============================================================
+   TEL SOLUCIÓN FINAL SIMPLE: MISMO PARTIDO MÁXIMO 2 VECES
+   No borra partidos.
+   No regenera todo.
+   Solo busca el tercer cruce repetido y cambia un rival por otro
+   equipo activo que no rompa la regla.
+   ============================================================ */
+function telS3Norm(v){
+  return String(v || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telS3Slug(v){
+  return String(v || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telS3IsCup(comp){
+  const txt = telS3Norm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return false;
+}
+function telS3TeamName(t){
+  return String(t?.nombre || t?.clubNombre || t?.nombreVisual || t?.name || '').trim();
+}
+function telS3Removed(t){
+  if(!t) return true;
+  if(t.historico === true || t.equipoHistorico === true || t.fixtureHistorico === true) return true;
+  if(t.excluidoClasificacion === true || t.eliminadoDeCompeticion === true || t.sacadoDeCompeticion === true) return true;
+  if(t.removidoDeCompeticion === true || t.inactivoCompeticion === true) return true;
+  if(t.activo === false || t.active === false) return true;
+  const id = String(t.slotId || t.id || t.clubId || '').trim();
+  if(id.startsWith('hist-') || id.startsWith('panel-jornada-')) return true;
+  const estado = telS3Norm(t.estado || t.status || '');
+  return estado.includes('sacado') || estado.includes('eliminado') || estado.includes('inactivo') || estado.includes('fuera') || estado.includes('baja');
+}
+function telS3ActiveTeams(comp){
+  const seen = new Set();
+  const out = [];
+  for(const raw of (Array.isArray(comp?.equipos) ? comp.equipos : [])){
+    if(telS3Removed(raw)) continue;
+    const name = telS3TeamName(raw);
+    const key = telS3Norm(name);
+    if(!key || seen.has(key)) continue;
+    seen.add(key);
+    const t = {...raw};
+    t.nombre = t.nombre || t.clubNombre || t.nombreVisual || t.name || name;
+    t.clubNombre = t.clubNombre || t.nombre || name;
+    t.nombreVisual = t.nombreVisual || t.nombre || name;
+    t.name = t.name || t.nombre || name;
+    if(!t.slotId) t.slotId = String(t.id || t.clubId || t.idClub || telS3Slug(name));
+    if(!t.id) t.id = String(t.slotId || t.clubId || telS3Slug(name));
+    if(!t.clubId) t.clubId = String(t.id || t.slotId);
+    out.push(t);
+  }
+  return out;
+}
+function telS3Name(m, side){
+  if(side === 'local'){
+    return String(m?.localNombre || m?.nombreLocal || m?.equipoLocal || m?.local?.nombre || m?.local?.clubNombre || m?.localTeam?.nombre || m?.localEquipo?.nombre || '').trim();
+  }
+  return String(m?.visitanteNombre || m?.nombreVisitante || m?.equipoVisitante || m?.visitante?.nombre || m?.visitante?.clubNombre || m?.visitanteTeam?.nombre || m?.visitanteEquipo?.nombre || '').trim();
+}
+function telS3Pair(a,b){
+  const x = telS3Norm(a);
+  const y = telS3Norm(b);
+  if(!x || !y) return '';
+  return [x,y].sort().join(' vs ');
+}
+function telS3PairMatch(m){
+  return telS3Pair(telS3Name(m,'local'), telS3Name(m,'visitante'));
+}
+function telS3Sort(list){
+  return list.sort((a,b)=>{
+    const ja = Number(a.jornada || a.round || 9999);
+    const jb = Number(b.jornada || b.round || 9999);
+    if(ja !== jb) return ja - jb;
+    const oa = Number(a.ordenJornada || a.orden || 9999);
+    const ob = Number(b.ordenJornada || b.orden || 9999);
+    if(oa !== ob) return oa - ob;
+    return String(a.id || '').localeCompare(String(b.id || ''), 'es');
+  });
+}
+function telS3Played(m){
+  if(!m) return false;
+  const score = [m.localGoles,m.visitanteGoles,m.golesLocal,m.golesVisitante].some(v=>v!==null && v!==undefined && v!=='' && !Number.isNaN(Number(v)));
+  return m.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(m.estado || '').toLowerCase()) ||
+    /\d+\s*[-:]\s*\d+/.test(String(m.resultado || '')) ||
+    score;
+}
+function telS3Logo(t){
+  let v = String(t?.escudoUrl || t?.logoUrl || t?.logo || t?.escudo || t?.imagenUrl || t?.imagen || '').trim().replaceAll('\\','/');
+  if(v){
+    if(v.startsWith('/api/club-logo')) return v;
+    if(/^https?:\/\//i.test(v)) return v;
+    if(v.startsWith('/escudos/')) return v;
+    if(v.startsWith('escudos/')) return '/' + v;
+    if(/\.(png|jpe?g|webp|gif|svg)$/i.test(v)) return '/escudos/' + v.split('/').pop();
+  }
+  const key = t?.clubId || t?.rolId || t?.id || t?._id || t?.idClub || t?.nombre || t?.clubNombre || t?.nombreVisual || t?.name;
+  return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : '';
+}
+function telS3SetSide(m, side, t){
+  const p = side === 'local' ? 'local' : 'visitante';
+  const cap = side === 'local' ? 'Local' : 'Visitante';
+  const name = telS3TeamName(t);
+  const slot = String(t.slotId || t.id || t.clubId || t.idClub || telS3Slug(name));
+  const logo = telS3Logo(t);
+  const obj = {
+    ...t,
+    id:slot,
+    slotId:slot,
+    clubId:t.clubId || slot,
+    idClub:t.idClub || t.clubId || slot,
+    nombre:name,
+    clubNombre:t.clubNombre || name,
+    nombreVisual:t.nombreVisual || name,
+    name:t.name || name,
+    escudoUrl:logo,
+    logoUrl:logo,
+    logo,
+    escudo:logo
+  };
+  m[`${p}SlotId`] = slot;
+  m[`${p}Id`] = slot;
+  m[`${p}ClubId`] = obj.clubId || slot;
+  m[`${p}Nombre`] = name;
+  m[side === 'local' ? 'nombreLocal' : 'nombreVisitante'] = name;
+  m[side === 'local' ? 'equipoLocal' : 'equipoVisitante'] = name;
+  m[`${p}Logo`] = logo;
+  m[`${p}Escudo`] = logo;
+  m[`logo${cap}`] = logo;
+  m[`escudo${cap}`] = logo;
+  m[p] = obj;
+  m[`${p}Team`] = obj;
+  m[`${p}Equipo`] = obj;
+  m[`${p}Club`] = obj;
+}
+function telS3RoundUsed(matches, jornada, ignoreMatch){
+  const used = new Set();
+  for(const m of matches){
+    if(m === ignoreMatch) continue;
+    if(Number(m.jornada || m.round || 0) !== Number(jornada)) continue;
+    const l = telS3Norm(telS3Name(m,'local'));
+    const a = telS3Norm(telS3Name(m,'visitante'));
+    if(l) used.add(l);
+    if(a) used.add(a);
+  }
+  return used;
+}
+function telS3CountPairs(matches, untilIndex){
+  const counts = new Map();
+  for(let i=0; i<untilIndex; i++){
+    const key = telS3PairMatch(matches[i]);
+    if(key) counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return counts;
+}
+function telS3FullCounts(matches){
+  const counts = new Map();
+  for(const m of matches){
+    const key = telS3PairMatch(m);
+    if(key) counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return counts;
+}
+function telS3PickReplacement({activeTeams, matches, match, fixedName, oldRival, countsBefore}){
+  const jornada = Number(match.jornada || match.round || 0);
+  const used = telS3RoundUsed(matches, jornada, match);
+  const fixedKey = telS3Norm(fixedName);
+  const oldKey = telS3Norm(oldRival);
+
+  // Buscar primero rival que aún no haya jugado contra fixedName.
+  for(const max of [0,1]){
+    for(const t of activeTeams){
+      const name = telS3TeamName(t);
+      const key = telS3Norm(name);
+      if(!key || key === fixedKey || key === oldKey) continue;
+      if(used.has(key)) continue;
+      const pair = telS3Pair(fixedName, name);
+      if((countsBefore.get(pair) || 0) <= max) return t;
+    }
+  }
+
+  return null;
+}
+function telS3FixCompetition(comp){
+  if(!comp || telS3IsCup(comp)) return comp;
+  if(!Array.isArray(comp.partidos)) return comp;
+
+  const activeTeams = telS3ActiveTeams(comp);
+  if(activeTeams.length < 3){
+    comp._tercerosCrucesError = 'No hay suficientes equipos activos para cambiar rivales.';
+    return comp;
+  }
+
+  const matches = telS3Sort(comp.partidos);
+  const cambios = [];
+  const sinSolucion = [];
+
+  // Recorre varias veces por si al cambiar uno se arreglan varios.
+  for(let pass=0; pass<5; pass++){
+    let changed = false;
+
+    for(let i=0; i<matches.length; i++){
+      const m = matches[i];
+      const local = telS3Name(m,'local');
+      const away = telS3Name(m,'visitante');
+      const key = telS3Pair(local, away);
+      if(!key) continue;
+
+      const countsBefore = telS3CountPairs(matches, i);
+      const beforeCount = countsBefore.get(key) || 0;
+
+      // Si antes de este partido ya salieron 2, este es tercera vez o más.
+      if(beforeCount < 2) continue;
+
+      if(telS3Played(m)){
+        m.necesitaRevisionCalendario = true;
+        m.motivoRevisionCalendario = 'Este partido es tercera repetición, pero tiene resultado y no se cambia automático.';
+        sinSolucion.push({jornada:Number(m.jornada||m.round||0), partido:`${local} vs ${away}`, motivo:'tiene_resultado'});
+        continue;
+      }
+
+      // Opción 1: mantener local, cambiar visitante.
+      let replacement = telS3PickReplacement({
+        activeTeams,
+        matches,
+        match:m,
+        fixedName:local,
+        oldRival:away,
+        countsBefore
+      });
+
+      if(replacement){
+        const old = `${local} vs ${away}`;
+        telS3SetSide(m,'visitante',replacement);
+        m.reparadoTercerCruce = true;
+        m.cruceAnterior = old;
+        m.cruceNuevo = `${telS3Name(m,'local')} vs ${telS3Name(m,'visitante')}`;
+        cambios.push({jornada:Number(m.jornada||m.round||0), antes:old, ahora:m.cruceNuevo});
+        changed = true;
+        continue;
+      }
+
+      // Opción 2: mantener visitante, cambiar local.
+      replacement = telS3PickReplacement({
+        activeTeams,
+        matches,
+        match:m,
+        fixedName:away,
+        oldRival:local,
+        countsBefore
+      });
+
+      if(replacement){
+        const old = `${local} vs ${away}`;
+        telS3SetSide(m,'local',replacement);
+        m.reparadoTercerCruce = true;
+        m.cruceAnterior = old;
+        m.cruceNuevo = `${telS3Name(m,'local')} vs ${telS3Name(m,'visitante')}`;
+        cambios.push({jornada:Number(m.jornada||m.round||0), antes:old, ahora:m.cruceNuevo});
+        changed = true;
+        continue;
+      }
+
+      m.necesitaRevisionCalendario = true;
+      m.motivoRevisionCalendario = 'No se encontró rival disponible.';
+      sinSolucion.push({jornada:Number(m.jornada||m.round||0), partido:`${local} vs ${away}`, motivo:'sin_rival_disponible'});
+    }
+
+    if(!changed) break;
+  }
+
+  // Validación final.
+  const finalCounts = telS3FullCounts(matches);
+  const problemas = [];
+  for(const [pair,count] of finalCounts.entries()){
+    if(count > 2) problemas.push({cruce:pair, veces:count});
+  }
+
+  comp.partidos = telS3Sort(matches);
+  comp._tercerosCrucesCambiados = cambios;
+  comp._tercerosCrucesSinSolucion = sinSolucion;
+  comp._tercerosCrucesProblemas = problemas;
+  comp._tercerosCrucesError = '';
+
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply({competiciones:[comp]}); }catch(error){}
+  }
+
+  return comp;
+}
+function telS3FixData(data){
+  if(!data || typeof data !== 'object') return data;
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telS3FixCompetition(comp));
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+  return data;
+}
+
+/* Desactivo generadores viejos que volvían a meter fixtures fijos o regeneraban mal. */
+try{ telLock12Apply = function(data){ return data; }; }catch(e){}
+try{ telForceFirstTwoMatchdays = function(data){ return false; }; }catch(e){}
+try{ telFotoExactApply = function(data){ return data; }; }catch(e){}
+try{ telOVRebuildData = function(data){ return data; }; }catch(e){}
+try{ telRRRebuildData = function(data){ return data; }; }catch(e){}
+try{ telFinalCalRepairData = function(data){ return data; }; }catch(e){}
+try{ telReassignCleanData = function(data){ return data; }; }catch(e){}
+try{ telMax2GlobalCleanData = function(data){ return data; }; }catch(e){}
+try{ telCountJ12CleanData = function(data){ return data; }; }catch(e){}
+try{ telNoTripleCleanData = function(data){ return data; }; }catch(e){}
+
+app.get('/api/admin/solucionar-partidos-repetidos-mas-de-2', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telS3FixData(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion:comp.nombre || comp.name || comp.id || 'Competición',
+      cambios:comp._tercerosCrucesCambiados || [],
+      problemas:comp._tercerosCrucesProblemas || [],
+      sinSolucion:comp._tercerosCrucesSinSolucion || [],
+      error:comp._tercerosCrucesError || ''
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Solucionados cruces repetidos más de 2 veces. Revisa que problemas salga vacío.',
+      resumen
+    });
+  }catch(error){
+    console.error('[solucionar-partidos-repetidos-mas-de-2]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+/* Última protección: antes de guardar, corrige solo terceros cruces; NO regenera calendario. */
+if(!global.__TEL_S3_FINAL_WRITE_PATCHED__){
+  global.__TEL_S3_FINAL_WRITE_PATCHED__ = true;
+  const __telS3OriginalWrite = fs.writeFileSync.bind(fs);
+  let __telS3Inside = false;
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telS3Inside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+        if(parsed && typeof parsed === 'object'){
+          telS3FixData(parsed);
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(error){}
+    __telS3Inside = true;
+    try{ return __telS3OriginalWrite(filePath, data, ...args); }
+    finally{ __telS3Inside = false; }
+  };
+}
+
+
 app.listen(PORT, () => {
     console.log(`🌐 Web Thunder Elite League lista en http://localhost:${PORT}`);
   });
