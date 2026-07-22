@@ -449,6 +449,298 @@ const telStaticOptions = {
   }
 };
 
+
+
+/* ============================================================
+   TEL NO FLASH DEMO
+   Evita que durante un instante se vean equipos/noticias demo.
+   Filtra datos demo en API y además inyecta un script en HTML
+   para ocultar contenido de ejemplo antes de que cargue la data real.
+   ============================================================ */
+function telNoFlashDemoNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+const TEL_NO_FLASH_DEMO_NAMES = new Set([
+  'thunder wolves',
+  'delta united',
+  'legends fc',
+  'royal fc',
+  'infinity esports',
+  'black dragons',
+  'phoenix club',
+  'empire gaming',
+  'north stars',
+  'elevate fc'
+]);
+const TEL_NO_FLASH_DEMO_NEWS = [
+  'bienvenidos a thunder elite league',
+  'comienza la temporada 1',
+  'reglamento oficial de la liga',
+  'conoce todos los detalles de la temporada',
+  'calendario formato de competición y premios',
+  'consulta todas las normas y requisitos'
+];
+function telNoFlashDemoIsName(value){
+  return TEL_NO_FLASH_DEMO_NAMES.has(telNoFlashDemoNorm(value));
+}
+function telNoFlashDemoTeamName(team){
+  return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || team?.equipo || '').trim();
+}
+function telNoFlashDemoIsTeam(team){
+  if(!team) return false;
+  if(telNoFlashDemoIsName(telNoFlashDemoTeamName(team))) return true;
+  return [team.id, team.clubId, team.slotId, team.idClub, team.rolId]
+    .filter(Boolean)
+    .some(value=>telNoFlashDemoIsName(value));
+}
+function telNoFlashDemoIsMatch(match){
+  if(!match) return false;
+  return [
+    match.localNombre,
+    match.nombreLocal,
+    match.equipoLocal,
+    match.visitanteNombre,
+    match.nombreVisitante,
+    match.equipoVisitante,
+    match.local?.nombre,
+    match.local?.clubNombre,
+    match.visitante?.nombre,
+    match.visitante?.clubNombre,
+    match.localTeam?.nombre,
+    match.visitanteTeam?.nombre,
+    match.localEquipo?.nombre,
+    match.visitanteEquipo?.nombre
+  ].filter(Boolean).some(telNoFlashDemoIsName);
+}
+function telNoFlashDemoIsNews(item){
+  if(!item) return false;
+  const text = telNoFlashDemoNorm(`${item.titulo || item.title || ''} ${item.descripcion || item.description || item.texto || item.contenido || item.body || ''}`);
+  return TEL_NO_FLASH_DEMO_NEWS.some(value=>text.includes(value));
+}
+function telNoFlashDemoCleanData(data){
+  if(!data || typeof data !== 'object') return data;
+
+  for(const key of ['clubes','equipos','teams']){
+    if(Array.isArray(data[key])){
+      data[key] = data[key].filter(team=>!telNoFlashDemoIsTeam(team));
+    }
+  }
+
+  for(const key of ['noticias','news','ultimasNoticias','latestNews']){
+    if(Array.isArray(data[key])){
+      data[key] = data[key].filter(item=>!telNoFlashDemoIsNews(item));
+    }
+  }
+
+  for(const key of ['proximosPartidos','ultimosResultados','partidos','matches']){
+    if(Array.isArray(data[key])){
+      data[key] = data[key].filter(match=>!telNoFlashDemoIsMatch(match));
+    }
+  }
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>{
+    if(!comp || typeof comp !== 'object') return;
+
+    for(const key of ['equipos','clubes','teams']){
+      if(Array.isArray(comp[key])){
+        comp[key] = comp[key].filter(team=>!telNoFlashDemoIsTeam(team));
+      }
+    }
+
+    for(const key of ['partidos','matches','proximosPartidos','ultimosResultados']){
+      if(Array.isArray(comp[key])){
+        comp[key] = comp[key].filter(match=>!telNoFlashDemoIsMatch(match));
+      }
+    }
+
+    if(Array.isArray(comp.clasificacion)){
+      comp.clasificacion = comp.clasificacion.filter(row=>!telNoFlashDemoIsTeam(row));
+    }
+
+    for(const key of ['noticias','news']){
+      if(Array.isArray(comp[key])){
+        comp[key] = comp[key].filter(item=>!telNoFlashDemoIsNews(item));
+      }
+    }
+
+    if(Array.isArray(comp.equipos)){
+      comp.equiposSeleccionados = comp.equipos.length;
+      comp.totalEquipos = comp.equipos.length;
+    }
+  });
+
+  if(typeof telFinalParticipantsCleanData === 'function'){
+    try{ telFinalParticipantsCleanData(data); }catch(error){}
+  }
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+
+  return data;
+}
+function telNoFlashDemoInjectHtml(html){
+  if(!html || typeof html !== 'string') return html;
+  if(html.includes('TEL_NO_FLASH_DEMO_SCRIPT')) return html;
+
+  const snippet = `
+<style id="TEL_NO_FLASH_DEMO_STYLE">
+[data-tel-demo-hidden="1"]{display:none!important;visibility:hidden!important;opacity:0!important}
+</style>
+<script id="TEL_NO_FLASH_DEMO_SCRIPT">
+(function(){
+  const demoNames = [
+    'Thunder Wolves','Delta United','Legends FC','Royal FC','Infinity Esports',
+    'Black Dragons','Phoenix Club','Empire Gaming','North Stars','Elevate FC'
+  ];
+  const demoNews = [
+    '¡Bienvenidos a Thunder Elite League!',
+    'Comienza la Temporada 1',
+    'Reglamento oficial de la liga',
+    'Conoce todos los detalles de la temporada',
+    'Calendario, formato de competición y premios',
+    'Consulta todas las normas y requisitos'
+  ];
+  const norm = v => String(v||'')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+  const demo = demoNames.map(norm);
+  const news = demoNews.map(norm);
+  function isDemoText(text){
+    const t = norm(text);
+    if(!t) return false;
+    return demo.some(x=>t.includes(x)) || news.some(x=>t.includes(x));
+  }
+  function cardFor(el){
+    let node = el;
+    for(let i=0;i<8 && node && node !== document.body;i++,node=node.parentElement){
+      const text = node.textContent || '';
+      if(
+        node.matches?.('li, article, tr, .card, .match-card, .news-card, .fixture-card, .team-row, .club-row, .table-row, [class*="card"], [class*="match"], [class*="news"], [class*="team"], [class*="club"], [class*="row"]') ||
+        /ver previa|ver resumen|clasificaci[oó]n|pr[oó]ximos partidos|[0-9]+\\s*-\\s*[0-9]+/i.test(text)
+      ){
+        return node;
+      }
+    }
+    return el;
+  }
+  function clean(){
+    try{
+      document.querySelectorAll('[data-tel-demo-hidden="1"]').forEach(el=>{
+        if(!isDemoText(el.textContent||'')) el.removeAttribute('data-tel-demo-hidden');
+      });
+      const all = Array.from(document.querySelectorAll('body *'));
+      for(const el of all){
+        const txt = el.textContent || '';
+        if(!isDemoText(txt)) continue;
+        const target = cardFor(el);
+        target.setAttribute('data-tel-demo-hidden','1');
+      }
+    }catch(e){}
+  }
+  const nativeFetch = window.fetch;
+  window.fetch = async function(){
+    const res = await nativeFetch.apply(this, arguments);
+    try{
+      const url = String(arguments[0]?.url || arguments[0] || '');
+      if(url.includes('/api/')){
+        const clone = res.clone();
+        const ct = clone.headers.get('content-type') || '';
+        if(ct.includes('application/json')){
+          const payload = await clone.json();
+          function walk(obj){
+            if(!obj || typeof obj !== 'object') return obj;
+            if(Array.isArray(obj)){
+              return obj.filter(item=>{
+                const raw = JSON.stringify(item || {});
+                return !isDemoText(raw);
+              }).map(walk);
+            }
+            for(const k of Object.keys(obj)){
+              obj[k] = walk(obj[k]);
+            }
+            return obj;
+          }
+          const cleaned = walk(payload);
+          setTimeout(clean,0);
+          return new Response(JSON.stringify(cleaned),{
+            status:res.status,
+            statusText:res.statusText,
+            headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}
+          });
+        }
+      }
+    }catch(e){}
+    setTimeout(clean,0);
+    return res;
+  };
+  document.addEventListener('DOMContentLoaded', clean);
+  window.addEventListener('load', clean);
+  new MutationObserver(clean).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+  clean();
+  setTimeout(clean,50);
+  setTimeout(clean,150);
+  setTimeout(clean,500);
+})();
+</script>`;
+
+  if(html.includes('</head>')) return html.replace('</head>', snippet + '</head>');
+  if(html.includes('</body>')) return html.replace('</body>', snippet + '</body>');
+  return snippet + html;
+}
+app.get('/api/admin/limpiar-flash-demo', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telNoFlashDemoCleanData(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,message:'Data demo/fantasma limpiada y flash visual bloqueado.'});
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Sirve HTML público con filtro anti-demo antes de express.static */
+app.use((req,res,next)=>{
+  try{
+    const method = String(req.method || 'GET').toUpperCase();
+    if(method !== 'GET' && method !== 'HEAD') return next();
+
+    const pathname = String(req.path || '/').split('?')[0];
+    if(pathname.startsWith('/api/') || pathname.startsWith('/escudos/') || pathname.startsWith('/auth/')) return next();
+
+    let fileName = '';
+    if(pathname === '/' || pathname === '') fileName = 'index.html';
+    else if(pathname.endsWith('.html')) fileName = pathname.replace(/^\/+/, '');
+    else return next();
+
+    const filePath = path.join(__dirname, 'public', fileName);
+    if(!fs.existsSync(filePath)) return next();
+
+    const html = fs.readFileSync(filePath, 'utf8');
+    res.set({
+      'Cache-Control':'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma':'no-cache',
+      'Expires':'0'
+    });
+    return res.status(200).type('html').send(telNoFlashDemoInjectHtml(html));
+  }catch(error){
+    return next();
+  }
+});
+
+
 app.use(express.static(path.join(__dirname, "public"), telStaticOptions));
 app.use("/escudos", express.static(path.join(__dirname, "public", "escudos"), telStaticOptions));
 
@@ -3101,6 +3393,33 @@ if(!global.__TEL_FINAL_PARTICIPANTS_WRITE_PATCHED__){
 }
 
 
+
+
+/* Protección: antes de guardar data.json elimina demo/fantasma */
+if(!global.__TEL_NO_FLASH_DEMO_WRITE_PATCHED__){
+  global.__TEL_NO_FLASH_DEMO_WRITE_PATCHED__ = true;
+  const __telNoFlashDemoOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telNoFlashDemoInside = false;
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telNoFlashDemoInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+        if(parsed && typeof parsed === 'object' && typeof telNoFlashDemoCleanData === 'function'){
+          telNoFlashDemoCleanData(parsed);
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(error){}
+    __telNoFlashDemoInside = true;
+    try{
+      return __telNoFlashDemoOriginalWrite(filePath, data, ...args);
+    }finally{
+      __telNoFlashDemoInside = false;
+    }
+  };
+}
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -3121,6 +3440,7 @@ app.get("/api/data", (req, res) => {
   telJ12SafePanelApply(data);
   telParticipantsCleanData(data);
   telFinalParticipantsCleanData(data);
+  telNoFlashDemoCleanData(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -3323,6 +3643,7 @@ app.get("/api/competiciones", (req, res) => {
   telJ12SafePanelApply(data);
   telParticipantsCleanData(data);
   telFinalParticipantsCleanData(data);
+  telNoFlashDemoCleanData(data);
   res.json(data.competiciones || []);
 });
 
@@ -5306,6 +5627,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     telJ12SafePanelApply(data);
     telParticipantsCleanData(data);
     telFinalParticipantsCleanData(data);
+    telNoFlashDemoCleanData(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
