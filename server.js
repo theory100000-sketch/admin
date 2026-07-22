@@ -2881,6 +2881,226 @@ if(!global.__TEL_PARTICIPANTS_CLEAN_WRITE_PATCHED__){
 }
 
 
+
+
+/* ============================================================
+   TEL FIX FINAL PARTICIPANTES 10/10
+   Aplicado sobre el server.js real del usuario.
+   Problema:
+   - El panel muestra 12/10 porque equipos históricos de J1/J2 se cuelan
+     dentro de comp.equipos.
+   - Al quitar BLACK MECANIC / Coral Springs A u otros, vuelven a aparecer.
+   Solución:
+   - comp.equipos solo contiene participantes activos reales del panel.
+   - Históricos pueden seguir existiendo en partidos, pero NO como participantes.
+   - Duplicados fuera.
+   - Máximo 10.
+   ============================================================ */
+function telFinalParticipantsNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telFinalParticipantsSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telFinalParticipantsName(team){
+  return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || team?.equipo || '').trim();
+}
+function telFinalParticipantsIsCup(comp){
+  const txt = telFinalParticipantsNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telFinalParticipantsNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telFinalParticipantsIsHistoricOrRemoved(team){
+  if(!team) return true;
+
+  const slot = String(team.slotId || team.id || team.clubId || team.idClub || '').trim();
+
+  if(slot.startsWith('hist-')) return true;
+  if(slot.startsWith('hist-j12-')) return true;
+  if(slot.startsWith('panel-jornada-')) return true;
+  if(slot.startsWith('fixture-')) return true;
+
+  if(team.historico === true) return true;
+  if(team.equipoHistorico === true) return true;
+  if(team.fixtureHistorico === true) return true;
+  if(team.fixturePanel === true) return true;
+  if(team.bloqueoJornada12 === true) return true;
+
+  if(team.excluidoClasificacion === true) return true;
+  if(team.eliminadoDeCompeticion === true) return true;
+  if(team.sacadoDeCompeticion === true) return true;
+  if(team.removidoDeCompeticion === true) return true;
+  if(team.inactivoCompeticion === true) return true;
+
+  if(team.activo === false) return true;
+  if(team.active === false) return true;
+
+  const estado = telFinalParticipantsNorm(team.estado || team.status || '');
+  if(estado.includes('sacado')) return true;
+  if(estado.includes('eliminado')) return true;
+  if(estado.includes('inactivo')) return true;
+  if(estado.includes('fuera')) return true;
+  if(estado.includes('baja')) return true;
+
+  return false;
+}
+function telFinalParticipantsCleanComp(comp){
+  if(!comp || telFinalParticipantsIsCup(comp)) return comp;
+
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+
+  const seen = new Set();
+  const active = [];
+
+  for(const original of comp.equipos){
+    const team = original && typeof original === 'object' ? original : {nombre:String(original || '')};
+
+    if(telFinalParticipantsIsHistoricOrRemoved(team)) continue;
+
+    const name = telFinalParticipantsName(team);
+    if(!name) continue;
+
+    const key = telFinalParticipantsNorm(name);
+    if(!key || seen.has(key)) continue;
+    seen.add(key);
+
+    team.nombre = team.nombre || team.clubNombre || team.nombreVisual || team.name || name;
+    team.clubNombre = team.clubNombre || team.nombre || name;
+    team.nombreVisual = team.nombreVisual || team.nombre || name;
+    team.name = team.name || team.nombre || name;
+
+    if(!team.slotId){
+      team.slotId = String(team.id || team.clubId || team.idClub || telFinalParticipantsSlug(name));
+    }
+
+    team.historico = false;
+    team.equipoHistorico = false;
+    team.fixtureHistorico = false;
+    team.fixturePanel = false;
+    team.bloqueoJornada12 = false;
+    team.excluidoClasificacion = false;
+    team.eliminadoDeCompeticion = false;
+    team.sacadoDeCompeticion = false;
+    team.activo = true;
+    team.active = true;
+
+    active.push(team);
+  }
+
+  const max = Number(comp.maxEquipos || comp.numeroEquipos || comp.limiteEquipos || comp.cantidadEquipos || 10) || 10;
+  comp.equipos = active.slice(0, max);
+  comp.equiposSeleccionados = comp.equipos.length;
+  comp.totalEquipos = comp.equipos.length;
+  comp.participantesCount = comp.equipos.length;
+
+  return comp;
+}
+function telFinalParticipantsCleanData(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telFinalParticipantsCleanComp(comp));
+
+  /* Recalcula clasificación después de limpiar participantes. */
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+
+  return data;
+}
+
+/* Sobrescribe funciones anteriores que podían volver a meter históricos como participantes. */
+function telLock12HistSlot(comp, name, logo){
+  return `hist-j12-${telFinalParticipantsSlug(name)}`;
+}
+function telLock12Slot(data, comp, name){
+  if(typeof telLock12ActiveSlot === 'function'){
+    const active = telLock12ActiveSlot(comp, name);
+    if(active) return active;
+  }
+  return `hist-j12-${telFinalParticipantsSlug(name)}`;
+}
+
+/* Ruta manual para limpiar la data en vivo. */
+app.get('/api/admin/fix-participantes-10-final', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+
+    if(typeof telLock12Apply === 'function'){
+      try{ telLock12Apply(data); }catch(error){}
+    }
+
+    telFinalParticipantsCleanData(data);
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      participantes: Array.isArray(comp.equipos) ? comp.equipos.length : 0,
+      equipos: Array.isArray(comp.equipos) ? comp.equipos.map(e=>e.nombre || e.clubNombre || e.name) : []
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Participantes corregidos: históricos/duplicados fuera y máximo 10.',
+      resumen
+    });
+  }catch(error){
+    console.error('[fix-participantes-10-final]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* TEL protección final: antes de guardar data.json limpia participantes 10/10 */
+if(!global.__TEL_FINAL_PARTICIPANTS_WRITE_PATCHED__){
+  global.__TEL_FINAL_PARTICIPANTS_WRITE_PATCHED__ = true;
+  const __telFinalParticipantsOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telFinalParticipantsInside = false;
+
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telFinalParticipantsInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+
+        if(parsed && typeof parsed === 'object'){
+          if(typeof telLock12Apply === 'function'){
+            try{ telLock12Apply(parsed); }catch(error){}
+          }
+          if(typeof telFinalParticipantsCleanData === 'function'){
+            telFinalParticipantsCleanData(parsed);
+          }
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(error){}
+
+    __telFinalParticipantsInside = true;
+    try{
+      return __telFinalParticipantsOriginalWrite(filePath, data, ...args);
+    }finally{
+      __telFinalParticipantsInside = false;
+    }
+  };
+}
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -2900,6 +3120,7 @@ app.get("/api/data", (req, res) => {
   telLock12Apply(data);
   telJ12SafePanelApply(data);
   telParticipantsCleanData(data);
+  telFinalParticipantsCleanData(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -3101,6 +3322,7 @@ app.get("/api/competiciones", (req, res) => {
   telLock12Apply(data);
   telJ12SafePanelApply(data);
   telParticipantsCleanData(data);
+  telFinalParticipantsCleanData(data);
   res.json(data.competiciones || []);
 });
 
@@ -5083,6 +5305,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     telLock12Apply(data);
     telJ12SafePanelApply(data);
     telParticipantsCleanData(data);
+    telFinalParticipantsCleanData(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
