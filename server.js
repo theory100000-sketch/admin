@@ -9879,6 +9879,409 @@ try{
   console.warn('[TEL] No se pudieron fijar jornadas 1 y 2 al iniciar:', error?.message || error);
 }
 
+
+
+/* ============================================================
+   TEL OVERRIDE FINAL CALENDARIO ROUND ROBIN
+   IMPORTANTE:
+   Este bloque debe ir al final del server.js.
+   Desactiva los arreglos antiguos que re-forzaban jornadas y deja
+   UN SOLO calendario correcto:
+   - 10 equipos
+   - 18 jornadas
+   - 5 partidos por jornada
+   - cada equipo juega una vez por jornada
+   - cada pareja se enfrenta exactamente 2 veces
+   ============================================================ */
+function telOVNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telOVSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telOVIsCup(comp){
+  const txt = telOVNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telOVNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telOVTeamName(team){
+  return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || '').trim();
+}
+function telOVRemoved(team){
+  if(!team) return true;
+  if(team.historico === true || team.equipoHistorico === true || team.fixtureHistorico === true) return true;
+  if(team.fixturePanel === true || team.bloqueoJornada12 === true) return true;
+  if(team.excluidoClasificacion === true || team.eliminadoDeCompeticion === true || team.sacadoDeCompeticion === true) return true;
+  if(team.removidoDeCompeticion === true || team.inactivoCompeticion === true) return true;
+  if(team.activo === false || team.active === false) return true;
+  const slot = String(team.slotId || team.id || team.clubId || '').trim();
+  if(slot.startsWith('hist-') || slot.startsWith('panel-jornada-')) return true;
+  const estado = telOVNorm(team.estado || team.status || '');
+  return estado.includes('sacado') || estado.includes('eliminado') || estado.includes('inactivo') || estado.includes('fuera') || estado.includes('baja');
+}
+function telOVActiveTeams(comp){
+  const seen = new Set();
+  const active = [];
+  for(const raw of (Array.isArray(comp?.equipos) ? comp.equipos : [])){
+    if(telOVRemoved(raw)) continue;
+    const name = telOVTeamName(raw);
+    const key = telOVNorm(name);
+    if(!key || seen.has(key)) continue;
+    seen.add(key);
+    const team = {...raw};
+    team.nombre = team.nombre || team.clubNombre || team.nombreVisual || team.name || name;
+    team.clubNombre = team.clubNombre || team.nombre || name;
+    team.nombreVisual = team.nombreVisual || team.nombre || name;
+    team.name = team.name || team.nombre || name;
+    if(!team.slotId) team.slotId = String(team.id || team.clubId || team.idClub || telOVSlug(name));
+    if(!team.id) team.id = String(team.slotId || team.clubId || telOVSlug(name));
+    if(!team.clubId) team.clubId = String(team.id || team.slotId);
+    active.push(team);
+  }
+  return active.slice(0, 10);
+}
+function telOVMatchName(match, side){
+  if(side === 'local'){
+    return String(match?.localNombre || match?.nombreLocal || match?.equipoLocal || match?.local?.nombre || match?.local?.clubNombre || match?.localTeam?.nombre || match?.localEquipo?.nombre || '').trim();
+  }
+  return String(match?.visitanteNombre || match?.nombreVisitante || match?.equipoVisitante || match?.visitante?.nombre || match?.visitante?.clubNombre || match?.visitanteTeam?.nombre || match?.visitanteEquipo?.nombre || '').trim();
+}
+function telOVPairKey(a,b){
+  const x = telOVNorm(a), y = telOVNorm(b);
+  if(!x || !y) return '';
+  return [x,y].sort().join(' vs ');
+}
+function telOVOrientedKey(a,b){
+  return `${telOVNorm(a)} -> ${telOVNorm(b)}`;
+}
+function telOVScoreOk(value){
+  return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
+}
+function telOVPlayed(match){
+  if(!match) return false;
+  return match.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
+    (telOVScoreOk(match.localGoles) && telOVScoreOk(match.visitanteGoles)) ||
+    (telOVScoreOk(match.golesLocal) && telOVScoreOk(match.golesVisitante)) ||
+    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''));
+}
+function telOVGoals(match){
+  let l = match?.localGoles ?? match?.golesLocal;
+  let a = match?.visitanteGoles ?? match?.golesVisitante;
+  if((!telOVScoreOk(l) || !telOVScoreOk(a)) && match?.resultado){
+    const p = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+    if(p){ l = Number(p[1]); a = Number(p[2]); }
+  }
+  return {
+    local: telOVScoreOk(l) ? Number(l) : null,
+    away: telOVScoreOk(a) ? Number(a) : null
+  };
+}
+function telOVLogo(team){
+  let value = String(team?.escudoUrl || team?.logoUrl || team?.logo || team?.escudo || team?.imagenUrl || team?.imagen || team?.escudoPath || team?.escudoFilename || '').trim().replaceAll('\\','/');
+  if(value){
+    if(value.startsWith('/api/club-logo')) return value;
+    if(/^https?:\/\//i.test(value)) return value;
+    if(value.startsWith('/escudos/')) return value;
+    if(value.startsWith('escudos/')) return '/' + value;
+    if(/\.(png|jpe?g|webp|gif|svg)$/i.test(value)) return '/escudos/' + value.split('/').pop();
+  }
+  const key = team?.clubId || team?.rolId || team?.id || team?._id || team?.idClub || team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name;
+  return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : '';
+}
+function telOVTeamObject(team){
+  const name = telOVTeamName(team);
+  const slot = String(team.slotId || team.id || team.clubId || team.idClub || telOVSlug(name));
+  const logo = telOVLogo(team);
+  return {
+    ...team,
+    id: slot,
+    slotId: slot,
+    clubId: team.clubId || slot,
+    idClub: team.idClub || team.clubId || slot,
+    nombre: name,
+    clubNombre: team.clubNombre || name,
+    nombreVisual: team.nombreVisual || name,
+    name: team.name || name,
+    escudoUrl: logo,
+    logoUrl: logo,
+    logo,
+    escudo: logo
+  };
+}
+function telOVApplySide(match, side, team){
+  const obj = telOVTeamObject(team);
+  const p = side === 'local' ? 'local' : 'visitante';
+  const cap = side === 'local' ? 'Local' : 'Visitante';
+  const name = obj.nombre;
+  const logo = obj.escudoUrl || obj.logoUrl || obj.logo || obj.escudo || '';
+  match[`${p}SlotId`] = obj.slotId;
+  match[`${p}Id`] = obj.slotId;
+  match[`${p}ClubId`] = obj.clubId || obj.slotId;
+  match[`${p}Nombre`] = name;
+  match[side === 'local' ? 'nombreLocal' : 'nombreVisitante'] = name;
+  match[side === 'local' ? 'equipoLocal' : 'equipoVisitante'] = name;
+  match[`${p}Logo`] = logo;
+  match[`${p}Escudo`] = logo;
+  match[`logo${cap}`] = logo;
+  match[`escudo${cap}`] = logo;
+  match[p] = obj;
+  match[`${p}Team`] = obj;
+  match[`${p}Equipo`] = obj;
+  match[`${p}Club`] = obj;
+}
+function telOVOldResultPool(comp){
+  const pool = new Map();
+  for(const m of (Array.isArray(comp?.partidos) ? comp.partidos : [])){
+    if(!telOVPlayed(m)) continue;
+    const l = telOVMatchName(m,'local');
+    const a = telOVMatchName(m,'visitante');
+    const key = telOVPairKey(l,a);
+    if(!key) continue;
+    if(!pool.has(key)) pool.set(key, []);
+    pool.get(key).push({
+      local:l,
+      away:a,
+      oriented:telOVOrientedKey(l,a),
+      goals:telOVGoals(m),
+      jornada:Number(m.jornada || m.round || 9999),
+      orden:Number(m.ordenJornada || m.orden || 9999)
+    });
+  }
+  for(const list of pool.values()){
+    list.sort((a,b)=>(a.jornada-b.jornada) || (a.orden-b.orden));
+  }
+  return pool;
+}
+function telOVTakeResult(pool, local, away){
+  const key = telOVPairKey(local, away);
+  const list = pool.get(key);
+  if(!list || !list.length) return null;
+  const oriented = telOVOrientedKey(local, away);
+  let idx = list.findIndex(x=>x.oriented === oriented);
+  if(idx < 0) idx = 0;
+  const item = list.splice(idx,1)[0];
+  if(!item) return null;
+  const same = item.oriented === oriented;
+  const lg = same ? item.goals.local : item.goals.away;
+  const ag = same ? item.goals.away : item.goals.local;
+  if(lg === null || ag === null) return null;
+  return {
+    localGoles:lg,
+    visitanteGoles:ag,
+    golesLocal:lg,
+    golesVisitante:ag,
+    resultado:`${lg}-${ag}`,
+    estado:'finalizado',
+    finalizado:true,
+    resultadoConservadoDe:`${item.local} vs ${item.away}`,
+    resultadoJornadaOriginal:item.jornada
+  };
+}
+function telOVGenerateRoundRobin(teams){
+  const n = teams.length;
+  if(n !== 10) return [];
+  const arr = teams.slice();
+  const firstHalf = [];
+  for(let r=0; r<n-1; r++){
+    const round = [];
+    for(let i=0; i<n/2; i++){
+      let home = arr[i];
+      let away = arr[n-1-i];
+      if(r % 2 === 1){
+        const t = home; home = away; away = t;
+      }
+      round.push([home, away]);
+    }
+    firstHalf.push(round);
+    const fixed = arr[0];
+    const rest = arr.slice(1);
+    rest.unshift(rest.pop());
+    arr.splice(0, arr.length, fixed, ...rest);
+  }
+  return [
+    ...firstHalf,
+    ...firstHalf.map(round=>round.map(([home, away])=>[away, home]))
+  ];
+}
+function telOVValidate(comp){
+  const problems = [];
+  const byRound = new Map();
+  const pairs = new Map();
+  for(const m of (Array.isArray(comp?.partidos) ? comp.partidos : [])){
+    const j = Number(m.jornada || m.round || 0);
+    if(!byRound.has(j)) byRound.set(j, []);
+    byRound.get(j).push(m);
+    const key = telOVPairKey(telOVMatchName(m,'local'), telOVMatchName(m,'visitante'));
+    if(key) pairs.set(key, (pairs.get(key) || 0) + 1);
+  }
+  for(let j=1;j<=18;j++){
+    const matches = byRound.get(j) || [];
+    if(matches.length !== 5) problems.push({jornada:j,tipo:'partidos_por_jornada',cantidad:matches.length});
+    const used = new Map();
+    for(const m of matches){
+      for(const name of [telOVMatchName(m,'local'), telOVMatchName(m,'visitante')]){
+        const key = telOVNorm(name);
+        if(!key) continue;
+        used.set(key, (used.get(key) || 0) + 1);
+      }
+    }
+    const repeats = Array.from(used.entries()).filter(([,c])=>c>1);
+    if(repeats.length) problems.push({jornada:j,tipo:'equipo_repetido',equipos:repeats});
+    if(used.size !== 10) problems.push({jornada:j,tipo:'faltan_equipos',equiposJugando:used.size});
+  }
+  for(const [pair,count] of pairs.entries()){
+    if(count !== 2) problems.push({tipo:'cruce_no_dos_veces',cruce:pair,veces:count});
+  }
+  return problems;
+}
+function telOVRebuildCompetition(comp){
+  if(!comp || telOVIsCup(comp)) return comp;
+  const teams = telOVActiveTeams(comp);
+  if(teams.length !== 10){
+    comp._calendarioOverrideError = `Debe haber exactamente 10 equipos activos. Ahora hay ${teams.length}.`;
+    comp._calendarioOverrideProblemas = [];
+    return comp;
+  }
+  const pool = telOVOldResultPool(comp);
+  const rounds = telOVGenerateRoundRobin(teams);
+  const newMatches = [];
+  rounds.forEach((round, ri)=>{
+    const jornada = ri + 1;
+    round.forEach(([home, away], mi)=>{
+      const localName = telOVTeamName(home);
+      const awayName = telOVTeamName(away);
+      const match = {
+        id:`${comp.id || telOVSlug(comp.nombre || 'liga')}-J${jornada}-P${mi+1}`,
+        jornada,
+        round:jornada,
+        ordenJornada:mi+1,
+        fecha:'',
+        hora:'',
+        estado:'pendiente',
+        finalizado:false,
+        localGoles:null,
+        visitanteGoles:null,
+        golesLocal:null,
+        golesVisitante:null,
+        resultado:'',
+        calendarioRoundRobinOverride:true
+      };
+      telOVApplySide(match, 'local', home);
+      telOVApplySide(match, 'visitante', away);
+      const oldResult = telOVTakeResult(pool, localName, awayName);
+      if(oldResult) Object.assign(match, oldResult);
+      newMatches.push(match);
+    });
+  });
+  comp.partidos = newMatches;
+  comp.jornadas = 18;
+  comp.numeroJornadas = 18;
+  comp.partidosPorJornada = 5;
+  comp.equiposSeleccionados = teams.length;
+  comp.totalEquipos = teams.length;
+  comp.participantesCount = teams.length;
+  comp._calendarioOverrideError = '';
+  comp._calendarioOverrideProblemas = telOVValidate(comp);
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply({competiciones:[comp]}); }catch(error){}
+  }
+  return comp;
+}
+function telOVRebuildData(data){
+  if(!data || typeof data !== 'object') return data;
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telOVRebuildCompetition(comp));
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+  return data;
+}
+
+/* Desactivar todos los reparadores/forzadores antiguos de calendario */
+telLock12Apply = function(data){ return data; };
+telForceFirstTwoMatchdays = function(data){ return false; };
+telFotoExactApply = function(data){ return data; };
+telFinalCalRepairData = function(data){ return data; };
+telReassignCleanData = function(data){ return data; };
+telMax2GlobalCleanData = function(data){ return data; };
+telCountJ12CleanData = function(data){ return data; };
+telNoTripleCleanData = function(data){ return data; };
+telRRRebuildData = function(data){ return data; };
+
+app.get('/api/admin/calendario-override-final', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    if(typeof telFinalParticipantsCleanData === 'function'){
+      try{ telFinalParticipantsCleanData(data); }catch(error){}
+    }
+    telOVRebuildData(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      equiposActivos: telOVActiveTeams(comp).length,
+      jornadas: comp.numeroJornadas || comp.jornadas || '',
+      partidos: Array.isArray(comp.partidos) ? comp.partidos.length : 0,
+      error: comp._calendarioOverrideError || '',
+      problemas: comp._calendarioOverrideProblemas || []
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Calendario final sobrescrito con round-robin limpio. Si problemas sale [], ya no hay repeticiones ni equipos duplicados por jornada.',
+      resumen
+    });
+  }catch(error){
+    console.error('[calendario-override-final]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+/* Último wrapper: cualquier guardado vuelve a aplicar SOLO el calendario override si ya fue generado */
+if(!global.__TEL_OVERRIDE_FINAL_CALENDAR_WRITE_PATCHED__){
+  global.__TEL_OVERRIDE_FINAL_CALENDAR_WRITE_PATCHED__ = true;
+  const __telOVOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telOVInside = false;
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telOVInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+        if(parsed && typeof parsed === 'object'){
+          const comps = parsed.competiciones || parsed.ligas || parsed.torneos || [];
+          const alreadyOverride = comps.some(c=>Array.isArray(c?.partidos) && c.partidos.some(m=>m.calendarioRoundRobinOverride === true));
+          const hasProblems = comps.some(c=>Array.isArray(c?.partidos) && telOVValidate(c).length);
+          if(alreadyOverride || hasProblems){
+            if(typeof telFinalParticipantsCleanData === 'function'){
+              try{ telFinalParticipantsCleanData(parsed); }catch(error){}
+            }
+            telOVRebuildData(parsed);
+          }
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(error){}
+    __telOVInside = true;
+    try{ return __telOVOriginalWrite(filePath, data, ...args); }
+    finally{ __telOVInside = false; }
+  };
+}
+
+
 app.listen(PORT, () => {
     console.log(`🌐 Web Thunder Elite League lista en http://localhost:${PORT}`);
   });
