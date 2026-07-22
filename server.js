@@ -3013,6 +3013,522 @@ if(!global.__TEL_NO_REINSERT_REMOVED_WRITE_PATCHED__){
 }
 
 
+
+
+/* ============================================================
+   TEL SUSTITUIR EQUIPO DESDE UNA JORNADA
+   Ejemplo: vas por Jornada 3.
+   - Jornada 1 y 2 quedan intactas con resultados.
+   - Desde Jornada 3 en adelante se cambia el equipo que sale
+     por el equipo que entra.
+   - Aunque el panel reinicie calendario, se reaplica el cambio.
+   ============================================================ */
+function telSwapFromRoundNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telSwapFromRoundSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telSwapFromRoundName(team){
+  return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || '').trim();
+}
+function telSwapFromRoundIsCup(comp){
+  const txt = telSwapFromRoundNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telSwapFromRoundNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telSwapFromRoundTeamRemoved(team){
+  if(!team) return true;
+  if(team.historico === true || team.equipoHistorico === true) return true;
+  if(team.excluidoClasificacion === true || team.eliminadoDeCompeticion === true || team.sacadoDeCompeticion === true) return true;
+  if(team.activo === false || team.active === false) return true;
+  const estado = telSwapFromRoundNorm(team.estado || team.status || '');
+  return estado.includes('sacado') || estado.includes('eliminado') || estado.includes('inactivo') || estado.includes('fuera') || estado.includes('baja');
+}
+function telSwapFromRoundLogo(data, comp, name){
+  const wanted = telSwapFromRoundNorm(name);
+  const list = [];
+  (comp?.equipos || []).forEach(t=>list.push(t));
+  ['clubes','equipos','teams'].forEach(k=>(data?.[k]||[]).forEach(t=>list.push(t)));
+
+  for(const t of list){
+    if(telSwapFromRoundNorm(telSwapFromRoundName(t)) !== wanted) continue;
+    for(let v of [t.escudoUrl,t.logoUrl,t.logo,t.escudo,t.imagenUrl,t.imagen,t.escudoPath,t.escudoFilename].filter(Boolean)){
+      v = String(v).trim().replaceAll('\\','/');
+      if(!v) continue;
+      if(v.startsWith('/api/club-logo')) return v;
+      if(/^https?:\/\//i.test(v)) return v;
+      if(v.startsWith('/escudos/')) return v;
+      if(v.startsWith('escudos/')) return '/' + v;
+      if(/\.(png|jpe?g|webp|gif|svg)$/i.test(v)) return '/escudos/' + v.split('/').pop();
+    }
+    const key = t.clubId || t.rolId || t.id || t._id || t.idClub || t.nombre || t.clubNombre || t.nombreVisual || t.name;
+    if(key) return `/api/club-logo?key=${encodeURIComponent(String(key))}`;
+  }
+
+  return `/api/club-logo?key=${encodeURIComponent(name)}`;
+}
+function telSwapFromRoundFindTeam(data, comp, name){
+  const wanted = telSwapFromRoundNorm(name);
+  for(const t of (comp?.equipos || [])){
+    const vals = [t.nombre,t.clubNombre,t.nombreVisual,t.name,t.id,t.clubId,t.slotId].filter(Boolean);
+    if(vals.some(v=>telSwapFromRoundNorm(v) === wanted)) return t;
+  }
+  for(const key of ['clubes','equipos','teams']){
+    for(const t of (data?.[key] || [])){
+      const vals = [t.nombre,t.clubNombre,t.nombreVisual,t.name,t.id,t.clubId,t.slotId].filter(Boolean);
+      if(vals.some(v=>telSwapFromRoundNorm(v) === wanted)) return JSON.parse(JSON.stringify(t));
+    }
+  }
+  return null;
+}
+function telSwapFromRoundEnsureActiveTeam(data, comp, name){
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+
+  let team = telSwapFromRoundFindTeam(data, comp, name);
+  if(!team){
+    team = {
+      id: telSwapFromRoundSlug(name),
+      slotId: telSwapFromRoundSlug(name),
+      clubId: telSwapFromRoundSlug(name),
+      nombre: name,
+      clubNombre: name,
+      nombreVisual: name,
+      name: name
+    };
+    comp.equipos.push(team);
+  }else if(!comp.equipos.includes(team)){
+    const existing = comp.equipos.find(t=>telSwapFromRoundNorm(telSwapFromRoundName(t)) === telSwapFromRoundNorm(name));
+    if(existing) team = existing;
+    else comp.equipos.push(team);
+  }
+
+  team.nombre = name;
+  team.clubNombre = name;
+  team.nombreVisual = name;
+  team.name = name;
+
+  if(!team.id) team.id = telSwapFromRoundSlug(name);
+  if(!team.slotId) team.slotId = String(team.id || team.clubId || team.idClub || telSwapFromRoundSlug(name));
+  if(!team.clubId) team.clubId = String(team.id || team.slotId);
+
+  team.historico = false;
+  team.equipoHistorico = false;
+  team.excluidoClasificacion = false;
+  team.eliminadoDeCompeticion = false;
+  team.sacadoDeCompeticion = false;
+  team.activo = true;
+  team.active = true;
+
+  const logo = telSwapFromRoundLogo(data, comp, name);
+  team.escudoUrl = team.escudoUrl || logo;
+  team.logoUrl = team.logoUrl || logo;
+  team.logo = team.logo || logo;
+  team.escudo = team.escudo || logo;
+
+  return team;
+}
+function telSwapFromRoundMarkOldInactive(comp, oldName){
+  const wanted = telSwapFromRoundNorm(oldName);
+  for(const team of (comp.equipos || [])){
+    if(telSwapFromRoundNorm(telSwapFromRoundName(team)) !== wanted) continue;
+    team.sacadoDeCompeticion = true;
+    team.eliminadoDeCompeticion = true;
+    team.excluidoClasificacion = true;
+    team.activo = false;
+    team.active = false;
+    team.estado = 'sacado';
+  }
+}
+function telSwapFromRoundInjectMatch(match, side, name, slot, logo){
+  const p = side === 'local' ? 'local' : 'visitante';
+  const cap = side === 'local' ? 'Local' : 'Visitante';
+  const obj = {
+    id: slot,
+    slotId: slot,
+    clubId: slot,
+    idClub: slot,
+    nombre: name,
+    clubNombre: name,
+    nombreVisual: name,
+    name: name,
+    escudoUrl: logo,
+    logoUrl: logo,
+    logo,
+    escudo: logo
+  };
+
+  match[`${p}SlotId`] = slot;
+  match[`${p}Id`] = slot;
+  match[`${p}ClubId`] = slot;
+  match[`${p}Nombre`] = name;
+  match[side === 'local' ? 'nombreLocal' : 'nombreVisitante'] = name;
+  match[side === 'local' ? 'equipoLocal' : 'equipoVisitante'] = name;
+  match[`${p}Logo`] = logo;
+  match[`${p}Escudo`] = logo;
+  match[`logo${cap}`] = logo;
+  match[`escudo${cap}`] = logo;
+  match[side] = obj;
+  match[`${p}Team`] = obj;
+  match[`${p}Equipo`] = obj;
+  match[`${p}Club`] = obj;
+}
+function telSwapFromRoundTarget(data, compId){
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  if(compId){
+    const wanted = String(compId);
+    const found = comps.find(c => String(c.id || c.nombre || c.name || '') === wanted);
+    if(found) return found;
+  }
+  return comps.find(c=>!telSwapFromRoundIsCup(c)) || comps[0];
+}
+function telSwapFromRoundApplyOne(data, replacement){
+  const comp = telSwapFromRoundTarget(data, replacement.compId || '');
+  if(!comp) return {ok:false, reason:'competition_not_found'};
+
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+  comp.partidos = Array.isArray(comp.partidos) ? comp.partidos : [];
+
+  const equipoSale = String(replacement.equipoSale || replacement.sale || '').trim();
+  const equipoEntra = String(replacement.equipoEntra || replacement.entra || '').trim();
+  const desdeJornada = Math.max(1, Number(replacement.desdeJornada || replacement.jornadaDesde || 3));
+
+  if(!equipoSale || !equipoEntra) return {ok:false, reason:'missing_teams'};
+
+  const newTeam = telSwapFromRoundEnsureActiveTeam(data, comp, equipoEntra);
+  const newSlot = String(newTeam.slotId || newTeam.id || telSwapFromRoundSlug(equipoEntra));
+  const newLogo = telSwapFromRoundLogo(data, comp, equipoEntra);
+
+  telSwapFromRoundMarkOldInactive(comp, equipoSale);
+
+  let protectedMatches = 0;
+  let replacedMatches = 0;
+
+  for(const match of comp.partidos){
+    const jornada = Number(match.jornada || match.round || 0);
+
+    // Jornadas anteriores quedan exactamente como estaban: resultados y equipos.
+    if(jornada > 0 && jornada < desdeJornada){
+      protectedMatches++;
+      continue;
+    }
+
+    const localName = match.localNombre || match.nombreLocal || match.equipoLocal || '';
+    const awayName = match.visitanteNombre || match.nombreVisitante || match.equipoVisitante || '';
+
+    const localUsesOld = telSwapFromRoundNorm(localName) === telSwapFromRoundNorm(equipoSale);
+    const awayUsesOld = telSwapFromRoundNorm(awayName) === telSwapFromRoundNorm(equipoSale);
+
+    if(!localUsesOld && !awayUsesOld) continue;
+
+    if(localUsesOld){
+      telSwapFromRoundInjectMatch(match, 'local', equipoEntra, newSlot, newLogo);
+      replacedMatches++;
+    }
+
+    if(awayUsesOld){
+      telSwapFromRoundInjectMatch(match, 'visitante', equipoEntra, newSlot, newLogo);
+      replacedMatches++;
+    }
+
+    match.equipoReemplazado = equipoSale;
+    match.equipoNuevo = equipoEntra;
+    match.reemplazoDesdeJornada = desdeJornada;
+  }
+
+  if(typeof telLock12Apply === 'function'){
+    telLock12Apply(data);
+  }
+  if(typeof telParticipantsCleanData === 'function'){
+    telParticipantsCleanData(data);
+  }
+  if(typeof telCompTableApply === 'function'){
+    telCompTableApply(data);
+  }
+
+  return {
+    ok:true,
+    equipoSale,
+    equipoEntra,
+    desdeJornada,
+    jornadasProtegidas: protectedMatches,
+    partidosFuturosActualizados: replacedMatches
+  };
+}
+function telSwapFromRoundApplyActive(data){
+  const list = Array.isArray(data.reemplazosDesdeJornadaActivos) ? data.reemplazosDesdeJornadaActivos : [];
+  const results = [];
+  for(const item of list){
+    results.push(telSwapFromRoundApplyOne(data, item));
+  }
+  return results;
+}
+app.post('/api/admin/sustituir-equipo-desde-jornada', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    const compId = String(req.body?.compId || '').trim();
+    const equipoSale = String(req.body?.equipoSale || req.body?.sale || '').trim();
+    const equipoEntra = String(req.body?.equipoEntra || req.body?.entra || '').trim();
+    const desdeJornada = Math.max(1, Number(req.body?.desdeJornada || req.body?.jornadaDesde || 3));
+
+    if(!equipoSale || !equipoEntra){
+      return res.status(400).json({ok:false,message:'Falta equipoSale o equipoEntra.'});
+    }
+
+    data.reemplazosDesdeJornadaActivos = Array.isArray(data.reemplazosDesdeJornadaActivos)
+      ? data.reemplazosDesdeJornadaActivos
+      : [];
+
+    data.reemplazosDesdeJornadaActivos = data.reemplazosDesdeJornadaActivos.filter(item =>
+      !(String(item.compId || '') === compId && telSwapFromRoundNorm(item.equipoSale) === telSwapFromRoundNorm(equipoSale))
+    );
+
+    const replacement = {
+      fecha:new Date().toISOString(),
+      compId,
+      equipoSale,
+      equipoEntra,
+      desdeJornada
+    };
+
+    data.reemplazosDesdeJornadaActivos.push(replacement);
+
+    const result = telSwapFromRoundApplyOne(data, replacement);
+
+    data.historialCambiosEquipos = Array.isArray(data.historialCambiosEquipos) ? data.historialCambiosEquipos : [];
+    data.historialCambiosEquipos.push({
+      fecha:new Date().toISOString(),
+      tipo:'sustituir-desde-jornada',
+      compId,
+      equipoSale,
+      equipoEntra,
+      desdeJornada,
+      result
+    });
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:`Equipo sustituido desde Jornada ${desdeJornada}. Las jornadas anteriores mantienen resultados.`,
+      result
+    });
+  }catch(error){
+    console.error('[sustituir-equipo-desde-jornada]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+app.get('/admin-sustituir-desde-jornada', requireAdmin, (req,res)=>{
+  res.set('Cache-Control','no-store');
+  res.type('html').send(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sustituir equipo desde jornada</title><style>body{margin:0;background:#071020;color:#fff;font-family:Arial;padding:35px}.card{max-width:850px;margin:auto;background:#0b1428;border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:25px}input,button{width:100%;box-sizing:border-box;padding:14px;border-radius:12px;margin-top:8px}input{background:#071020;color:#fff;border:1px solid rgba(255,255,255,.18);font-weight:900}button{border:0;background:#17c964;color:#fff;font-weight:1000}.ok{color:#baff35}.bad{color:#ff6680}label{display:block;margin-top:14px;font-weight:900}</style></head><body><div class="card"><h1>Sustituir equipo desde jornada</h1><p>Ejemplo: si vas por Jornada 3, pon desdeJornada = 3. J1 y J2 mantienen sus resultados. Desde J3 entra el equipo nuevo.</p><label>ID competición opcional</label><input id="compId" placeholder="vacío = liga principal"><label>Equipo que sale</label><input id="sale" placeholder="Ej: BLACK MECANIC"><label>Equipo que entra</label><input id="entra" placeholder="Ej: Nuevo FC"><label>Desde jornada</label><input id="desde" type="number" value="3"><button onclick="guardar()">Guardar sustitución</button><p id="msg"></p></div><script>async function guardar(){const msg=document.getElementById('msg');msg.textContent='Guardando...';msg.className='';const body={compId:compId.value.trim(),equipoSale:sale.value.trim(),equipoEntra:entra.value.trim(),desdeJornada:Number(desde.value||3)};const res=await fetch('/api/admin/sustituir-equipo-desde-jornada',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json().catch(()=>({ok:false,message:'Error'}));if(!data.ok){msg.textContent=data.message||'Error';msg.className='bad';return;}msg.textContent=data.message+' · futuros actualizados: '+(data.result?.partidosFuturosActualizados||0);msg.className='ok';}</script></body></html>`);
+});
+
+
+
+
+/* Protección global: si el calendario se reinicia, reaplica sustituciones desde jornada antes de guardar */
+if(!global.__TEL_SWAP_FROM_ROUND_WRITE_PATCHED__){
+  global.__TEL_SWAP_FROM_ROUND_WRITE_PATCHED__ = true;
+  const __telSwapFromRoundOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telSwapFromRoundInside = false;
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telSwapFromRoundInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+        if(parsed && typeof parsed === 'object'){
+          if(typeof telSwapFromRoundApplyActive === 'function') telSwapFromRoundApplyActive(parsed);
+          if(typeof telLock12Apply === 'function') telLock12Apply(parsed);
+          if(typeof telParticipantsCleanData === 'function') telParticipantsCleanData(parsed);
+          if(typeof telCompTableApply === 'function') telCompTableApply(parsed);
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(_e){}
+    __telSwapFromRoundInside = true;
+    try{ return __telSwapFromRoundOriginalWrite(filePath, data, ...args); }
+    finally{ __telSwapFromRoundInside = false; }
+  };
+}
+
+
+
+
+/* ============================================================
+   TEL QUITAR EQUIPOS DEMO / FANTASMA
+   Elimina equipos inventados de plantilla/demo:
+   Thunder Wolves, Delta United, Legends FC, Royal FC, Infinity Esports,
+   Black Dragons, Phoenix Club, Empire Gaming, North Stars, Elevate FC.
+   ============================================================ */
+function telDemoNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telDemoTeamName(team){
+  return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || team?.equipo || '').trim();
+}
+function telDemoIsFakeName(name){
+  const n = telDemoNorm(name);
+  const fake = new Set([
+    'thunder wolves',
+    'delta united',
+    'legends fc',
+    'royal fc',
+    'infinity esports',
+    'black dragons',
+    'phoenix club',
+    'empire gaming',
+    'north stars',
+    'elevate fc'
+  ]);
+  return fake.has(n);
+}
+function telDemoIsFakeTeam(team){
+  if(!team) return false;
+  if(telDemoIsFakeName(telDemoTeamName(team))) return true;
+  const values = [team.id, team.clubId, team.slotId, team.idClub, team.rolId].filter(Boolean);
+  return values.some(v=>telDemoIsFakeName(v));
+}
+function telDemoIsFakeMatch(match){
+  if(!match) return false;
+  const names = [
+    match.localNombre,
+    match.nombreLocal,
+    match.equipoLocal,
+    match.visitanteNombre,
+    match.nombreVisitante,
+    match.equipoVisitante,
+    match.local?.nombre,
+    match.local?.clubNombre,
+    match.visitante?.nombre,
+    match.visitante?.clubNombre,
+    match.localTeam?.nombre,
+    match.visitanteTeam?.nombre,
+    match.localEquipo?.nombre,
+    match.visitanteEquipo?.nombre
+  ].filter(Boolean);
+
+  return names.some(telDemoIsFakeName);
+}
+function telDemoCleanData(data){
+  if(!data || typeof data !== 'object') return data;
+
+  // Limpia arrays globales de clubes/equipos.
+  for(const key of ['clubes','equipos','teams']){
+    if(Array.isArray(data[key])){
+      data[key] = data[key].filter(team=>!telDemoIsFakeTeam(team));
+    }
+  }
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+
+  comps.forEach(comp=>{
+    if(!comp || typeof comp !== 'object') return;
+
+    if(Array.isArray(comp.equipos)){
+      comp.equipos = comp.equipos.filter(team=>!telDemoIsFakeTeam(team));
+    }
+
+    if(Array.isArray(comp.clubes)){
+      comp.clubes = comp.clubes.filter(team=>!telDemoIsFakeTeam(team));
+    }
+
+    if(Array.isArray(comp.partidos)){
+      comp.partidos = comp.partidos.filter(match=>!telDemoIsFakeMatch(match));
+    }
+
+    if(Array.isArray(comp.clasificacion)){
+      comp.clasificacion = comp.clasificacion.filter(row=>!telDemoIsFakeTeam(row));
+    }
+
+    if(Array.isArray(comp.partidosHistoricos)){
+      comp.partidosHistoricos = comp.partidosHistoricos.filter(match=>!telDemoIsFakeMatch(match));
+    }
+
+    comp.equiposSeleccionados = Array.isArray(comp.equipos) ? comp.equipos.length : comp.equiposSeleccionados;
+    comp.totalEquipos = Array.isArray(comp.equipos) ? comp.equipos.length : comp.totalEquipos;
+  });
+
+  // Limpia próximos/últimos partidos globales si existen.
+  for(const key of ['proximosPartidos','ultimosResultados','partidos','matches']){
+    if(Array.isArray(data[key])){
+      data[key] = data[key].filter(match=>!telDemoIsFakeMatch(match));
+    }
+  }
+
+  // Reaplica reglas reales después de quitar demo.
+  if(typeof telLock12Apply === 'function') telLock12Apply(data);
+  if(typeof telSwapFromRoundApplyActive === 'function') telSwapFromRoundApplyActive(data);
+  if(typeof telParticipantsCleanData === 'function') telParticipantsCleanData(data);
+  if(typeof telCompTableApply === 'function') telCompTableApply(data);
+
+  return data;
+}
+app.get('/api/admin/quitar-equipos-demo', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telDemoCleanData(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      equipos: Array.isArray(comp.equipos) ? comp.equipos.map(e=>e.nombre || e.clubNombre || e.name) : [],
+      partidos: Array.isArray(comp.partidos) ? comp.partidos.length : 0
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Equipos demo/fantasma eliminados.',
+      resumen
+    });
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Protección: antes de guardar data.json elimina equipos demo/fantasma */
+if(!global.__TEL_DEMO_CLEAN_WRITE_PATCHED__){
+  global.__TEL_DEMO_CLEAN_WRITE_PATCHED__ = true;
+  const __telDemoOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telDemoInside = false;
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telDemoInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+        if(parsed && typeof parsed === 'object' && typeof telDemoCleanData === 'function'){
+          telDemoCleanData(parsed);
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(_e){}
+    __telDemoInside = true;
+    try{ return __telDemoOriginalWrite(filePath, data, ...args); }
+    finally{ __telDemoInside = false; }
+  };
+}
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -3033,6 +3549,8 @@ app.get("/api/data", (req, res) => {
   telJ12SafePanelApply(data);
   telParticipantsCleanData(data);
   telNoReinsertRemovedTeams(data);
+  if(typeof telSwapFromRoundApplyActive === 'function') telSwapFromRoundApplyActive(data);
+  telDemoCleanData(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -3235,6 +3753,8 @@ app.get("/api/competiciones", (req, res) => {
   telJ12SafePanelApply(data);
   telParticipantsCleanData(data);
   telNoReinsertRemovedTeams(data);
+  if(typeof telSwapFromRoundApplyActive === 'function') telSwapFromRoundApplyActive(data);
+  telDemoCleanData(data);
   res.json(data.competiciones || []);
 });
 
@@ -5218,6 +5738,8 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     telJ12SafePanelApply(data);
     telParticipantsCleanData(data);
     telNoReinsertRemovedTeams(data);
+    if(typeof telSwapFromRoundApplyActive === 'function') telSwapFromRoundApplyActive(data);
+    telDemoCleanData(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
