@@ -2724,6 +2724,163 @@ app.get('/api/admin/fix-j12-safe-panel', requireAdmin, (req,res)=>{
 });
 
 
+
+
+/* ============================================================
+   TEL LIMPIAR PARTICIPANTES ACTIVOS MAX 10
+   Evita el bug 12/10: los equipos históricos de J1/J2 no cuentan
+   como participantes activos y se eliminan duplicados.
+   ============================================================ */
+function telParticipantsNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telParticipantsName(team){
+  return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || '').trim();
+}
+function telParticipantsIsHistoric(team){
+  if(!team) return true;
+  if(team.historico === true) return true;
+  if(team.equipoHistorico === true) return true;
+  if(team.fixtureHistorico === true) return true;
+  if(team.bloqueoJornada12 === true) return true;
+  if(team.fixturePanel === true) return true;
+  if(team.excluidoClasificacion === true) return true;
+  if(team.eliminadoDeCompeticion === true) return true;
+  if(team.sacadoDeCompeticion === true) return true;
+  if(team.removidoDeCompeticion === true) return true;
+  if(team.inactivoCompeticion === true) return true;
+  if(String(team.slotId || '').startsWith('hist-')) return true;
+  if(String(team.slotId || '').startsWith('panel-jornada-')) return true;
+  if(String(team.id || '').startsWith('hist-')) return true;
+  if(String(team.id || '').startsWith('panel-jornada-')) return true;
+
+  const estado = telParticipantsNorm(team.estado || team.status || '');
+  if(estado.includes('sacado')) return true;
+  if(estado.includes('eliminado')) return true;
+  if(estado.includes('inactivo')) return true;
+  if(estado.includes('fuera')) return true;
+  if(estado.includes('baja')) return true;
+
+  return false;
+}
+function telParticipantsIsCup(comp){
+  const txt = telParticipantsNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telParticipantsNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telParticipantsCleanComp(comp){
+  if(!comp || telParticipantsIsCup(comp)) return comp;
+
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+
+  const seen = new Set();
+  const clean = [];
+
+  for(const team of comp.equipos){
+    if(telParticipantsIsHistoric(team)) continue;
+
+    const name = telParticipantsName(team);
+    if(!name) continue;
+
+    const key = telParticipantsNorm(name);
+    if(seen.has(key)) continue;
+
+    seen.add(key);
+
+    team.nombre = team.nombre || team.clubNombre || team.nombreVisual || team.name || name;
+    team.clubNombre = team.clubNombre || team.nombre || name;
+    team.nombreVisual = team.nombreVisual || team.nombre || name;
+    team.name = team.name || team.nombre || name;
+
+    if(!team.slotId){
+      team.slotId = String(team.id || team.clubId || team.idClub || key.replace(/\s+/g,'-'));
+    }
+
+    clean.push(team);
+  }
+
+  const max = Number(comp.maxEquipos || comp.numeroEquipos || comp.limiteEquipos || comp.cantidadEquipos || 10) || 10;
+
+  // Si se colaron más de 10, corta por el límite del panel.
+  comp.equipos = clean.slice(0, max);
+
+  // Guarda contador real para que el panel no vuelva a decir 12/10.
+  comp.equiposSeleccionados = comp.equipos.length;
+  comp.totalEquipos = comp.equipos.length;
+
+  return comp;
+}
+function telParticipantsCleanData(data){
+  if(!data || typeof data !== 'object') return data;
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telParticipantsCleanComp(comp));
+
+  // Después de limpiar participantes, recalcula clasificación solo con activos.
+  if(typeof telCompTableApply === 'function'){
+    telCompTableApply(data);
+  }
+
+  // Reaplica bloqueo J1/J2 al final para que los partidos sigan existiendo,
+  // pero los equipos históricos no cuenten como participantes.
+  if(typeof telLock12Apply === 'function'){
+    telLock12Apply(data);
+    const comps2 = data.competiciones || data.ligas || data.torneos || [];
+    comps2.forEach(comp=>telParticipantsCleanComp(comp));
+    if(typeof telCompTableApply === 'function') telCompTableApply(data);
+  }
+
+  return data;
+}
+app.get('/api/admin/limpiar-participantes-10', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telParticipantsCleanData(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      participantes: Array.isArray(comp.equipos) ? comp.equipos.length : 0,
+      limite: Number(comp.maxEquipos || comp.numeroEquipos || comp.limiteEquipos || comp.cantidadEquipos || 10) || 10
+    }));
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,message:'Participantes limpiados: históricos/duplicados fuera y máximo 10.',resumen});
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Antes de guardar data.json, limpia participantes para que no queden 12/10 */
+if(!global.__TEL_PARTICIPANTS_CLEAN_WRITE_PATCHED__){
+  global.__TEL_PARTICIPANTS_CLEAN_WRITE_PATCHED__ = true;
+  const __telParticipantsOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telParticipantsInside = false;
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telParticipantsInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+        if(parsed && typeof parsed === 'object' && typeof telParticipantsCleanData === 'function'){
+          telParticipantsCleanData(parsed);
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(_e){}
+    __telParticipantsInside = true;
+    try{ return __telParticipantsOriginalWrite(filePath, data, ...args); }
+    finally{ __telParticipantsInside = false; }
+  };
+}
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -2742,6 +2899,7 @@ app.get("/api/data", (req, res) => {
   telAdminPanelRealFix(data);
   telLock12Apply(data);
   telJ12SafePanelApply(data);
+  telParticipantsCleanData(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -2942,6 +3100,7 @@ app.get("/api/competiciones", (req, res) => {
   telAdminPanelRealFix(data);
   telLock12Apply(data);
   telJ12SafePanelApply(data);
+  telParticipantsCleanData(data);
   res.json(data.competiciones || []);
 });
 
@@ -4923,6 +5082,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     telPanelCardApply(data);
     telLock12Apply(data);
     telJ12SafePanelApply(data);
+    telParticipantsCleanData(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
