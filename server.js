@@ -3533,6 +3533,753 @@ if(!global.__TEL_NO_TRIPLE_MATCH_WRITE_PATCHED__){
 }
 
 
+
+
+/* ============================================================
+   TEL CALENDARIO: JORNADA 1 Y 2 CUENTAN COMO REPETICIÓN
+   Si un cruce ya aparece en J1 y J2, se elimina de J3 en adelante.
+   Ejemplo:
+   J1 Catalunya vs Unió
+   J2 Unió vs Catalunya
+   => NO puede volver a salir en J3, J12, etc.
+   ============================================================ */
+function telCountJ12Norm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telCountJ12IsCup(comp){
+  const txt = telCountJ12Norm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+
+  return (comp?.partidos || []).some(match=>{
+    const phase = telCountJ12Norm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telCountJ12Name(match, side){
+  if(side === 'local'){
+    return String(
+      match?.localNombre ||
+      match?.nombreLocal ||
+      match?.equipoLocal ||
+      match?.local?.nombre ||
+      match?.local?.clubNombre ||
+      match?.localTeam?.nombre ||
+      match?.localEquipo?.nombre ||
+      ''
+    ).trim();
+  }
+
+  return String(
+    match?.visitanteNombre ||
+    match?.nombreVisitante ||
+    match?.equipoVisitante ||
+    match?.visitante?.nombre ||
+    match?.visitante?.clubNombre ||
+    match?.visitanteTeam?.nombre ||
+    match?.visitanteEquipo?.nombre ||
+    ''
+  ).trim();
+}
+function telCountJ12PairKey(match){
+  const local = telCountJ12Norm(telCountJ12Name(match, 'local'));
+  const away = telCountJ12Norm(telCountJ12Name(match, 'visitante'));
+  if(!local || !away) return '';
+  return [local, away].sort().join(' vs ');
+}
+function telCountJ12SortMatches(list){
+  return list.sort((a,b)=>{
+    const ja = Number(a.jornada || a.round || 9999);
+    const jb = Number(b.jornada || b.round || 9999);
+    if(ja !== jb) return ja - jb;
+
+    const oa = Number(a.ordenJornada || a.orden || 9999);
+    const ob = Number(b.ordenJornada || b.orden || 9999);
+    if(oa !== ob) return oa - ob;
+
+    return String(a.id || '').localeCompare(String(b.id || ''), 'es');
+  });
+}
+function telCountJ12CleanCompetition(comp){
+  if(!comp || telCountJ12IsCup(comp)) return comp;
+  if(!Array.isArray(comp.partidos)) return comp;
+
+  const seen = new Map();
+  const keep = [];
+  const removed = [];
+
+  const sorted = telCountJ12SortMatches(comp.partidos.slice());
+
+  for(const match of sorted){
+    const key = telCountJ12PairKey(match);
+    if(!key){
+      keep.push(match);
+      continue;
+    }
+
+    const jornada = Number(match.jornada || match.round || 0);
+    const count = seen.get(key) || 0;
+
+    // J1 y J2 cuentan y SIEMPRE se conservan.
+    if(jornada === 1 || jornada === 2){
+      seen.set(key, count + 1);
+      keep.push(match);
+      continue;
+    }
+
+    // Desde J3 en adelante solo se conserva si ese cruce ha salido menos de 2 veces.
+    // Si ya salió en J1/J2, se elimina.
+    if(count >= 2){
+      removed.push({
+        cruce:key,
+        jornada,
+        local:telCountJ12Name(match, 'local'),
+        visitante:telCountJ12Name(match, 'visitante')
+      });
+      continue;
+    }
+
+    seen.set(key, count + 1);
+    keep.push(match);
+  }
+
+  comp.partidos = telCountJ12SortMatches(keep);
+  comp._duplicadosEliminadosCuentaJ12 = removed;
+
+  return comp;
+}
+function telCountJ12CleanData(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telCountJ12CleanCompetition(comp));
+
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+
+  return data;
+}
+app.get('/api/admin/limpiar-calendario-contando-j1-j2', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+
+    // Primero fija/protege J1/J2 si existen funciones previas.
+    if(typeof telLock12Apply === 'function'){
+      try{ telLock12Apply(data); }catch(error){}
+    }
+
+    if(typeof telSwapFromRoundApplyActive === 'function'){
+      try{ telSwapFromRoundApplyActive(data); }catch(error){}
+    }
+
+    // Después elimina repeticiones contando J1/J2.
+    telCountJ12CleanData(data);
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      partidos: Array.isArray(comp.partidos) ? comp.partidos.length : 0,
+      eliminados: Array.isArray(comp._duplicadosEliminadosCuentaJ12) ? comp._duplicadosEliminadosCuentaJ12 : []
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Calendario limpiado contando Jornada 1 y Jornada 2 como repeticiones.',
+      resumen
+    });
+  }catch(error){
+    console.error('[limpiar-calendario-contando-j1-j2]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Protección final calendario: J1/J2 cuentan, elimina terceros antes de guardar */
+if(!global.__TEL_COUNT_J12_WRITE_PATCHED__){
+  global.__TEL_COUNT_J12_WRITE_PATCHED__ = true;
+  const __telCountJ12OriginalWrite = fs.writeFileSync.bind(fs);
+  let __telCountJ12Inside = false;
+
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telCountJ12Inside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+
+        if(parsed && typeof parsed === 'object'){
+          if(typeof telLock12Apply === 'function'){
+            try{ telLock12Apply(parsed); }catch(error){}
+          }
+          if(typeof telSwapFromRoundApplyActive === 'function'){
+            try{ telSwapFromRoundApplyActive(parsed); }catch(error){}
+          }
+          if(typeof telCountJ12CleanData === 'function'){
+            telCountJ12CleanData(parsed);
+          }
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(error){}
+
+    __telCountJ12Inside = true;
+    try{
+      return __telCountJ12OriginalWrite(filePath, data, ...args);
+    }finally{
+      __telCountJ12Inside = false;
+    }
+  };
+}
+
+
+
+
+/* ============================================================
+   TEL CALENDARIO: MAX 2 GLOBAL POR CRUCE
+   Regla exacta:
+   - Si dos equipos ya jugaron 2 veces en cualquier jornada,
+     se elimina cualquier tercera vez posterior.
+   - Cuenta ida/vuelta como el mismo cruce.
+   Ejemplo:
+   J2 Unió vs Catalunya
+   J3 Catalunya vs Unió
+   J12 Unió vs Catalunya => se elimina.
+   ============================================================ */
+function telMax2GlobalNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telMax2GlobalIsCup(comp){
+  const txt = telMax2GlobalNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+
+  return (comp?.partidos || []).some(match=>{
+    const phase = telMax2GlobalNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telMax2GlobalName(match, side){
+  if(side === 'local'){
+    return String(
+      match?.localNombre ||
+      match?.nombreLocal ||
+      match?.equipoLocal ||
+      match?.local?.nombre ||
+      match?.local?.clubNombre ||
+      match?.localTeam?.nombre ||
+      match?.localEquipo?.nombre ||
+      ''
+    ).trim();
+  }
+
+  return String(
+    match?.visitanteNombre ||
+    match?.nombreVisitante ||
+    match?.equipoVisitante ||
+    match?.visitante?.nombre ||
+    match?.visitante?.clubNombre ||
+    match?.visitanteTeam?.nombre ||
+    match?.visitanteEquipo?.nombre ||
+    ''
+  ).trim();
+}
+function telMax2GlobalPairKey(match){
+  const local = telMax2GlobalNorm(telMax2GlobalName(match, 'local'));
+  const away = telMax2GlobalNorm(telMax2GlobalName(match, 'visitante'));
+  if(!local || !away) return '';
+  return [local, away].sort().join(' vs ');
+}
+function telMax2GlobalSort(list){
+  return list.sort((a,b)=>{
+    const ja = Number(a.jornada || a.round || 9999);
+    const jb = Number(b.jornada || b.round || 9999);
+    if(ja !== jb) return ja - jb;
+
+    const oa = Number(a.ordenJornada || a.orden || 9999);
+    const ob = Number(b.ordenJornada || b.orden || 9999);
+    if(oa !== ob) return oa - ob;
+
+    return String(a.id || '').localeCompare(String(b.id || ''), 'es');
+  });
+}
+function telMax2GlobalCleanCompetition(comp){
+  if(!comp || telMax2GlobalIsCup(comp)) return comp;
+  if(!Array.isArray(comp.partidos)) return comp;
+
+  const sorted = telMax2GlobalSort(comp.partidos.slice());
+
+  const countByPair = new Map();
+  const keep = [];
+  const removed = [];
+
+  for(const match of sorted){
+    const key = telMax2GlobalPairKey(match);
+
+    if(!key){
+      keep.push(match);
+      continue;
+    }
+
+    const count = countByPair.get(key) || 0;
+    const jornada = Number(match.jornada || match.round || 0);
+
+    if(count >= 2){
+      removed.push({
+        cruce:key,
+        jornada,
+        local:telMax2GlobalName(match, 'local'),
+        visitante:telMax2GlobalName(match, 'visitante')
+      });
+      continue;
+    }
+
+    countByPair.set(key, count + 1);
+    keep.push(match);
+  }
+
+  comp.partidos = telMax2GlobalSort(keep);
+  comp._max2GlobalEliminados = removed;
+
+  return comp;
+}
+function telMax2GlobalCleanData(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telMax2GlobalCleanCompetition(comp));
+
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+
+  return data;
+}
+app.get('/api/admin/limpiar-calendario-max-2-global', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+
+    // Aplica sustituciones activas si existen y luego limpia terceros cruces.
+    if(typeof telSwapFromRoundApplyActive === 'function'){
+      try{ telSwapFromRoundApplyActive(data); }catch(error){}
+    }
+
+    telMax2GlobalCleanData(data);
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      partidos: Array.isArray(comp.partidos) ? comp.partidos.length : 0,
+      eliminados: Array.isArray(comp._max2GlobalEliminados) ? comp._max2GlobalEliminados : []
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Calendario limpiado: máximo 2 partidos por cada cruce en toda la liga.',
+      resumen
+    });
+  }catch(error){
+    console.error('[limpiar-calendario-max-2-global]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Protección final calendario: máximo 2 global por cruce antes de guardar */
+if(!global.__TEL_MAX2_GLOBAL_WRITE_PATCHED__){
+  global.__TEL_MAX2_GLOBAL_WRITE_PATCHED__ = true;
+  const __telMax2GlobalOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telMax2GlobalInside = false;
+
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telMax2GlobalInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+
+        if(parsed && typeof parsed === 'object'){
+          if(typeof telSwapFromRoundApplyActive === 'function'){
+            try{ telSwapFromRoundApplyActive(parsed); }catch(error){}
+          }
+          if(typeof telMax2GlobalCleanData === 'function'){
+            telMax2GlobalCleanData(parsed);
+          }
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(error){}
+
+    __telMax2GlobalInside = true;
+    try{
+      return __telMax2GlobalOriginalWrite(filePath, data, ...args);
+    }finally{
+      __telMax2GlobalInside = false;
+    }
+  };
+}
+
+
+
+
+/* ============================================================
+   TEL CALENDARIO: REASIGNAR TERCER CRUCE REPETIDO
+   Regla:
+   - Si dos equipos ya se enfrentaron 2 veces, NO se elimina el partido.
+   - Se cambia el rival por otro equipo activo disponible.
+   - El nuevo rival no puede haber jugado ya 2 veces contra ese equipo.
+   - Evita que un equipo juegue dos veces en la misma jornada.
+   ============================================================ */
+function telReassignNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telReassignSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telReassignIsCup(comp){
+  const txt = telReassignNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telReassignNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telReassignTeamName(team){
+  return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || '').trim();
+}
+function telReassignIsActiveTeam(team){
+  if(!team) return false;
+  if(team.historico === true || team.equipoHistorico === true || team.fixtureHistorico === true) return false;
+  if(team.excluidoClasificacion === true || team.eliminadoDeCompeticion === true || team.sacadoDeCompeticion === true) return false;
+  if(team.removidoDeCompeticion === true || team.inactivoCompeticion === true) return false;
+  if(team.activo === false || team.active === false) return false;
+  const estado = telReassignNorm(team.estado || team.status || '');
+  if(estado.includes('sacado') || estado.includes('eliminado') || estado.includes('inactivo') || estado.includes('fuera') || estado.includes('baja')) return false;
+  return !!telReassignTeamName(team);
+}
+function telReassignName(match, side){
+  if(side === 'local'){
+    return String(
+      match?.localNombre ||
+      match?.nombreLocal ||
+      match?.equipoLocal ||
+      match?.local?.nombre ||
+      match?.local?.clubNombre ||
+      match?.localTeam?.nombre ||
+      match?.localEquipo?.nombre ||
+      ''
+    ).trim();
+  }
+  return String(
+    match?.visitanteNombre ||
+    match?.nombreVisitante ||
+    match?.equipoVisitante ||
+    match?.visitante?.nombre ||
+    match?.visitante?.clubNombre ||
+    match?.visitanteTeam?.nombre ||
+    match?.visitanteEquipo?.nombre ||
+    ''
+  ).trim();
+}
+function telReassignPairKey(a,b){
+  const x = telReassignNorm(a);
+  const y = telReassignNorm(b);
+  if(!x || !y) return '';
+  return [x,y].sort().join(' vs ');
+}
+function telReassignPairKeyMatch(match){
+  return telReassignPairKey(telReassignName(match,'local'), telReassignName(match,'visitante'));
+}
+function telReassignSort(list){
+  return list.sort((a,b)=>{
+    const ja = Number(a.jornada || a.round || 9999);
+    const jb = Number(b.jornada || b.round || 9999);
+    if(ja !== jb) return ja - jb;
+    const oa = Number(a.ordenJornada || a.orden || 9999);
+    const ob = Number(b.ordenJornada || b.orden || 9999);
+    if(oa !== ob) return oa - ob;
+    return String(a.id || '').localeCompare(String(b.id || ''), 'es');
+  });
+}
+function telReassignLogo(team){
+  let value = String(
+    team?.escudoUrl || team?.logoUrl || team?.logo || team?.escudo ||
+    team?.imagenUrl || team?.imagen || team?.escudoPath || team?.escudoFilename || ''
+  ).trim().replaceAll('\\','/');
+  if(!value) return '';
+  if(value.startsWith('/api/club-logo')) return value;
+  if(/^https?:\/\//i.test(value)) return value;
+  if(value.startsWith('/escudos/')) return value;
+  if(value.startsWith('escudos/')) return '/' + value;
+  if(/\.(png|jpe?g|webp|gif|svg)$/i.test(value)) return '/escudos/' + value.split('/').pop();
+  const key = team?.clubId || team?.rolId || team?.id || team?._id || team?.idClub || team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name;
+  return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : '';
+}
+function telReassignInjectTeam(match, side, team){
+  const name = telReassignTeamName(team);
+  const slot = String(team.slotId || team.id || team.clubId || team.idClub || telReassignSlug(name));
+  const logo = telReassignLogo(team);
+  const p = side === 'local' ? 'local' : 'visitante';
+  const cap = side === 'local' ? 'Local' : 'Visitante';
+  const obj = {
+    ...team,
+    id: slot,
+    slotId: slot,
+    clubId: team.clubId || slot,
+    nombre: name,
+    clubNombre: team.clubNombre || name,
+    nombreVisual: team.nombreVisual || name,
+    name: team.name || name,
+    escudoUrl: logo,
+    logoUrl: logo,
+    logo,
+    escudo: logo
+  };
+  match[`${p}SlotId`] = slot;
+  match[`${p}Id`] = slot;
+  match[`${p}ClubId`] = obj.clubId || slot;
+  match[`${p}Nombre`] = name;
+  match[side === 'local' ? 'nombreLocal' : 'nombreVisitante'] = name;
+  match[side === 'local' ? 'equipoLocal' : 'equipoVisitante'] = name;
+  match[`${p}Logo`] = logo;
+  match[`${p}Escudo`] = logo;
+  match[`logo${cap}`] = logo;
+  match[`escudo${cap}`] = logo;
+  match[side] = obj;
+  match[`${p}Team`] = obj;
+  match[`${p}Equipo`] = obj;
+  match[`${p}Club`] = obj;
+}
+function telReassignJornadaTeams(matches, current){
+  const jornada = Number(current.jornada || current.round || 0);
+  const used = new Set();
+  for(const m of matches){
+    if(m === current) continue;
+    if(Number(m.jornada || m.round || 0) !== jornada) continue;
+    const l = telReassignNorm(telReassignName(m,'local'));
+    const a = telReassignNorm(telReassignName(m,'visitante'));
+    if(l) used.add(l);
+    if(a) used.add(a);
+  }
+  return used;
+}
+function telReassignChooseRival({comp, matches, current, fixedTeamName, countByPair}){
+  const fixedNorm = telReassignNorm(fixedTeamName);
+  const jornadaUsed = telReassignJornadaTeams(matches, current);
+
+  const teams = (Array.isArray(comp.equipos) ? comp.equipos : [])
+    .filter(telReassignIsActiveTeam)
+    .filter(team => telReassignNorm(telReassignTeamName(team)) !== fixedNorm)
+    .filter(team => !jornadaUsed.has(telReassignNorm(telReassignTeamName(team))));
+
+  // Primero busca un rival con 0 enfrentamientos; luego con 1.
+  for(const maxPlayed of [0,1]){
+    const found = teams.find(team=>{
+      const key = telReassignPairKey(fixedTeamName, telReassignTeamName(team));
+      const count = countByPair.get(key) || 0;
+      return count <= maxPlayed;
+    });
+    if(found) return found;
+  }
+
+  return null;
+}
+function telReassignCleanCompetition(comp){
+  if(!comp || telReassignIsCup(comp)) return comp;
+  if(!Array.isArray(comp.partidos)) return comp;
+
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+
+  const matches = telReassignSort(comp.partidos.slice());
+  const countByPair = new Map();
+  const cambios = [];
+
+  for(const match of matches){
+    const localName = telReassignName(match,'local');
+    const awayName = telReassignName(match,'visitante');
+    const originalKey = telReassignPairKey(localName, awayName);
+
+    if(!originalKey) continue;
+
+    const count = countByPair.get(originalKey) || 0;
+
+    if(count < 2){
+      countByPair.set(originalKey, count + 1);
+      continue;
+    }
+
+    // Ya jugaron 2 veces. No borrar: cambiar rival.
+    // Opción A: mantener local y cambiar visitante.
+    let newAway = telReassignChooseRival({
+      comp,
+      matches,
+      current:match,
+      fixedTeamName:localName,
+      countByPair
+    });
+
+    if(newAway){
+      const oldAway = awayName;
+      telReassignInjectTeam(match, 'visitante', newAway);
+      const newKey = telReassignPairKey(localName, telReassignTeamName(newAway));
+      countByPair.set(newKey, (countByPair.get(newKey) || 0) + 1);
+      match.reasignadoPorDuplicado = true;
+      match.rivalAnterior = oldAway;
+      match.rivalNuevo = telReassignTeamName(newAway);
+      cambios.push({
+        jornada:Number(match.jornada || match.round || 0),
+        mantiene:localName,
+        sale:oldAway,
+        entra:telReassignTeamName(newAway),
+        motivo:`${localName} vs ${oldAway} ya estaba 2 veces`
+      });
+      continue;
+    }
+
+    // Opción B: mantener visitante y cambiar local.
+    let newLocal = telReassignChooseRival({
+      comp,
+      matches,
+      current:match,
+      fixedTeamName:awayName,
+      countByPair
+    });
+
+    if(newLocal){
+      const oldLocal = localName;
+      telReassignInjectTeam(match, 'local', newLocal);
+      const newKey = telReassignPairKey(telReassignTeamName(newLocal), awayName);
+      countByPair.set(newKey, (countByPair.get(newKey) || 0) + 1);
+      match.reasignadoPorDuplicado = true;
+      match.rivalAnterior = oldLocal;
+      match.rivalNuevo = telReassignTeamName(newLocal);
+      cambios.push({
+        jornada:Number(match.jornada || match.round || 0),
+        mantiene:awayName,
+        sale:oldLocal,
+        entra:telReassignTeamName(newLocal),
+        motivo:`${oldLocal} vs ${awayName} ya estaba 2 veces`
+      });
+      continue;
+    }
+
+    // Si no hay rival disponible, se deja como está y se marca para revisar.
+    countByPair.set(originalKey, count + 1);
+    match.necesitaRevisionCalendario = true;
+    cambios.push({
+      jornada:Number(match.jornada || match.round || 0),
+      mantiene:localName,
+      sale:awayName,
+      entra:null,
+      motivo:'No había rival disponible sin duplicar ni repetir equipo en la misma jornada'
+    });
+  }
+
+  comp.partidos = telReassignSort(matches);
+  comp._rivalesReasignadosPorDuplicado = cambios;
+
+  return comp;
+}
+function telReassignCleanData(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telReassignCleanCompetition(comp));
+
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+
+  return data;
+}
+app.get('/api/admin/reasignar-rivales-duplicados', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+
+    if(typeof telSwapFromRoundApplyActive === 'function'){
+      try{ telSwapFromRoundApplyActive(data); }catch(error){}
+    }
+
+    telReassignCleanData(data);
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      partidos: Array.isArray(comp.partidos) ? comp.partidos.length : 0,
+      cambios: Array.isArray(comp._rivalesReasignadosPorDuplicado) ? comp._rivalesReasignadosPorDuplicado : []
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Duplicados corregidos reasignando rivales, sin eliminar partidos.',
+      resumen
+    });
+  }catch(error){
+    console.error('[reasignar-rivales-duplicados]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Protección final calendario: reasigna rivales duplicados antes de guardar */
+if(!global.__TEL_REASSIGN_DUPLICATED_RIVALS_WRITE_PATCHED__){
+  global.__TEL_REASSIGN_DUPLICATED_RIVALS_WRITE_PATCHED__ = true;
+  const __telReassignOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telReassignInside = false;
+
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telReassignInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+
+        if(parsed && typeof parsed === 'object'){
+          if(typeof telSwapFromRoundApplyActive === 'function'){
+            try{ telSwapFromRoundApplyActive(parsed); }catch(error){}
+          }
+          if(typeof telReassignCleanData === 'function'){
+            telReassignCleanData(parsed);
+          }
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(error){}
+
+    __telReassignInside = true;
+    try{
+      return __telReassignOriginalWrite(filePath, data, ...args);
+    }finally{
+      __telReassignInside = false;
+    }
+  };
+}
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -3555,6 +4302,8 @@ app.get("/api/data", (req, res) => {
   telFinalParticipantsCleanData(data);
   telSafeDemoCleanData(data);
   telNoTripleCleanData(data);
+  telCountJ12CleanData(data);
+  telReassignCleanData(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -3759,6 +4508,8 @@ app.get("/api/competiciones", (req, res) => {
   telFinalParticipantsCleanData(data);
   telSafeDemoCleanData(data);
   telNoTripleCleanData(data);
+  telCountJ12CleanData(data);
+  telReassignCleanData(data);
   res.json(data.competiciones || []);
 });
 
@@ -5744,6 +6495,9 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     telFinalParticipantsCleanData(data);
     telSafeDemoCleanData(data);
     telNoTripleCleanData(data);
+    telCountJ12CleanData(data);
+    telMax2GlobalCleanData(data);
+    telReassignCleanData(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
