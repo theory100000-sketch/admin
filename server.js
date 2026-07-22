@@ -477,6 +477,258 @@ app.use((req,res,next)=>{
  * Así Vercel los incluye dentro del bundle de Express y no quedan
  * publicados directamente en public/.
  */
+
+
+/* ============================================================
+   TEL INYECCIÓN FIX VISUAL PANEL RESULTADOS
+   El panel-resultados.html pisa nombres por JS del cliente.
+   Este script corrige J1/J2 dentro del propio HTML del panel.
+   ============================================================ */
+function telInjectPanelResultadosFix(html){
+  if(!html || typeof html !== 'string') return html;
+  if(html.includes('TEL_PANEL_RESULTADOS_FIX_VISUAL_J1_J2')) return html;
+
+  const script = `
+<script id="TEL_PANEL_RESULTADOS_FIX_VISUAL_J1_J2">
+(function(){
+  const FIX = {
+    1: [
+      ['Catalunya Lliure','Ghost Unit'],
+      ['Alegria FCA','Unió catalana'],
+      ['COVAYERS FC','BLACK MECANIC'],
+      ['Fuzeteam FC B','Hamoods CF'],
+      ['Billar FC','Coral Springs A']
+    ],
+    2: [
+      ['Unió catalana','Catalunya Lliure'],
+      ['BLACK MECANIC','Ghost Unit'],
+      ['Hamoods CF','Alegria FCA'],
+      ['Coral Springs A','COVAYERS FC'],
+      ['Billar FC','Fuzeteam FC B']
+    ]
+  };
+
+  const norm = v => String(v||'')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+
+  const slug = v => String(v||'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+
+  function logoFor(name, data){
+    const wanted = norm(name);
+    const candidates = [];
+    try{
+      const root = data && data.data ? data.data : data;
+      ['clubes','equipos','teams'].forEach(k=>{
+        if(Array.isArray(root?.[k])) candidates.push(...root[k]);
+      });
+      const comps = root?.competiciones || root?.ligas || root?.torneos || [];
+      comps.forEach(c=>{
+        if(Array.isArray(c.equipos)) candidates.push(...c.equipos);
+      });
+    }catch(e){}
+
+    for(const t of candidates){
+      const n = norm(t?.nombre || t?.clubNombre || t?.nombreVisual || t?.name);
+      if(n !== wanted) continue;
+      const vals = [t.escudoUrl,t.logoUrl,t.logo,t.escudo,t.imagenUrl,t.imagen,t.escudoPath,t.escudoFilename].filter(Boolean);
+      for(let v of vals){
+        v = String(v).replaceAll('\\\\','/').trim();
+        if(!v) continue;
+        if(v.startsWith('/api/club-logo')) return v;
+        if(/^https?:\\/\\//i.test(v)) return v;
+        if(v.startsWith('/escudos/')) return v;
+        if(v.startsWith('escudos/')) return '/' + v;
+        if(/\\.(png|jpe?g|webp|gif|svg)$/i.test(v)) return '/escudos/' + v.split('/').pop();
+      }
+      const key = t.clubId || t.rolId || t.id || t._id || t.idClub || t.nombre || t.clubNombre || t.nombreVisual || t.name;
+      if(key) return '/api/club-logo?key=' + encodeURIComponent(String(key));
+    }
+    return '/api/club-logo?key=' + encodeURIComponent(name);
+  }
+
+  function forceMatchObject(match, jornada, idx, data){
+    const pair = FIX[jornada]?.[idx];
+    if(!match || !pair) return match;
+    const [home, away] = pair;
+    const homeSlot = 'panel-jornada-' + slug(home);
+    const awaySlot = 'panel-jornada-' + slug(away);
+    const homeLogo = logoFor(home, data);
+    const awayLogo = logoFor(away, data);
+
+    function team(name, slot, logo){
+      return {id:slot, slotId:slot, clubId:slot, idClub:slot, nombre:name, clubNombre:name, nombreVisual:name, name:name, escudoUrl:logo, logoUrl:logo, logo:logo, escudo:logo};
+    }
+
+    const homeObj = team(home, homeSlot, homeLogo);
+    const awayObj = team(away, awaySlot, awayLogo);
+
+    Object.assign(match, {
+      jornada:Number(jornada),
+      round:Number(jornada),
+      ordenJornada:idx+1,
+      localSlotId:homeSlot,
+      visitanteSlotId:awaySlot,
+      localId:homeSlot,
+      visitanteId:awaySlot,
+      localClubId:homeSlot,
+      visitanteClubId:awaySlot,
+      localNombre:home,
+      visitanteNombre:away,
+      nombreLocal:home,
+      nombreVisitante:away,
+      equipoLocal:home,
+      equipoVisitante:away,
+      localLogo:homeLogo,
+      visitanteLogo:awayLogo,
+      localEscudo:homeLogo,
+      visitanteEscudo:awayLogo,
+      logoLocal:homeLogo,
+      logoVisitante:awayLogo,
+      escudoLocal:homeLogo,
+      escudoVisitante:awayLogo,
+      local:homeObj,
+      visitante:awayObj,
+      localTeam:homeObj,
+      visitanteTeam:awayObj,
+      localEquipo:homeObj,
+      visitanteEquipo:awayObj,
+      localClub:homeObj,
+      visitanteClub:awayObj,
+      panelVisualFixed:true
+    });
+    return match;
+  }
+
+  function fixDataPayload(payload){
+    try{
+      const root = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+      const comps = root?.competiciones || root?.ligas || root?.torneos || (Array.isArray(root) ? root : null);
+      if(!Array.isArray(comps)) return payload;
+      const comp = comps.find(c => {
+        const text = String((c?.nombre||'') + ' ' + (c?.tipo||'') + ' ' + (c?.formato||'')).toLowerCase();
+        return !text.includes('copa') && !text.includes('elimin');
+      }) || comps[0];
+      if(!comp || !Array.isArray(comp.partidos)) return payload;
+
+      const rest = comp.partidos.filter(m => ![1,2].includes(Number(m?.jornada || m?.round || 0)));
+      const fixed = [];
+
+      [1,2].forEach(j=>{
+        FIX[j].forEach((pair, idx)=>{
+          const old = comp.partidos.find(m => Number(m?.jornada || m?.round || 0) === j && norm(m.localNombre || m.nombreLocal || m.equipoLocal) === norm(pair[0]) && norm(m.visitanteNombre || m.nombreVisitante || m.equipoVisitante) === norm(pair[1])) || {};
+          fixed.push(forceMatchObject({...old, id: old.id || 'panel-j'+j+'-p'+(idx+1)}, j, idx, payload));
+        });
+      });
+
+      comp.partidos = fixed.concat(rest);
+    }catch(e){}
+    return payload;
+  }
+
+  const nativeFetch = window.fetch;
+  window.fetch = async function(){
+    const res = await nativeFetch.apply(this, arguments);
+    try{
+      const url = String(arguments[0]?.url || arguments[0] || '');
+      if(url.includes('/api/')){
+        const clone = res.clone();
+        const type = clone.headers.get('content-type') || '';
+        if(type.includes('application/json')){
+          const data = await clone.json();
+          fixDataPayload(data);
+          return new Response(JSON.stringify(data), {
+            status: res.status,
+            statusText: res.statusText,
+            headers: {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}
+          });
+        }
+      }
+    }catch(e){}
+    return res;
+  };
+
+  function getCards(){
+    const badges = Array.from(document.querySelectorAll('*')).filter(el => /^JORNADA\\s*[12]$/i.test((el.textContent||'').trim()));
+    const cards = [];
+    for(const badge of badges){
+      let node = badge;
+      for(let i=0;i<8 && node;i++,node=node.parentElement){
+        const txt = node.textContent || '';
+        if(txt.includes('Guardar resultado') && txt.includes('Sin resultado')){
+          cards.push(node);
+          break;
+        }
+      }
+    }
+    return cards;
+  }
+
+  function setTextNear(card, oldNames, newName){
+    const olds = oldNames.map(norm);
+    const els = Array.from(card.querySelectorAll('*')).filter(el => {
+      const childrenText = Array.from(el.children||[]).map(c=>c.textContent||'').join(' ');
+      const own = (el.textContent||'').replace(childrenText,'').trim();
+      const t = norm(own || el.textContent);
+      return olds.includes(t);
+    });
+    if(els[0]) els[0].textContent = newName;
+  }
+
+  function forceVisibleCards(){
+    const cards = getCards();
+    let j1 = 0, j2 = 0;
+    for(const card of cards){
+      const jornada = /JORNADA\\s*1/i.test(card.textContent) ? 1 : (/JORNADA\\s*2/i.test(card.textContent) ? 2 : 0);
+      if(!jornada) continue;
+      const idx = jornada === 1 ? j1++ : j2++;
+      const pair = FIX[jornada]?.[idx];
+      if(!pair) continue;
+      const [home, away] = pair;
+
+      const possibleNames = ['Catalunya Lliure','Ghost Unit','Alegria FCA','Unió catalana','COVAYERS FC','BLACK MECANIC','Fuzeteam FC B','Hamoods CF','Billar FC','Coral Springs A','UD INMORTALES'];
+      // Cambia el primer bloque de equipo izquierdo y derecho por texto exacto según orden de tarjeta.
+      const textEls = Array.from(card.querySelectorAll('*')).filter(el=>{
+        const t = (el.textContent||'').trim();
+        return possibleNames.some(n=>norm(n)===norm(t));
+      });
+      if(textEls[0]) textEls[0].textContent = home;
+      if(textEls[textEls.length-1]) textEls[textEls.length-1].textContent = away;
+
+      // Refuerzo por nombres incorrectos conocidos.
+      if(jornada === 1 && idx === 2) setTextNear(card, ['Unió catalana','UD INMORTALES','COVAYERS FC'], home), setTextNear(card, ['Unió catalana'], away);
+      if(jornada === 1 && idx === 4) setTextNear(card, ['Hamoods CF'], away);
+      if(jornada === 2 && idx === 1) setTextNear(card, ['Unió catalana','UD INMORTALES'], home);
+      if(jornada === 2 && idx === 3) setTextNear(card, ['Hamoods CF','COVAYERS FC'], home);
+    }
+  }
+
+  let timer = null;
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(forceVisibleCards, 100);
+  };
+
+  document.addEventListener('DOMContentLoaded', schedule);
+  window.addEventListener('load', schedule);
+  setInterval(forceVisibleCards, 1000);
+  new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true, characterData:true});
+})();
+</script>`;
+
+  if(html.includes('</body>')) return html.replace('</body>', script + '</body>');
+  return html + script;
+}
+
+
 app.get([...telProtectedAdminRoutes], (req,res)=>{
   const html = TEL_ADMIN_PAGES[req.path];
   if(!html) return res.status(404).type('text/plain').send('Not Found');
@@ -485,7 +737,8 @@ app.get([...telProtectedAdminRoutes], (req,res)=>{
     'Pragma':'no-cache',
     'Expires':'0'
   });
-  return res.status(200).type('html').send(html);
+  const finalHtml = req.path === '/panel-resultados.html' ? telInjectPanelResultadosFix(html) : html;
+  return res.status(200).type('html').send(finalHtml);
 });
 
 
@@ -2584,6 +2837,118 @@ app.use((req,res,next)=>{
 });
 
 
+
+
+/* TEL BLOQUEO J1/J2: cambiar equipos no puede modificar esas jornadas */
+function telLock12N(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();}
+function telLock12S(v){return String(v||'equipo').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'equipo';}
+function telLock12Cup(c){
+  const t=telLock12N(`${c?.nombre||''} ${c?.tipo||''} ${c?.formato||''} ${c?.formatoNombre||''}`);
+  if(t.includes('copa')||t.includes('elimin'))return true;
+  return (c?.partidos||[]).some(m=>{const f=telLock12N(`${m?.rondaNombre||''} ${m?.fase||''}`);return f.includes('cuarto')||f.includes('semi')||f.includes('final');});
+}
+function telLock12Removed(t){
+  if(!t)return true;
+  if(t.historico===true||t.equipoHistorico===true||t.excluidoClasificacion===true||t.eliminadoDeCompeticion===true||t.sacadoDeCompeticion===true)return true;
+  if(t.activo===false||t.active===false)return true;
+  const e=telLock12N(t.estado||t.status||'');
+  return e.includes('sacado')||e.includes('eliminado')||e.includes('inactivo')||e.includes('fuera')||e.includes('baja');
+}
+function telLock12Name(t){return String(t?.nombre||t?.clubNombre||t?.nombreVisual||t?.name||'').trim();}
+function telLock12Logo(data,comp,name){
+  const w=telLock12N(name), list=[];
+  (comp?.equipos||[]).forEach(t=>list.push(t));
+  ['clubes','equipos','teams'].forEach(k=>(data?.[k]||[]).forEach(t=>list.push(t)));
+  for(const t of list){
+    if(telLock12N(telLock12Name(t))!==w)continue;
+    for(let v of [t.escudoUrl,t.logoUrl,t.logo,t.escudo,t.imagenUrl,t.imagen,t.escudoPath,t.escudoFilename].filter(Boolean)){
+      v=String(v).trim().replaceAll('\\','/');
+      if(v.startsWith('/api/club-logo')||/^https?:\/\//i.test(v)||v.startsWith('/escudos/'))return v;
+      if(v.startsWith('escudos/'))return '/'+v;
+      if(/\.(png|jpe?g|webp|gif|svg)$/i.test(v))return '/escudos/'+v.split('/').pop();
+    }
+    const key=t.clubId||t.rolId||t.id||t._id||t.idClub||t.nombre||t.clubNombre||t.nombreVisual||t.name;
+    if(key)return `/api/club-logo?key=${encodeURIComponent(String(key))}`;
+  }
+  return `/api/club-logo?key=${encodeURIComponent(name)}`;
+}
+function telLock12Slot(data,comp,name){
+  const w=telLock12N(name);
+  comp.equipos=Array.isArray(comp.equipos)?comp.equipos:[];
+  for(let i=0;i<comp.equipos.length;i++){
+    const t=comp.equipos[i]||{};
+    if(telLock12N(telLock12Name(t))===w&&!telLock12Removed(t)){
+      if(!t.slotId)t.slotId=String(t.id||t.clubId||t.idClub||`slot-${i+1}`);
+      t.nombre=name;t.clubNombre=name;t.nombreVisual=name;t.name=name;
+      return String(t.slotId);
+    }
+  }
+  const slot='hist-j12-'+telLock12S(name), logo=telLock12Logo(data,comp,name);
+  let t=comp.equipos.find(x=>String(x.slotId||'')===slot);
+  if(!t){t={id:slot,slotId:slot,clubId:slot,idClub:slot};comp.equipos.push(t);}
+  t.nombre=name;t.clubNombre=name;t.nombreVisual=name;t.name=name;t.escudoUrl=logo;t.logoUrl=logo;t.logo=logo;t.escudo=logo;
+  t.historico=true;t.equipoHistorico=true;t.excluidoClasificacion=true;t.eliminadoDeCompeticion=true;t.fixtureHistorico=true;t.bloqueoJornada12=true;
+  return slot;
+}
+function telLock12Inject(m,side,name,slot,logo){
+  const p=side==='local'?'local':'visitante', cap=side==='local'?'Local':'Visitante';
+  const obj={id:slot,slotId:slot,clubId:slot,idClub:slot,nombre:name,clubNombre:name,nombreVisual:name,name:name,escudoUrl:logo,logoUrl:logo,logo,escudo:logo};
+  m[`${p}SlotId`]=slot;m[`${p}Id`]=slot;m[`${p}ClubId`]=slot;m[`${p}Nombre`]=name;
+  m[side==='local'?'nombreLocal':'nombreVisitante']=name;m[side==='local'?'equipoLocal':'equipoVisitante']=name;
+  m[`${p}Logo`]=logo;m[`${p}Escudo`]=logo;m[`logo${cap}`]=logo;m[`escudo${cap}`]=logo;
+  m[side]=obj;m[`${p}Team`]=obj;m[`${p}Equipo`]=obj;m[`${p}Club`]=obj;
+}
+function telLock12Goals(m){
+  if(!m)return{l:null,a:null};
+  let l=m.localGoles??m.golesLocal??null, a=m.visitanteGoles??m.golesVisitante??null;
+  if((l===null||l===undefined||l==='')&&(a===null||a===undefined||a==='')&&m.resultado){
+    const r=String(m.resultado).match(/(\d+)\s*[-:]\s*(\d+)/); if(r){l=Number(r[1]);a=Number(r[2]);}
+  }
+  return{l,a};
+}
+function telLock12Apply(data){
+  if(!data||typeof data!=='object')return data;
+  const comps=data.competiciones||data.ligas||data.torneos||[];
+  const comp=comps.find(c=>!telLock12Cup(c))||comps[0]; if(!comp)return data;
+  const fixtures={1:[['Catalunya Lliure','Ghost Unit'],['Alegria FCA','Unió catalana'],['COVAYERS FC','BLACK MECANIC'],['Fuzeteam FC B','Hamoods CF'],['Billar FC','Coral Springs A']],2:[['Unió catalana','Catalunya Lliure'],['BLACK MECANIC','Ghost Unit'],['Hamoods CF','Alegria FCA'],['Coral Springs A','COVAYERS FC'],['Billar FC','Fuzeteam FC B']]};
+  comp.partidos=Array.isArray(comp.partidos)?comp.partidos:[];comp.equipos=Array.isArray(comp.equipos)?comp.equipos:[];
+  const old=comp.partidos.map((m,i)=>({...m,__i:i}));
+  const rest=old.filter(m=>![1,2].includes(Number(m.jornada||m.round||0)));
+  const fixed=[];
+  for(const [j,games] of Object.entries(fixtures)){
+    games.forEach(([home,away],idx)=>{
+      let prev=old.find(m=>Number(m.jornada||m.round||0)===Number(j)&&telLock12N(m.localNombre||m.nombreLocal||m.equipoLocal)===telLock12N(home)&&telLock12N(m.visitanteNombre||m.nombreVisitante||m.equipoVisitante)===telLock12N(away));
+      if(!prev)prev=old.filter(m=>Number(m.jornada||m.round||0)===Number(j)).sort((a,b)=>Number(a.ordenJornada||a.__i||999)-Number(b.ordenJornada||b.__i||999))[idx]||{};
+      const g=telLock12Goals(prev), scored=g.l!==null&&g.l!==undefined&&g.l!==''&&g.a!==null&&g.a!==undefined&&g.a!=='';
+      const hl=telLock12Logo(data,comp,home), al=telLock12Logo(data,comp,away), hs=telLock12Slot(data,comp,home), as=telLock12Slot(data,comp,away);
+      const m={...prev,id:`${comp.id||comp.nombre||'liga'}-LOCK-J${j}-P${idx+1}`,jornada:Number(j),round:Number(j),ordenJornada:idx+1,localGoles:g.l,visitanteGoles:g.a,golesLocal:g.l,golesVisitante:g.a,resultado:scored?`${g.l}-${g.a}`:(prev.resultado||''),estado:scored||prev.finalizado===true?'finalizado':(prev.estado||'pendiente'),finalizado:scored||prev.finalizado===true,bloqueadoJornada12:true,fixtureOriginalFoto:true};
+      telLock12Inject(m,'local',home,hs,hl);telLock12Inject(m,'visitante',away,as,al);delete m.__i;fixed.push(m);
+    });
+  }
+  comp.partidos=[...fixed,...rest].sort((a,b)=>Number(a.jornada||9999)-Number(b.jornada||9999)||Number(a.ordenJornada||9999)-Number(b.ordenJornada||9999));
+  if(typeof telCompTableApply==='function')telCompTableApply(data);
+  return data;
+}
+app.get('/api/admin/bloquear-jornadas-1-2', requireAdmin, (req,res)=>{
+  try{const data=readJson(DATA_FILE,{clubes:[],competiciones:[]});telLock12Apply(data);fs.writeFileSync(DATA_FILE,JSON.stringify(data,null,2),'utf8');res.set('Cache-Control','no-store');res.json({ok:true,message:'Jornada 1 y 2 bloqueadas. Cambiar equipos ya no las modifica.'});}
+  catch(e){res.status(500).json({ok:false,message:String(e.message||e)});}
+});
+if(!global.__TEL_LOCK12_WRITE_PATCHED__){
+  global.__TEL_LOCK12_WRITE_PATCHED__=true;
+  const __origWrite=fs.writeFileSync.bind(fs);
+  let __inside=false;
+  fs.writeFileSync=function(filePath,data,...args){
+    try{
+      if(!__inside&&path.resolve(String(filePath||''))===path.resolve(DATA_FILE)){
+        const parsed=JSON.parse(Buffer.isBuffer(data)?data.toString('utf8'):String(data));
+        if(parsed&&typeof parsed==='object'){telLock12Apply(parsed);data=JSON.stringify(parsed,null,2);}
+      }
+    }catch(_e){}
+    __inside=true;try{return __origWrite(filePath,data,...args);}finally{__inside=false;}
+  };
+}
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -2600,6 +2965,7 @@ app.get("/api/data", (req, res) => {
   telPanelForceExactFixtures(data);
   telPanelCardApply(data);
   telAdminPanelRealFix(data);
+  telLock12Apply(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -2798,6 +3164,7 @@ app.get("/api/competiciones", (req, res) => {
   telPanelForceExactFixtures(data);
   telPanelCardApply(data);
   telAdminPanelRealFix(data);
+  telLock12Apply(data);
   res.json(data.competiciones || []);
 });
 
@@ -3147,6 +3514,7 @@ function readLeagueData(){
 }
 
 function writeLeagueData(data){
+  if(typeof telLock12Apply === 'function') telLock12Apply(data);
   fs.writeFileSync(dataFilePath(), JSON.stringify(data, null, 2), 'utf8');
 }
 
@@ -4776,6 +5144,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
 
     telPanelResultadosFixData(data);
     telPanelCardApply(data);
+    telLock12Apply(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
@@ -5366,6 +5735,7 @@ app.get('/data.json', (req,res)=>{
   // de escudo, igual que /api/data. No se expone la ruta local del ordenador del bot.
   telPanelResultadosFixData(data);
   telPanelCardApply(data);
+  telLock12Apply(data);
   res.json(telHydrateDataForClient(data));
 });
 app.get('/api/data-live', (req,res)=>{
@@ -5904,6 +6274,7 @@ app.get('/api/admin/direct-lista', (req,res)=>{
     res.set('Cache-Control','no-store');
     telPanelResultadosFixData(data);
     telPanelCardApply(data);
+    telLock12Apply(data);
     res.json({ok:true, competiciones});
   }catch(e){
     console.error('[direct-lista]', e);
