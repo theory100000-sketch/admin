@@ -3735,6 +3735,545 @@ if(!global.__TEL_FINAL_CALENDAR_REPAIR_WRITE_PATCHED__){
 }
 
 
+
+
+/* ============================================================
+   TEL CALENDARIO ROUND ROBIN FINAL 10 EQUIPOS / 18 JORNADAS
+   Soluciona:
+   - jornadas donde un equipo juega dos veces
+   - jornadas donde falta un equipo
+   - cruces repetidos más de 2 veces
+   Genera:
+   - 18 jornadas
+   - 5 partidos por jornada
+   - cada equipo juega 1 vez por jornada
+   - ida y vuelta contra cada rival
+   - intenta conservar resultados existentes por cruce
+   ============================================================ */
+function telRRNorm(value){
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+}
+function telRRSlug(value){
+  return String(value || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
+}
+function telRRIsCup(comp){
+  const txt = telRRNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  if(txt.includes('copa') || txt.includes('elimin')) return true;
+  return (comp?.partidos || []).some(match=>{
+    const phase = telRRNorm(`${match?.rondaNombre || ''} ${match?.fase || ''}`);
+    return phase.includes('cuarto') || phase.includes('semi') || phase.includes('final');
+  });
+}
+function telRRTeamName(team){
+  return String(team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name || '').trim();
+}
+function telRRIsRemoved(team){
+  if(!team) return true;
+  if(team.historico === true) return true;
+  if(team.equipoHistorico === true) return true;
+  if(team.fixtureHistorico === true) return true;
+  if(team.fixturePanel === true) return true;
+  if(team.bloqueoJornada12 === true) return true;
+  if(team.excluidoClasificacion === true) return true;
+  if(team.eliminadoDeCompeticion === true) return true;
+  if(team.sacadoDeCompeticion === true) return true;
+  if(team.removidoDeCompeticion === true) return true;
+  if(team.inactivoCompeticion === true) return true;
+  if(team.activo === false || team.active === false) return true;
+
+  const slot = String(team.slotId || team.id || team.clubId || '').trim();
+  if(slot.startsWith('hist-') || slot.startsWith('panel-jornada-')) return true;
+
+  const estado = telRRNorm(team.estado || team.status || '');
+  if(estado.includes('sacado')) return true;
+  if(estado.includes('eliminado')) return true;
+  if(estado.includes('inactivo')) return true;
+  if(estado.includes('fuera')) return true;
+  if(estado.includes('baja')) return true;
+
+  return false;
+}
+function telRRActiveTeams(comp){
+  const seen = new Set();
+  const teams = [];
+
+  for(const raw of (Array.isArray(comp?.equipos) ? comp.equipos : [])){
+    if(telRRIsRemoved(raw)) continue;
+
+    const name = telRRTeamName(raw);
+    const key = telRRNorm(name);
+    if(!key || seen.has(key)) continue;
+    seen.add(key);
+
+    const team = {...raw};
+    team.nombre = team.nombre || team.clubNombre || team.nombreVisual || team.name || name;
+    team.clubNombre = team.clubNombre || team.nombre || name;
+    team.nombreVisual = team.nombreVisual || team.nombre || name;
+    team.name = team.name || team.nombre || name;
+
+    if(!team.slotId) team.slotId = String(team.id || team.clubId || team.idClub || telRRSlug(name));
+    if(!team.id) team.id = String(team.slotId || team.clubId || telRRSlug(name));
+    if(!team.clubId) team.clubId = String(team.id || team.slotId);
+
+    teams.push(team);
+  }
+
+  return teams;
+}
+function telRRMatchName(match, side){
+  if(side === 'local'){
+    return String(
+      match?.localNombre ||
+      match?.nombreLocal ||
+      match?.equipoLocal ||
+      match?.local?.nombre ||
+      match?.local?.clubNombre ||
+      match?.localTeam?.nombre ||
+      match?.localEquipo?.nombre ||
+      ''
+    ).trim();
+  }
+
+  return String(
+    match?.visitanteNombre ||
+    match?.nombreVisitante ||
+    match?.equipoVisitante ||
+    match?.visitante?.nombre ||
+    match?.visitante?.clubNombre ||
+    match?.visitanteTeam?.nombre ||
+    match?.visitanteEquipo?.nombre ||
+    ''
+  ).trim();
+}
+function telRRPairKey(a,b){
+  const x = telRRNorm(a);
+  const y = telRRNorm(b);
+  if(!x || !y) return '';
+  return [x,y].sort().join(' vs ');
+}
+function telRROrientedKey(a,b){
+  return `${telRRNorm(a)} -> ${telRRNorm(b)}`;
+}
+function telRRScoreOk(value){
+  return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
+}
+function telRRPlayed(match){
+  if(!match) return false;
+  return match.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
+    (telRRScoreOk(match.localGoles) && telRRScoreOk(match.visitanteGoles)) ||
+    (telRRScoreOk(match.golesLocal) && telRRScoreOk(match.golesVisitante)) ||
+    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''));
+}
+function telRRGoals(match){
+  let local = match?.localGoles ?? match?.golesLocal;
+  let away = match?.visitanteGoles ?? match?.golesVisitante;
+
+  if((!telRRScoreOk(local) || !telRRScoreOk(away)) && match?.resultado){
+    const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+    if(parsed){
+      local = Number(parsed[1]);
+      away = Number(parsed[2]);
+    }
+  }
+
+  return {
+    local: telRRScoreOk(local) ? Number(local) : null,
+    away: telRRScoreOk(away) ? Number(away) : null
+  };
+}
+function telRRLogo(team){
+  let value = String(
+    team?.escudoUrl || team?.logoUrl || team?.logo || team?.escudo ||
+    team?.imagenUrl || team?.imagen || team?.escudoPath || team?.escudoFilename || ''
+  ).trim().replaceAll('\\','/');
+
+  if(value){
+    if(value.startsWith('/api/club-logo')) return value;
+    if(/^https?:\/\//i.test(value)) return value;
+    if(value.startsWith('/escudos/')) return value;
+    if(value.startsWith('escudos/')) return '/' + value;
+    if(/\.(png|jpe?g|webp|gif|svg)$/i.test(value)) return '/escudos/' + value.split('/').pop();
+  }
+
+  const key = team?.clubId || team?.rolId || team?.id || team?._id || team?.idClub || team?.nombre || team?.clubNombre || team?.nombreVisual || team?.name;
+  return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : '';
+}
+function telRRTeamObj(team){
+  const name = telRRTeamName(team);
+  const slot = String(team.slotId || team.id || team.clubId || team.idClub || telRRSlug(name));
+  const logo = telRRLogo(team);
+  return {
+    ...team,
+    id: slot,
+    slotId: slot,
+    clubId: team.clubId || slot,
+    idClub: team.idClub || team.clubId || slot,
+    nombre: name,
+    clubNombre: team.clubNombre || name,
+    nombreVisual: team.nombreVisual || name,
+    name: team.name || name,
+    escudoUrl: logo,
+    logoUrl: logo,
+    logo,
+    escudo: logo
+  };
+}
+function telRRApplySide(match, side, team){
+  const obj = telRRTeamObj(team);
+  const name = obj.nombre;
+  const slot = obj.slotId;
+  const logo = obj.escudoUrl || obj.logoUrl || obj.logo || obj.escudo || '';
+  const p = side === 'local' ? 'local' : 'visitante';
+  const cap = side === 'local' ? 'Local' : 'Visitante';
+
+  match[`${p}SlotId`] = slot;
+  match[`${p}Id`] = slot;
+  match[`${p}ClubId`] = obj.clubId || slot;
+  match[`${p}Nombre`] = name;
+  match[side === 'local' ? 'nombreLocal' : 'nombreVisitante'] = name;
+  match[side === 'local' ? 'equipoLocal' : 'equipoVisitante'] = name;
+  match[`${p}Logo`] = logo;
+  match[`${p}Escudo`] = logo;
+  match[`logo${cap}`] = logo;
+  match[`escudo${cap}`] = logo;
+  match[side] = obj;
+  match[`${p}Team`] = obj;
+  match[`${p}Equipo`] = obj;
+  match[`${p}Club`] = obj;
+}
+function telRRBuildOldResultPool(comp){
+  const byPair = new Map();
+
+  for(const match of (Array.isArray(comp?.partidos) ? comp.partidos : [])){
+    if(!telRRPlayed(match)) continue;
+
+    const local = telRRMatchName(match, 'local');
+    const away = telRRMatchName(match, 'visitante');
+    const key = telRRPairKey(local, away);
+    if(!key) continue;
+
+    if(!byPair.has(key)) byPair.set(key, []);
+
+    byPair.get(key).push({
+      local,
+      away,
+      oriented: telRROrientedKey(local, away),
+      goals: telRRGoals(match),
+      raw: match,
+      jornada: Number(match.jornada || match.round || 9999),
+      orden: Number(match.ordenJornada || match.orden || 9999)
+    });
+  }
+
+  for(const list of byPair.values()){
+    list.sort((a,b)=>{
+      if(a.jornada !== b.jornada) return a.jornada - b.jornada;
+      return a.orden - b.orden;
+    });
+  }
+
+  return byPair;
+}
+function telRRTakeOldResult(pool, localName, awayName){
+  const key = telRRPairKey(localName, awayName);
+  const list = pool.get(key);
+  if(!list || !list.length) return null;
+
+  const oriented = telRROrientedKey(localName, awayName);
+  let index = list.findIndex(item => item.oriented === oriented);
+  if(index < 0) index = 0;
+
+  const item = list.splice(index, 1)[0];
+  if(!item) return null;
+
+  const sameOrientation = item.oriented === oriented;
+  const localGoals = sameOrientation ? item.goals.local : item.goals.away;
+  const awayGoals = sameOrientation ? item.goals.away : item.goals.local;
+
+  if(localGoals === null || awayGoals === null) return null;
+
+  return {
+    localGoles: localGoals,
+    visitanteGoles: awayGoals,
+    golesLocal: localGoals,
+    golesVisitante: awayGoals,
+    resultado: `${localGoals}-${awayGoals}`,
+    estado: 'finalizado',
+    finalizado: true,
+    resultadoConservadoDe: `${item.local} vs ${item.away}`,
+    resultadoJornadaOriginal: item.jornada
+  };
+}
+function telRRGenerateSchedule(teams){
+  const n = teams.length;
+  if(n % 2 !== 0) return [];
+
+  const arr = teams.slice();
+  const firstHalf = [];
+  const rounds = n - 1;
+
+  for(let r=0; r<rounds; r++){
+    const matches = [];
+
+    for(let i=0; i<n/2; i++){
+      let home = arr[i];
+      let away = arr[n - 1 - i];
+
+      // Alternar local/visitante para repartir mejor.
+      if(r % 2 === 1){
+        const tmp = home;
+        home = away;
+        away = tmp;
+      }
+
+      matches.push([home, away]);
+    }
+
+    firstHalf.push(matches);
+
+    // Circle method: primer equipo fijo, rotan los demás.
+    const fixed = arr[0];
+    const rest = arr.slice(1);
+    rest.unshift(rest.pop());
+    arr.splice(0, arr.length, fixed, ...rest);
+  }
+
+  const full = [];
+
+  firstHalf.forEach((round, index)=>{
+    full.push(round.map(([home, away])=>[home, away]));
+  });
+
+  firstHalf.forEach((round, index)=>{
+    full.push(round.map(([home, away])=>[away, home]));
+  });
+
+  return full;
+}
+function telRRValidateSchedule(comp){
+  const problemas = [];
+  const pairCount = new Map();
+
+  const byRound = new Map();
+  for(const match of (comp.partidos || [])){
+    const jornada = Number(match.jornada || match.round || 0);
+    if(!byRound.has(jornada)) byRound.set(jornada, []);
+    byRound.get(jornada).push(match);
+
+    const pair = telRRPairKey(telRRMatchName(match,'local'), telRRMatchName(match,'visitante'));
+    if(pair) pairCount.set(pair, (pairCount.get(pair) || 0) + 1);
+  }
+
+  for(const [jornada, matches] of byRound.entries()){
+    const used = new Map();
+    for(const match of matches){
+      const local = telRRMatchName(match,'local');
+      const away = telRRMatchName(match,'visitante');
+      for(const name of [local, away]){
+        const key = telRRNorm(name);
+        if(!key) continue;
+        used.set(key, (used.get(key) || 0) + 1);
+      }
+    }
+
+    const duplicated = Array.from(used.entries()).filter(([,count])=>count > 1);
+    if(duplicated.length){
+      problemas.push({
+        jornada,
+        tipo:'equipo_repetido_en_jornada',
+        equipos:duplicated.map(([name,count])=>({equipo:name, veces:count}))
+      });
+    }
+  }
+
+  for(const [pair,count] of pairCount.entries()){
+    if(count > 2){
+      problemas.push({
+        tipo:'cruce_mas_de_2_veces',
+        cruce:pair,
+        veces:count
+      });
+    }
+  }
+
+  return problemas;
+}
+function telRRRebuildCompetition(comp){
+  if(!comp || telRRIsCup(comp)) return comp;
+
+  const activeTeams = telRRActiveTeams(comp);
+  if(activeTeams.length !== 10){
+    comp._calendarioRoundRobinError = `La liga debe tener exactamente 10 equipos activos. Ahora tiene ${activeTeams.length}.`;
+    return comp;
+  }
+
+  const oldPool = telRRBuildOldResultPool(comp);
+  const rounds = telRRGenerateSchedule(activeTeams);
+  const oldMatches = Array.isArray(comp.partidos) ? comp.partidos : [];
+  const newMatches = [];
+
+  rounds.forEach((games, roundIndex)=>{
+    const jornada = roundIndex + 1;
+
+    games.forEach(([home, away], matchIndex)=>{
+      const oldSameSlot = oldMatches.find(m =>
+        Number(m.jornada || m.round || 0) === jornada &&
+        Number(m.ordenJornada || m.orden || 0) === matchIndex + 1
+      ) || {};
+
+      const homeName = telRRTeamName(home);
+      const awayName = telRRTeamName(away);
+
+      const match = {
+        ...oldSameSlot,
+        id: String(oldSameSlot.id || `${comp.id || comp.nombre || 'liga'}-J${jornada}-P${matchIndex+1}`),
+        jornada,
+        round:jornada,
+        ordenJornada:matchIndex + 1,
+        estado:'pendiente',
+        finalizado:false,
+        localGoles:null,
+        visitanteGoles:null,
+        golesLocal:null,
+        golesVisitante:null,
+        resultado:'',
+        calendarioRegeneradoRoundRobin:true
+      };
+
+      telRRApplySide(match, 'local', home);
+      telRRApplySide(match, 'visitante', away);
+
+      const oldResult = telRRTakeOldResult(oldPool, homeName, awayName);
+      if(oldResult){
+        Object.assign(match, oldResult);
+      }
+
+      newMatches.push(match);
+    });
+  });
+
+  comp.partidos = newMatches;
+  comp.jornadas = 18;
+  comp.numeroJornadas = 18;
+  comp.partidosPorJornada = 5;
+  comp.equiposSeleccionados = activeTeams.length;
+  comp.totalEquipos = activeTeams.length;
+  comp.participantesCount = activeTeams.length;
+  comp._calendarioRoundRobinError = '';
+  comp._calendarioRoundRobinProblemas = telRRValidateSchedule(comp);
+
+  return comp;
+}
+function telRRRebuildData(data){
+  if(!data || typeof data !== 'object') return data;
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telRRRebuildCompetition(comp));
+
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+
+  return data;
+}
+
+/* Desactivar reparadores anteriores que podían dejar jornadas desequilibradas */
+function telFinalCalRepairData(data){ return data; }
+function telReassignCleanData(data){ return data; }
+function telMax2GlobalCleanData(data){ return data; }
+function telCountJ12CleanData(data){ return data; }
+function telNoTripleCleanData(data){ return data; }
+
+app.get('/api/admin/regenerar-calendario-round-robin-final', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+
+    if(typeof telFinalParticipantsCleanData === 'function'){
+      try{ telFinalParticipantsCleanData(data); }catch(error){}
+    }
+
+    telRRRebuildData(data);
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      equiposActivos: Array.isArray(comp.equipos) ? comp.equipos.filter(t=>!telRRIsRemoved(t)).length : 0,
+      jornadas: comp.numeroJornadas || comp.jornadas || '',
+      partidos: Array.isArray(comp.partidos) ? comp.partidos.length : 0,
+      error: comp._calendarioRoundRobinError || '',
+      problemas: comp._calendarioRoundRobinProblemas || []
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'Calendario regenerado en formato liga ida/vuelta: 18 jornadas, 5 partidos por jornada, sin equipos repetidos por jornada.',
+      resumen
+    });
+  }catch(error){
+    console.error('[regenerar-calendario-round-robin-final]', error);
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Protección final calendario round robin: antes de guardar valida formato 10 equipos / 18 jornadas */
+if(!global.__TEL_RR_FINAL_WRITE_PATCHED__){
+  global.__TEL_RR_FINAL_WRITE_PATCHED__ = true;
+  const __telRROriginalWrite = fs.writeFileSync.bind(fs);
+  let __telRRInside = false;
+
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telRRInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+
+        if(parsed && typeof parsed === 'object'){
+          if(typeof telFinalParticipantsCleanData === 'function'){
+            try{ telFinalParticipantsCleanData(parsed); }catch(error){}
+          }
+          // Solo se regenera automáticamente si ya hay una marca de calendario regenerado
+          // o si existe una jornada con equipo repetido. Así no pisa cambios manuales sin necesidad.
+          const comps = parsed.competiciones || parsed.ligas || parsed.torneos || [];
+          let needsRepair = false;
+          for(const comp of comps){
+            if(!comp || telRRIsCup(comp) || !Array.isArray(comp.partidos)) continue;
+            if(comp.partidos.some(m=>m.calendarioRegeneradoRoundRobin === true)) needsRepair = true;
+            const problems = telRRValidateSchedule(comp);
+            if(problems.length) needsRepair = true;
+          }
+          if(needsRepair && typeof telRRRebuildData === 'function'){
+            telRRRebuildData(parsed);
+          }
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(error){}
+
+    __telRRInside = true;
+    try{
+      return __telRROriginalWrite(filePath, data, ...args);
+    }finally{
+      __telRRInside = false;
+    }
+  };
+}
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -3757,6 +4296,7 @@ app.get("/api/data", (req, res) => {
   telFinalParticipantsCleanData(data);
   telSafeDemoCleanData(data);
   telFinalCalRepairData(data);
+  if((data.competiciones||data.ligas||data.torneos||[]).some(c=>Array.isArray(c.partidos) && telRRValidateSchedule(c).length)) telRRRebuildData(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -3961,6 +4501,7 @@ app.get("/api/competiciones", (req, res) => {
   telFinalParticipantsCleanData(data);
   telSafeDemoCleanData(data);
   telFinalCalRepairData(data);
+  if((data.competiciones||data.ligas||data.torneos||[]).some(c=>Array.isArray(c.partidos) && telRRValidateSchedule(c).length)) telRRRebuildData(data);
   res.json(data.competiciones || []);
 });
 
@@ -5946,6 +6487,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     telFinalParticipantsCleanData(data);
     telSafeDemoCleanData(data);
     telFinalCalRepairData(data);
+    if((data.competiciones||data.ligas||data.torneos||[]).some(c=>Array.isArray(c.partidos) && telRRValidateSchedule(c).length)) telRRRebuildData(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
