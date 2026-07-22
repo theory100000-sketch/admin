@@ -2881,6 +2881,138 @@ if(!global.__TEL_PARTICIPANTS_CLEAN_WRITE_PATCHED__){
 }
 
 
+
+
+/* ============================================================
+   TEL FIX: BLACK MECANIC / CORAL NO VUELVEN A PARTICIPANTES
+   Los equipos de Jornada 1/2 que ya no estén activos siguen saliendo
+   en partidos, pero NO se vuelven a meter en comp.equipos.
+   ============================================================ */
+
+/* Sobrescribe el slot histórico anterior: ya NO crea equipos en comp.equipos. */
+function telLock12HistSlot(comp, name, logo){
+  return `hist-j12-${telLock12S(name)}`;
+}
+
+/* Sobrescribe el slot: activo si existe, histórico solo como ID de partido, sin añadir participante. */
+function telLock12Slot(data, comp, name){
+  return telLock12ActiveSlot(comp, name) || `hist-j12-${telLock12S(name)}`;
+}
+
+/* Limpieza fuerte: quita históricos, duplicados y equipos marcados como sacados. */
+function telParticipantsCleanComp(comp){
+  if(!comp || telParticipantsIsCup(comp)) return comp;
+
+  comp.equipos = Array.isArray(comp.equipos) ? comp.equipos : [];
+
+  const seen = new Set();
+  const clean = [];
+
+  for(const team of comp.equipos){
+    if(telParticipantsIsHistoric(team)) continue;
+
+    const slot = String(team.slotId || team.id || '');
+    if(slot.startsWith('hist-j12-')) continue;
+    if(slot.startsWith('hist-')) continue;
+    if(slot.startsWith('panel-jornada-')) continue;
+
+    const name = telParticipantsName(team);
+    if(!name) continue;
+
+    const key = telParticipantsNorm(name);
+
+    // Si el usuario los quitó del panel, no los reinsertes.
+    if(team.activo === false || team.active === false) continue;
+    if(team.sacadoDeCompeticion === true || team.eliminadoDeCompeticion === true || team.excluidoClasificacion === true) continue;
+
+    if(seen.has(key)) continue;
+    seen.add(key);
+
+    team.nombre = team.nombre || team.clubNombre || team.nombreVisual || team.name || name;
+    team.clubNombre = team.clubNombre || team.nombre || name;
+    team.nombreVisual = team.nombreVisual || team.nombre || name;
+    team.name = team.name || team.nombre || name;
+
+    if(!team.slotId){
+      team.slotId = String(team.id || team.clubId || team.idClub || key.replace(/\s+/g,'-'));
+    }
+
+    clean.push(team);
+  }
+
+  const max = Number(comp.maxEquipos || comp.numeroEquipos || comp.limiteEquipos || comp.cantidadEquipos || 10) || 10;
+  comp.equipos = clean.slice(0, max);
+  comp.equiposSeleccionados = comp.equipos.length;
+  comp.totalEquipos = comp.equipos.length;
+
+  return comp;
+}
+
+/* Limpieza final: aplica J1/J2, luego limpia participantes para que BLACK/CORAL no vuelvan. */
+function telNoReinsertRemovedTeams(data){
+  if(!data || typeof data !== 'object') return data;
+
+  if(typeof telLock12Apply === 'function'){
+    telLock12Apply(data);
+  }
+
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp => telParticipantsCleanComp(comp));
+
+  if(typeof telCompTableApply === 'function'){
+    telCompTableApply(data);
+  }
+
+  return data;
+}
+
+app.get('/api/admin/no-reinsertar-black-coral', requireAdmin, (req,res)=>{
+  try{
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    telNoReinsertRemovedTeams(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion: comp.nombre || comp.name || comp.id || 'Competición',
+      participantes: Array.isArray(comp.equipos) ? comp.equipos.map(e=>e.nombre || e.clubNombre || e.name) : []
+    }));
+
+    res.set('Cache-Control','no-store');
+    res.json({
+      ok:true,
+      message:'BLACK MECANIC / Coral Springs A ya no se reinsertan como participantes si los quitas del panel.',
+      resumen
+    });
+  }catch(error){
+    res.status(500).json({ok:false,message:String(error.message || error)});
+  }
+});
+
+
+
+
+/* Protección final: antes de guardar, no reinsertar históricos como participantes */
+if(!global.__TEL_NO_REINSERT_REMOVED_WRITE_PATCHED__){
+  global.__TEL_NO_REINSERT_REMOVED_WRITE_PATCHED__ = true;
+  const __telNoReinsertOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telNoReinsertInside = false;
+  fs.writeFileSync = function(filePath, data, ...args){
+    try{
+      if(!__telNoReinsertInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+        if(parsed && typeof parsed === 'object' && typeof telNoReinsertRemovedTeams === 'function'){
+          telNoReinsertRemovedTeams(parsed);
+          data = JSON.stringify(parsed, null, 2);
+        }
+      }
+    }catch(_e){}
+    __telNoReinsertInside = true;
+    try{ return __telNoReinsertOriginalWrite(filePath, data, ...args); }
+    finally{ __telNoReinsertInside = false; }
+  };
+}
+
+
 app.get("/api/data", (req, res) => {
   res.set("Cache-Control", "no-store");
   const data = readJson(DATA_FILE, {
@@ -2900,6 +3032,7 @@ app.get("/api/data", (req, res) => {
   telLock12Apply(data);
   telJ12SafePanelApply(data);
   telParticipantsCleanData(data);
+  telNoReinsertRemovedTeams(data);
   res.json(telHydrateDataForClient(data));
 });
 
@@ -3101,6 +3234,7 @@ app.get("/api/competiciones", (req, res) => {
   telLock12Apply(data);
   telJ12SafePanelApply(data);
   telParticipantsCleanData(data);
+  telNoReinsertRemovedTeams(data);
   res.json(data.competiciones || []);
 });
 
@@ -5083,6 +5217,7 @@ app.get('/api/admin/resultados/lista', requireAdmin, (req,res)=>{
     telLock12Apply(data);
     telJ12SafePanelApply(data);
     telParticipantsCleanData(data);
+    telNoReinsertRemovedTeams(data);
     res.json({ok:true, competiciones});
   }catch(error){
     console.error('[admin-resultados-lista]', error);
