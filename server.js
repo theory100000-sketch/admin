@@ -9672,38 +9672,184 @@ app.post('/api/admin/competitions-manager/participants', express.json(), require
     const compId = String(req.body?.compId || '').trim();
     const comp = telPanelComps(data).find((c,i)=>telCompManagerId(c,i) === compId);
     if(!comp) return res.status(404).json({ok:false,message:'Competición no encontrada.'});
-    const names = Array.isArray(req.body?.clubNames) ? req.body.clubNames.map(v=>String(v).trim()).filter(Boolean) : [];
-    if(names.length > Number(comp.maxEquipos || 32)) return res.status(400).json({ok:false,message:`El máximo es ${comp.maxEquipos} equipos.`});
+
+    const names = Array.isArray(req.body?.clubNames)
+      ? req.body.clubNames.map(v=>String(v).trim()).filter(Boolean)
+      : [];
+    if(names.length > Number(comp.maxEquipos || 32)){
+      return res.status(400).json({ok:false,message:`El máximo es ${comp.maxEquipos} equipos.`});
+    }
+
     const clubs = data.clubes || data.equipos || [];
     const clubMap = new Map(clubs.map(c=>[telCompManagerNorm(c.nombre || c.clubNombre),c]));
-    const existingMap = new Map((comp.equipos || []).map(t=>[telCompManagerNorm(telCompManagerClubName(t)),t]));
+    const oldTeams = Array.isArray(comp.equipos) ? comp.equipos.slice() : [];
+    const oldByName = new Map(oldTeams.map(team=>[
+      telCompManagerNorm(telCompManagerClubName(team)),
+      team
+    ]));
+
+    const requestedKeys = names.map(name=>telCompManagerNorm(name));
+    const requestedSet = new Set(requestedKeys);
+    const oldKeys = oldTeams.map(team=>telCompManagerNorm(telCompManagerClubName(team)));
+    const oldSet = new Set(oldKeys);
+
+    /* Equipos que salen. Sus slots se reutilizan para los equipos que entran.
+       Así los partidos y resultados no se regeneran ni se borran. */
+    const removedTeams = oldTeams.filter(team=>{
+      const key = telCompManagerNorm(telCompManagerClubName(team));
+      return key && !requestedSet.has(key);
+    });
+    let removedIndex = 0;
+    const replacements = [];
+
     const teams = names.map((name,index)=>{
-      const club = clubMap.get(telCompManagerNorm(name));
+      const key = telCompManagerNorm(name);
+      const club = clubMap.get(key);
       if(!club) return null;
-      return telCompManagerTeamFromClub(club,index,existingMap.get(telCompManagerNorm(name)));
+
+      const sameTeam = oldByName.get(key) || null;
+      const replacedTeam = !sameTeam && removedIndex < removedTeams.length
+        ? removedTeams[removedIndex++]
+        : null;
+
+      /* Para una sustitución se conserva únicamente el slot deportivo y los
+         metadatos de la plaza, nunca el clubId, nombre o escudo del equipo viejo. */
+      const existing = sameTeam || (replacedTeam ? {
+        slotId: replacedTeam.slotId || replacedTeam.id || replacedTeam.clubId,
+        grupo: replacedTeam.grupo ?? null,
+        historialSustituciones: Array.isArray(replacedTeam.historialSustituciones)
+          ? replacedTeam.historialSustituciones.slice()
+          : [],
+        creadoEn: replacedTeam.creadoEn || new Date().toISOString()
+      } : null);
+
+      const team = telCompManagerTeamFromClub(club,index,existing);
+      const newClubId = String(club.id || club._id || club.clubId || club.rolId || club.nombre || team.slotId);
+      team.clubId = newClubId;
+      team.idClub = newClubId;
+      team.rolId = club.rolId || newClubId;
+      team.nombre = club.nombreVisual || club.nombre;
+      team.nombreVisual = club.nombreVisual || club.nombre;
+      team.clubNombre = club.nombre;
+      team.name = club.nombre;
+      team.escudoUrl = club.escudoUrl || club.logoUrl || club.escudo || club.logo || '';
+      team.logoUrl = club.logoUrl || club.escudoUrl || club.logo || club.escudo || '';
+      team.escudoPath = club.escudoPath || '';
+      team.escudoFilename = club.escudoFilename || '';
+      team.activo = true;
+      team.active = true;
+
+      if(replacedTeam){
+        const oldName = telCompManagerClubName(replacedTeam);
+        const substitution = {
+          sale: oldName,
+          entra: club.nombre,
+          slotId: String(team.slotId || ''),
+          fecha: new Date().toISOString(),
+          resultadosConservados: true
+        };
+        team.historialSustituciones = [
+          ...(Array.isArray(team.historialSustituciones) ? team.historialSustituciones : []),
+          substitution
+        ];
+        replacements.push({
+          oldTeam: replacedTeam,
+          newTeam: team,
+          oldName,
+          oldKey: telCompManagerNorm(oldName),
+          slotId: String(replacedTeam.slotId || replacedTeam.id || replacedTeam.clubId || team.slotId || '')
+        });
+      }
+
+      return team;
     }).filter(Boolean);
-    const oldNames = (comp.equipos || []).map(t=>telCompManagerNorm(telCompManagerClubName(t)));
-    const newNames = teams.map(t=>telCompManagerNorm(telCompManagerClubName(t)));
-    const changed = JSON.stringify(oldNames) !== JSON.stringify(newNames);
-    const hasResults = (comp.partidos || []).some(m=>m?.finalizado === true || m?.estado === 'finalizado');
-    if(changed && hasResults && req.body?.force !== true){
-      return res.status(409).json({ok:false,needsConfirmation:true,message:'Cambiar los participantes reiniciará el calendario y los resultados de esta competición.'});
-    }
+
+    const changed = oldSet.size !== requestedSet.size ||
+      Array.from(oldSet).some(key=>!requestedSet.has(key));
+    const hadSchedule = Array.isArray(comp.partidos) && comp.partidos.length > 0;
+
     comp.equipos = teams;
-    comp.clasificacion = telCompManagerEmptyTable(teams);
-    const needsSchedule = changed || (teams.length >= 2 && !(comp.partidos || []).length && !telCompManagerNorm(comp.tipo).includes('grupo'));
-    if(needsSchedule){
+    comp.sustituciones = Array.isArray(comp.sustituciones) ? comp.sustituciones : [];
+
+    /* Actualiza el participante dentro de cada partido, pero NO toca goles,
+       resultado, estado, fecha, hora, jornada ni ID del encuentro. */
+    if(replacements.length && Array.isArray(comp.partidos)){
+      for(const replacement of replacements){
+        const strictTeam = {
+          ...replacement.newTeam,
+          name: telCompManagerClubName(replacement.newTeam),
+          logo: telCompManagerClubLogo(replacement.newTeam),
+          obj: replacement.newTeam
+        };
+
+        for(const match of comp.partidos){
+          const localSlot = String(match?.localSlotId || match?.localId || match?.localClubId || '');
+          const awaySlot = String(match?.visitanteSlotId || match?.visitanteId || match?.visitanteClubId || '');
+          const localName = telCompManagerNorm(match?.localNombre || match?.nombreLocal || match?.equipoLocal || match?.local?.nombre || '');
+          const awayName = telCompManagerNorm(match?.visitanteNombre || match?.nombreVisitante || match?.equipoVisitante || match?.visitante?.nombre || '');
+
+          if((replacement.slotId && localSlot === replacement.slotId) || localName === replacement.oldKey){
+            telStrictCalApplySide(match,'local',strictTeam);
+          }
+          if((replacement.slotId && awaySlot === replacement.slotId) || awayName === replacement.oldKey){
+            telStrictCalApplySide(match,'visitante',strictTeam);
+          }
+        }
+
+        comp.sustituciones.push({
+          sale: replacement.oldName,
+          entra: telCompManagerClubName(replacement.newTeam),
+          slotId: replacement.slotId,
+          fecha: new Date().toISOString(),
+          calendarioConservado: true,
+          resultadosConservados: true
+        });
+      }
+    }
+
+    /* Solo genera calendario si la competición todavía no tenía ninguno.
+       Cambiar participantes nunca vuelve a generar un calendario existente. */
+    const needsInitialSchedule = teams.length >= 2 && !hadSchedule &&
+      !telCompManagerNorm(comp.tipo).includes('grupo');
+    if(needsInitialSchedule){
       comp.partidos = telCompManagerGenerate(comp);
       comp.calendarioGenerado = comp.partidos.length > 0;
       comp.calendarioGeneradoEn = comp.calendarioGenerado ? new Date().toISOString() : null;
       comp.campeon = null;
+    }else if(hadSchedule){
+      comp.calendarioGenerado = true;
     }
+
+    /* La tabla se recalcula desde los mismos resultados conservados y los
+       slots actuales; el nuevo club hereda la plaza deportiva del que sale. */
+    comp.clasificacion = telCompManagerEmptyTable(teams);
     telPanelRecalcAll(data);
     telPanelWrite(data);
-    let message = 'Participantes guardados.';
-    if(telCompManagerIsCup(comp) && teams.length !== 8) message += ' La copa necesita exactamente 8 equipos para generar el cuadro.';
-    if(telCompManagerNorm(comp.tipo).includes('grupo')) message += ' El calendario de grupos se configurará desde Partidos.';
-    res.json({ok:true,message});
+
+    let message = replacements.length
+      ? `Participantes guardados. ${replacements.length} sustitución(es) realizada(s) sin reiniciar el calendario ni los resultados.`
+      : 'Participantes guardados sin reiniciar el calendario ni los resultados.';
+    if(changed && removedTeams.length !== replacements.length){
+      message += ' Para sustituir plazas correctamente, quita y añade el mismo número de equipos en una sola operación.';
+    }
+    if(telCompManagerIsCup(comp) && teams.length !== 8){
+      message += ' La copa necesita exactamente 8 equipos para generar el cuadro inicial.';
+    }
+    if(telCompManagerNorm(comp.tipo).includes('grupo')){
+      message += ' El calendario de grupos se configurará desde Partidos.';
+    }
+
+    res.json({
+      ok:true,
+      message,
+      resultadosConservados:true,
+      calendarioConservado:hadSchedule,
+      sustituciones:replacements.map(item=>({
+        sale:item.oldName,
+        entra:telCompManagerClubName(item.newTeam),
+        slotId:item.slotId
+      }))
+    });
   }catch(error){
     res.status(500).json({ok:false,message:String(error.message || error)});
   }
