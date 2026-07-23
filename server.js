@@ -11537,7 +11537,7 @@ try{ telS3FixData = function(data){ return data; }; }catch(e){}
    - 5 partidos por jornada
    - cada cruce aparece 2 veces máximo
    - la segunda vez queda separada de la primera
-   - ejemplo: si juegan en J2, la vuelta cae aprox. J12, no J3
+   - ejemplo: si juegan en J2, la vuelta cae en J11, nunca en J3 o J4
    ============================================================ */
 function telGapNorm(v){
   return String(v || '')
@@ -11751,15 +11751,17 @@ function telGapGenerateFirstHalf(teams){
 function telGapBuildSchedule(teams){
   const first = telGapGenerateFirstHalf(teams); // J1-J9
 
-  // Orden de vuelta separado. Offset 1:
-  // ida J2 => vuelta J12 aprox.
-  // fórmula: vuelta para ida r = 10 + ((r % 9) + 1)
-  // así J1->J11, J2->J12, ..., J8->J18, J9->J10
-  const second = new Array(9);
-  for(let i=0; i<9; i++){
-    const targetIndex = (i + 1) % 9;
-    second[targetIndex] = first[i].map(([home, away])=>[away, home]);
-  }
+  /*
+     La segunda vuelta conserva exactamente el orden de jornadas de la ida,
+     invirtiendo únicamente local y visitante. De este modo todos los cruces
+     quedan separados por una vuelta completa:
+       J1 -> J10, J2 -> J11, J3 -> J12 ... J9 -> J18.
+     No se rota la segunda vuelta, porque esa rotación hacía que el cruce de
+     J9 reapareciera en J10 y podía dejar enfrentamientos demasiado próximos.
+  */
+  const second = first.map(round =>
+    round.map(([home, away]) => [away, home])
+  );
 
   return [...first, ...second];
 }
@@ -11780,7 +11782,7 @@ function telGapValidate(comp){
       if(!firstJ.has(key)) firstJ.set(key, j);
       else {
         const gap = Math.abs(j - firstJ.get(key));
-        if(gap < 8) problems.push({tipo:'poca_distancia_entre_ida_vuelta', cruce:key, jornadas:[firstJ.get(key), j], distancia:gap});
+        if(gap < 9) problems.push({tipo:'poca_distancia_entre_ida_vuelta', cruce:key, jornadas:[firstJ.get(key), j], distancia:gap});
       }
     }
   }
@@ -11879,6 +11881,36 @@ function telGapRebuildData(data){
   return data;
 }
 
+/*
+   Comprueba el calendario que ya está guardado. Si contiene un cruce como
+   J2/J4, una jornada incompleta, un equipo repetido o una separación menor
+   de 9 jornadas, se reconstruye automáticamente una sola vez.
+*/
+function telGapCompetitionNeedsRebuild(comp){
+  if(!comp || telGapIsCup(comp)) return false;
+  const teams = telGapActiveTeams(comp);
+  if(teams.length !== 10) return false;
+  const matches = Array.isArray(comp.partidos) ? comp.partidos : [];
+  if(matches.length !== 90) return true;
+  return telGapValidate(comp).length > 0;
+}
+function telGapEnsureData(data){
+  if(!data || typeof data !== 'object') return false;
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  let changed = false;
+  for(const comp of comps){
+    if(!telGapCompetitionNeedsRebuild(comp)) continue;
+    telGapRebuildCompetition(comp);
+    comp._calendarioCorregidoAutomaticamente = true;
+    comp._calendarioCorregidoEn = new Date().toISOString();
+    changed = true;
+  }
+  if(changed && typeof telCompTableApply === 'function'){
+    try{ telCompTableApply(data); }catch(error){}
+  }
+  return changed;
+}
+
 /* Desactiva reparadores antiguos que acercaban vueltas o remezclaban partidos */
 try{ telStrictCalFixData = function(data){ return data; }; }catch(e){}
 try{ telLock12Apply = function(data){ return data; }; }catch(e){}
@@ -11913,7 +11945,7 @@ app.get('/api/admin/regenerar-calendario-con-distancia', requireAdmin, (req,res)
     res.set('Cache-Control','no-store');
     res.json({
       ok:true,
-      message:'Calendario regenerado con distancia entre ida y vuelta. Ejemplo: J2 aproximadamente J12.',
+      message:'Calendario regenerado con distancia exacta entre ida y vuelta: J1-J10, J2-J11, J3-J12 ... J9-J18.',
       resumen
     });
   }catch(error){
@@ -11935,7 +11967,9 @@ if(!global.__TEL_GAP_CALENDAR_WRITE_PATCHED__){
           const comps = parsed.competiciones || parsed.ligas || parsed.torneos || [];
           const already = comps.some(c=>Array.isArray(c?.partidos) && c.partidos.some(m=>m.calendarioIdaVueltaConDistancia === true));
           if(already){
-            telGapRebuildData(parsed);
+            // No regenerar un calendario válido en cada guardado: solo repararlo
+            // cuando realmente haya un cruce demasiado próximo o estructura rota.
+            telGapEnsureData(parsed);
           }
           data = JSON.stringify(parsed, null, 2);
         }
@@ -11944,6 +11978,41 @@ if(!global.__TEL_GAP_CALENDAR_WRITE_PATCHED__){
     __telGapInside = true;
     try{ return __telGapOriginalWrite(filePath, data, ...args); }
     finally{ __telGapInside = false; }
+  };
+}
+
+
+/*
+   AUTOCORRECCIÓN AL LEER data.json
+   --------------------------------
+   El administrador no tiene que abrir ninguna URL especial. En la primera
+   lectura posterior al despliegue se comprueba el calendario vivo de Redis.
+   Si, por ejemplo, el mismo cruce aparece en J2 y J4, se genera la estructura
+   correcta J1/J10, J2/J11 ... J9/J18 y se guarda de nuevo persistentemente.
+*/
+if(!global.__TEL_GAP_READ_AUTO_FIX__){
+  global.__TEL_GAP_READ_AUTO_FIX__ = true;
+  const __telGapBaseReadJson = readJson;
+  let __telGapReadRepairing = false;
+  readJson = function(file, fallback){
+    const data = __telGapBaseReadJson(file, fallback);
+    try{
+      const isMainData = path.resolve(String(file || '')) === path.resolve(DATA_FILE);
+      if(isMainData && !__telGapReadRepairing && data && typeof data === 'object'){
+        __telGapReadRepairing = true;
+        try{
+          if(telGapEnsureData(data)){
+            fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+          }
+        }finally{
+          __telGapReadRepairing = false;
+        }
+      }
+    }catch(error){
+      __telGapReadRepairing = false;
+      console.error('[calendario-distancia] No se pudo autocorregir el calendario:', error);
+    }
+    return data;
   };
 }
 
