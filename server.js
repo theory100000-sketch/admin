@@ -431,55 +431,6 @@ app.use((req,res,next)=>{
   next();
 });
 
-
-/* ============================================================
-   TEL UI: ESPACIO ENTRE PARTIDOS / JORNADAS
-   Añade separación visual entre el primer partido, segundo, etc.
-   No oculta nada y no toca datos.
-   ============================================================ */
-function telUiSpacingInjectHtml(html){
-  try{
-    if(!html || typeof html !== 'string') return html;
-    if(html.includes('TEL_UI_MATCH_SPACING_PATCH')) return html;
-    const style = `
-<style id="TEL_UI_MATCH_SPACING_PATCH">
-/* Separación entre tarjetas/filas de partidos dentro de jornadas */
-.match-card + .match-card,
-.fixture-card + .fixture-card,
-.partido-card + .partido-card,
-.match-row + .match-row,
-.fixture-row + .fixture-row,
-.partido-row + .partido-row,
-.game-card + .game-card,
-.game-row + .game-row,
-[class*="match-card"] + [class*="match-card"],
-[class*="fixture-card"] + [class*="fixture-card"],
-[class*="partido-card"] + [class*="partido-card"],
-[class*="match-row"] + [class*="match-row"],
-[class*="fixture-row"] + [class*="fixture-row"],
-[class*="partido-row"] + [class*="partido-row"],
-.jornada .card + .card,
-.jornada [class*="card"] + [class*="card"],
-.jornada [class*="row"] + [class*="row"],
-[class*="jornada"] [class*="match"] + [class*="match"],
-[class*="jornada"] [class*="partido"] + [class*="partido"],
-[class*="jornada"] [class*="fixture"] + [class*="fixture"]{
-  margin-top:18px!important;
-}
-/* Un poco más de aire interno sin romper diseño */
-.match-card,.fixture-card,.partido-card,.match-row,.fixture-row,.partido-row,
-[class*="match-card"],[class*="fixture-card"],[class*="partido-card"]{
-  margin-bottom:14px!important;
-}
-</style>`;
-    if(html.includes('</head>')) return html.replace('</head>', style + '</head>');
-    if(html.includes('</body>')) return html.replace('</body>', style + '</body>');
-    return style + html;
-  }catch(error){
-    return html;
-  }
-}
-
 const telStaticOptions = {
   etag: true,
   lastModified: true,
@@ -497,32 +448,6 @@ const telStaticOptions = {
     }
   }
 };
-
-
-/* Sirve HTML público con el CSS de separación antes de express.static */
-app.use((req,res,next)=>{
-  try{
-    const method = String(req.method || 'GET').toUpperCase();
-    if(method !== 'GET' && method !== 'HEAD') return next();
-    const pathname = String(req.path || '/').split('?')[0];
-    if(pathname.startsWith('/api/') || pathname.startsWith('/escudos/') || pathname.startsWith('/auth/')) return next();
-    let fileName = '';
-    if(pathname === '/' || pathname === '') fileName = 'index.html';
-    else if(pathname.endsWith('.html')) fileName = pathname.replace(/^\/+/, '');
-    else return next();
-    const filePath = path.join(__dirname, 'public', fileName);
-    if(!fs.existsSync(filePath)) return next();
-    const html = fs.readFileSync(filePath, 'utf8');
-    res.set({
-      'Cache-Control':'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Pragma':'no-cache',
-      'Expires':'0'
-    });
-    return res.status(200).type('html').send(telUiSpacingInjectHtml(html));
-  }catch(error){
-    return next();
-  }
-});
 
 app.use(express.static(path.join(__dirname, "public"), telStaticOptions));
 app.use("/escudos", express.static(path.join(__dirname, "public", "escudos"), telStaticOptions));
@@ -11567,220 +11492,420 @@ try{ telS3FixData = function(data){ return data; }; }catch(e){}
 
 
 /* ============================================================
-   TEL AUTOGUARDADO RESULTADOS SEGURO
+   TEL CALENDARIO IDA/VUELTA CON DISTANCIA
    Objetivo:
-   - Que no se borren resultados con el paso de las horas.
-   - Que no se borren al crear/borrar equipos o al regenerar datos.
-   - No toca calendario ni participantes.
-   Funcionamiento:
-   - Guarda una bóveda interna dentro de data.json.
-   - Antes de cada escritura mezcla resultados antiguos + nuevos.
-   - Si un partido pierde goles, los restaura por id, jornada/orden o cruce.
+   - 10 equipos activos
+   - 18 jornadas
+   - 5 partidos por jornada
+   - cada cruce aparece 2 veces máximo
+   - la segunda vez queda separada de la primera
+   - ejemplo: si juegan en J2, la vuelta cae aprox. J12, no J3
    ============================================================ */
-function telARComps(data){
-  if(Array.isArray(data?.competiciones)) return data.competiciones;
-  if(Array.isArray(data?.ligas)) return data.ligas;
-  if(Array.isArray(data?.torneos)) return data.torneos;
-  return [];
-}
-function telARNorm(value){
-  return String(value || '')
+function telGapNorm(v){
+  return String(v || '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g,'')
     .replace(/[^a-z0-9]+/g,' ')
     .trim();
 }
-function telARCompKey(comp,index){
-  return telARNorm(comp?.id || comp?._id || comp?.nombre || comp?.name || comp?.titulo || `competicion-${index+1}`);
+function telGapSlug(v){
+  return String(v || 'equipo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'equipo';
 }
-function telARName(match,side){
+function telGapIsCup(comp){
+  const txt = telGapNorm(`${comp?.nombre || ''} ${comp?.tipo || ''} ${comp?.formato || ''} ${comp?.formatoNombre || ''}`);
+  return txt.includes('copa') || txt.includes('elimin');
+}
+function telGapTeamName(t){
+  return String(t?.nombre || t?.clubNombre || t?.nombreVisual || t?.name || '').trim();
+}
+function telGapRemoved(t){
+  if(!t) return true;
+  if(t.historico === true || t.equipoHistorico === true || t.fixtureHistorico === true || t.fixturePanel === true) return true;
+  if(t.excluidoClasificacion === true || t.eliminadoDeCompeticion === true || t.sacadoDeCompeticion === true) return true;
+  if(t.removidoDeCompeticion === true || t.inactivoCompeticion === true) return true;
+  if(t.activo === false || t.active === false) return true;
+  const id = String(t.slotId || t.id || t.clubId || '').trim();
+  if(id.startsWith('hist-') || id.startsWith('panel-jornada-')) return true;
+  const estado = telGapNorm(t.estado || t.status || '');
+  return estado.includes('sacado') || estado.includes('eliminado') || estado.includes('inactivo') || estado.includes('fuera') || estado.includes('baja');
+}
+function telGapActiveTeams(comp){
+  const seen = new Set();
+  const out = [];
+  for(const raw of (Array.isArray(comp?.equipos) ? comp.equipos : [])){
+    if(telGapRemoved(raw)) continue;
+    const name = telGapTeamName(raw);
+    const key = telGapNorm(name);
+    if(!key || seen.has(key)) continue;
+    seen.add(key);
+    const t = {...raw};
+    t.nombre = t.nombre || t.clubNombre || t.nombreVisual || t.name || name;
+    t.clubNombre = t.clubNombre || t.nombre || name;
+    t.nombreVisual = t.nombreVisual || t.nombre || name;
+    t.name = t.name || t.nombre || name;
+    if(!t.slotId) t.slotId = String(t.id || t.clubId || t.idClub || telGapSlug(name));
+    if(!t.id) t.id = String(t.slotId || t.clubId || telGapSlug(name));
+    if(!t.clubId) t.clubId = String(t.id || t.slotId);
+    out.push(t);
+  }
+  return out.slice(0, 10);
+}
+function telGapMatchName(m, side){
   if(side === 'local'){
-    return String(match?.localNombre || match?.nombreLocal || match?.equipoLocal || match?.local?.nombre || match?.local?.clubNombre || '').trim();
+    return String(m?.localNombre || m?.nombreLocal || m?.equipoLocal || m?.local?.nombre || m?.local?.clubNombre || '').trim();
   }
-  return String(match?.visitanteNombre || match?.nombreVisitante || match?.equipoVisitante || match?.visitante?.nombre || match?.visitante?.clubNombre || '').trim();
+  return String(m?.visitanteNombre || m?.nombreVisitante || m?.equipoVisitante || m?.visitante?.nombre || m?.visitante?.clubNombre || '').trim();
 }
-function telARPair(local,away){
-  const a = telARNorm(local);
-  const b = telARNorm(away);
-  if(!a || !b) return '';
-  return [a,b].sort().join(' vs ');
+function telGapPairKey(a,b){
+  const x = telGapNorm(a);
+  const y = telGapNorm(b);
+  if(!x || !y || x === y) return '';
+  return [x,y].sort().join(' vs ');
 }
-function telAROriented(local,away){
-  const a = telARNorm(local);
-  const b = telARNorm(away);
-  if(!a || !b) return '';
-  return `${a} -> ${b}`;
+function telGapOriented(a,b){
+  return `${telGapNorm(a)} -> ${telGapNorm(b)}`;
 }
-function telARScoreOk(value){
-  return value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
+function telGapScoreOk(v){
+  return v !== null && v !== undefined && v !== '' && !Number.isNaN(Number(v));
 }
-function telARGoals(match){
-  let local = match?.localGoles ?? match?.golesLocal;
-  let away = match?.visitanteGoles ?? match?.golesVisitante;
-  if((!telARScoreOk(local) || !telARScoreOk(away)) && match?.resultado){
-    const parsed = String(match.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
-    if(parsed){ local = Number(parsed[1]); away = Number(parsed[2]); }
+function telGapPlayed(m){
+  if(!m) return false;
+  return m.finalizado === true ||
+    ['finalizado','jugado','completado'].includes(String(m.estado || '').toLowerCase()) ||
+    (telGapScoreOk(m.localGoles) && telGapScoreOk(m.visitanteGoles)) ||
+    (telGapScoreOk(m.golesLocal) && telGapScoreOk(m.golesVisitante)) ||
+    /\d+\s*[-:]\s*\d+/.test(String(m.resultado || ''));
+}
+function telGapGoals(m){
+  let l = m?.localGoles ?? m?.golesLocal;
+  let a = m?.visitanteGoles ?? m?.golesVisitante;
+  if((!telGapScoreOk(l) || !telGapScoreOk(a)) && m?.resultado){
+    const p = String(m.resultado).match(/(\d+)\s*[-:]\s*(\d+)/);
+    if(p){ l = Number(p[1]); a = Number(p[2]); }
   }
   return {
-    local: telARScoreOk(local) ? Number(local) : null,
-    away: telARScoreOk(away) ? Number(away) : null
+    local: telGapScoreOk(l) ? Number(l) : null,
+    away: telGapScoreOk(a) ? Number(a) : null
   };
 }
-function telARHasResult(match){
-  if(!match) return false;
-  const goals = telARGoals(match);
-  return match.finalizado === true ||
-    ['finalizado','jugado','completado'].includes(String(match.estado || '').toLowerCase()) ||
-    (goals.local !== null && goals.away !== null) ||
-    /\d+\s*[-:]\s*\d+/.test(String(match.resultado || ''));
+function telGapLogo(t){
+  let v = String(t?.escudoUrl || t?.logoUrl || t?.logo || t?.escudo || t?.imagenUrl || t?.imagen || '').trim().replaceAll('\\','/');
+  if(v){
+    if(v.startsWith('/api/club-logo')) return v;
+    if(/^https?:\/\//i.test(v)) return v;
+    if(v.startsWith('/escudos/')) return v;
+    if(v.startsWith('escudos/')) return '/' + v;
+    if(/\.(png|jpe?g|webp|gif|svg)$/i.test(v)) return '/escudos/' + v.split('/').pop();
+  }
+  const key = t?.clubId || t?.rolId || t?.id || t?._id || t?.idClub || t?.nombre || t?.clubNombre || t?.nombreVisual || t?.name;
+  return key ? `/api/club-logo?key=${encodeURIComponent(String(key))}` : '';
 }
-function telARKeys(comp,compIndex,match,matchIndex){
-  const compKey = telARCompKey(comp,compIndex);
-  const local = telARName(match,'local');
-  const away = telARName(match,'visitante');
-  const jornada = Number(match?.jornada || match?.round || 0) || 0;
-  const orden = Number(match?.ordenJornada || match?.orden || matchIndex + 1) || matchIndex + 1;
-  const id = String(match?.id || match?._id || '').trim();
-  const pair = telARPair(local,away);
-  const oriented = telAROriented(local,away);
-  return [
-    id ? `${compKey}|id|${id}` : '',
-    `${compKey}|j${jornada}|o${orden}`,
-    oriented ? `${compKey}|j${jornada}|oriented|${oriented}` : '',
-    pair ? `${compKey}|j${jornada}|pair|${pair}` : '',
-    oriented ? `${compKey}|oriented|${oriented}` : '',
-    pair ? `${compKey}|pair|${pair}` : ''
-  ].filter(Boolean);
+function telGapApplySide(m, side, t){
+  const p = side === 'local' ? 'local' : 'visitante';
+  const cap = side === 'local' ? 'Local' : 'Visitante';
+  const name = telGapTeamName(t);
+  const slot = String(t.slotId || t.id || t.clubId || t.idClub || telGapSlug(name));
+  const logo = telGapLogo(t);
+  const obj = {
+    ...t,
+    id:slot,
+    slotId:slot,
+    clubId:t.clubId || slot,
+    idClub:t.idClub || t.clubId || slot,
+    nombre:name,
+    clubNombre:t.clubNombre || name,
+    nombreVisual:t.nombreVisual || name,
+    name:t.name || name,
+    escudoUrl:logo,
+    logoUrl:logo,
+    logo,
+    escudo:logo
+  };
+  m[`${p}SlotId`] = slot;
+  m[`${p}Id`] = slot;
+  m[`${p}ClubId`] = obj.clubId || slot;
+  m[`${p}Nombre`] = name;
+  m[side === 'local' ? 'nombreLocal' : 'nombreVisitante'] = name;
+  m[side === 'local' ? 'equipoLocal' : 'equipoVisitante'] = name;
+  m[`${p}Logo`] = logo;
+  m[`${p}Escudo`] = logo;
+  m[`logo${cap}`] = logo;
+  m[`escudo${cap}`] = logo;
+  m[p] = obj;
+  m[`${p}Team`] = obj;
+  m[`${p}Equipo`] = obj;
+  m[`${p}Club`] = obj;
 }
-function telAREntry(comp,compIndex,match,matchIndex){
-  if(!telARHasResult(match)) return null;
-  const goals = telARGoals(match);
-  if(goals.local === null || goals.away === null) return null;
+function telGapOldResultPool(comp){
+  const pool = new Map();
+  for(const m of (Array.isArray(comp?.partidos) ? comp.partidos : [])){
+    if(!telGapPlayed(m)) continue;
+    const l = telGapMatchName(m,'local');
+    const a = telGapMatchName(m,'visitante');
+    const key = telGapPairKey(l,a);
+    if(!key) continue;
+    if(!pool.has(key)) pool.set(key, []);
+    pool.get(key).push({
+      local:l,
+      away:a,
+      oriented:telGapOriented(l,a),
+      goals:telGapGoals(m),
+      jornada:Number(m.jornada || m.round || 9999),
+      orden:Number(m.ordenJornada || m.orden || 9999)
+    });
+  }
+  for(const arr of pool.values()){
+    arr.sort((x,y)=>(x.jornada-y.jornada)||(x.orden-y.orden));
+  }
+  return pool;
+}
+function telGapTakeResult(pool, local, away){
+  const key = telGapPairKey(local, away);
+  const list = pool.get(key);
+  if(!list || !list.length) return null;
+  const oriented = telGapOriented(local, away);
+  let i = list.findIndex(x=>x.oriented === oriented);
+  if(i < 0) i = 0;
+  const item = list.splice(i,1)[0];
+  if(!item) return null;
+  const same = item.oriented === oriented;
+  const lg = same ? item.goals.local : item.goals.away;
+  const ag = same ? item.goals.away : item.goals.local;
+  if(lg === null || ag === null) return null;
   return {
-    keys: telARKeys(comp,compIndex,match,matchIndex),
-    result:{
-      localGoles:goals.local,
-      visitanteGoles:goals.away,
-      golesLocal:goals.local,
-      golesVisitante:goals.away,
-      resultado:`${goals.local}-${goals.away}`,
-      estado:'finalizado',
-      finalizado:true
-    },
-    savedAt:new Date().toISOString()
+    localGoles:lg,
+    visitanteGoles:ag,
+    golesLocal:lg,
+    golesVisitante:ag,
+    resultado:`${lg}-${ag}`,
+    estado:'finalizado',
+    finalizado:true,
+    resultadoConservadoDe:`${item.local} vs ${item.away}`,
+    resultadoJornadaOriginal:item.jornada
   };
 }
-function telARCollect(data){
-  const entries = [];
-  const backup = Array.isArray(data?.__tel_resultados_autoguardado?.items) ? data.__tel_resultados_autoguardado.items : [];
-  backup.forEach(item=>{ if(item?.keys && item?.result) entries.push(item); });
-  telARComps(data).forEach((comp,compIndex)=>{
-    (Array.isArray(comp?.partidos) ? comp.partidos : []).forEach((match,matchIndex)=>{
-      const entry = telAREntry(comp,compIndex,match,matchIndex);
-      if(entry) entries.push(entry);
-    });
-  });
-  const byKey = new Map();
-  entries.forEach(entry=>{
-    const main = entry.keys?.[0] || JSON.stringify(entry.result);
-    byKey.set(main,entry);
-  });
-  return Array.from(byKey.values());
+function telGapGenerateFirstHalf(teams){
+  const arr = teams.slice();
+  const rounds = [];
+  const n = arr.length;
+  for(let r=0; r<n-1; r++){
+    const round = [];
+    for(let i=0; i<n/2; i++){
+      let home = arr[i];
+      let away = arr[n-1-i];
+      if(r % 2 === 1){ const tmp = home; home = away; away = tmp; }
+      round.push([home, away]);
+    }
+    rounds.push(round);
+    const fixed = arr[0];
+    const rest = arr.slice(1);
+    rest.unshift(rest.pop());
+    arr.splice(0, arr.length, fixed, ...rest);
+  }
+  return rounds;
 }
-function telARIndex(entries){
-  const index = new Map();
-  entries.forEach(entry=>{
-    (entry.keys || []).forEach(key=>{
-      if(!key) return;
-      if(!index.has(key)) index.set(key,[]);
-      index.get(key).push(entry);
-    });
-  });
-  return index;
+function telGapBuildSchedule(teams){
+  const first = telGapGenerateFirstHalf(teams); // J1-J9
+
+  // Orden de vuelta separado. Offset 1:
+  // ida J2 => vuelta J12 aprox.
+  // fórmula: vuelta para ida r = 10 + ((r % 9) + 1)
+  // así J1->J11, J2->J12, ..., J8->J18, J9->J10
+  const second = new Array(9);
+  for(let i=0; i<9; i++){
+    const targetIndex = (i + 1) % 9;
+    second[targetIndex] = first[i].map(([home, away])=>[away, home]);
+  }
+
+  return [...first, ...second];
 }
-function telARReadCurrent(){
-  try{
-    if(!fs.existsSync(DATA_FILE)) return null;
-    return JSON.parse(fs.readFileSync(DATA_FILE,'utf8') || '{}');
-  }catch(error){ return null; }
-}
-function telARRestore(data,entries){
-  const index = telARIndex(entries);
-  const restored = [];
-  telARComps(data).forEach((comp,compIndex)=>{
-    (Array.isArray(comp?.partidos) ? comp.partidos : []).forEach((match,matchIndex)=>{
-      if(telARHasResult(match)) return;
-      const keys = telARKeys(comp,compIndex,match,matchIndex);
-      let found = null;
-      for(const key of keys){
-        const list = index.get(key);
-        if(list && list[0]){ found = list[0]; break; }
+function telGapValidate(comp){
+  const problems = [];
+  const counts = new Map();
+  const firstJ = new Map();
+  const byRound = new Map();
+
+  for(const m of (comp.partidos || [])){
+    const j = Number(m.jornada || m.round || 0);
+    if(!byRound.has(j)) byRound.set(j, []);
+    byRound.get(j).push(m);
+
+    const key = telGapPairKey(telGapMatchName(m,'local'), telGapMatchName(m,'visitante'));
+    if(key){
+      counts.set(key, (counts.get(key)||0)+1);
+      if(!firstJ.has(key)) firstJ.set(key, j);
+      else {
+        const gap = Math.abs(j - firstJ.get(key));
+        if(gap < 8) problems.push({tipo:'poca_distancia_entre_ida_vuelta', cruce:key, jornadas:[firstJ.get(key), j], distancia:gap});
       }
-      if(!found?.result) return;
-      Object.assign(match, found.result, {
-        resultadoRestauradoAutoguardado:true,
-        resultadoRestauradoEn:new Date().toISOString()
-      });
-      restored.push({
-        competicion:comp?.nombre || comp?.name || comp?.id || 'Competición',
-        jornada:Number(match.jornada || match.round || 0),
-        partido:`${telARName(match,'local')} vs ${telARName(match,'visitante')}`,
-        resultado:match.resultado
-      });
+    }
+  }
+
+  for(let j=1;j<=18;j++){
+    const matches = byRound.get(j) || [];
+    if(matches.length !== 5) problems.push({tipo:'partidos_por_jornada', jornada:j, cantidad:matches.length});
+    const used = new Map();
+    for(const m of matches){
+      for(const name of [telGapMatchName(m,'local'), telGapMatchName(m,'visitante')]){
+        const k = telGapNorm(name);
+        if(!k) continue;
+        used.set(k, (used.get(k)||0)+1);
+      }
+    }
+    const repeated = Array.from(used.entries()).filter(([,n])=>n>1);
+    if(repeated.length) problems.push({tipo:'equipo_repetido_en_jornada', jornada:j, equipos:repeated});
+    if(matches.length === 5 && used.size !== 10) problems.push({tipo:'falta_equipo_en_jornada', jornada:j, equiposJugando:used.size});
+  }
+
+  for(const [key,count] of counts.entries()){
+    if(count !== 2) problems.push({tipo:'cruce_no_dos_veces', cruce:key, veces:count});
+  }
+
+  return problems;
+}
+function telGapRebuildCompetition(comp){
+  if(!comp || telGapIsCup(comp)) return comp;
+
+  const teams = telGapActiveTeams(comp);
+  if(teams.length !== 10){
+    comp._calendarioDistanciaError = `Debe haber exactamente 10 equipos activos. Ahora hay ${teams.length}.`;
+    comp._calendarioDistanciaProblemas = [];
+    return comp;
+  }
+
+  const pool = telGapOldResultPool(comp);
+  const schedule = telGapBuildSchedule(teams);
+  const newMatches = [];
+
+  schedule.forEach((round, ri)=>{
+    const jornada = ri + 1;
+    round.forEach(([home, away], mi)=>{
+      const localName = telGapTeamName(home);
+      const awayName = telGapTeamName(away);
+      const match = {
+        id:`${comp.id || telGapSlug(comp.nombre || 'liga')}-J${jornada}-P${mi+1}`,
+        jornada,
+        round:jornada,
+        ordenJornada:mi+1,
+        fecha:'',
+        hora:'',
+        estado:'pendiente',
+        finalizado:false,
+        localGoles:null,
+        visitanteGoles:null,
+        golesLocal:null,
+        golesVisitante:null,
+        resultado:'',
+        calendarioIdaVueltaConDistancia:true
+      };
+
+      telGapApplySide(match,'local',home);
+      telGapApplySide(match,'visitante',away);
+
+      const oldResult = telGapTakeResult(pool, localName, awayName);
+      if(oldResult) Object.assign(match, oldResult);
+
+      newMatches.push(match);
     });
   });
-  data.__tel_resultados_restaurados_ultima_vez = restored;
-  return restored;
+
+  comp.partidos = newMatches;
+  comp.jornadas = 18;
+  comp.numeroJornadas = 18;
+  comp.partidosPorJornada = 5;
+  comp.equiposSeleccionados = teams.length;
+  comp.totalEquipos = teams.length;
+  comp.participantesCount = teams.length;
+  comp._calendarioDistanciaError = '';
+  comp._calendarioDistanciaProblemas = telGapValidate(comp);
+
+  if(typeof telCompTableApply === 'function'){
+    try{ telCompTableApply({competiciones:[comp]}); }catch(error){}
+  }
+
+  return comp;
 }
-function telARMerge(data){
+function telGapRebuildData(data){
   if(!data || typeof data !== 'object') return data;
-  const current = telARReadCurrent();
-  const entries = [...telARCollect(current || {}), ...telARCollect(data || {})];
-  telARRestore(data,entries);
-  const finalEntries = telARCollect(data);
-  data.__tel_resultados_autoguardado = {
-    version:1,
-    updatedAt:new Date().toISOString(),
-    total:finalEntries.length,
-    items:finalEntries.slice(-5000)
-  };
+  const comps = data.competiciones || data.ligas || data.torneos || [];
+  comps.forEach(comp=>telGapRebuildCompetition(comp));
   if(typeof telCompTableApply === 'function'){
     try{ telCompTableApply(data); }catch(error){}
   }
   return data;
 }
-app.get('/api/admin/arreglar-autoguardado-resultados-bien', requireAdmin, (req,res)=>{
+
+/* Desactiva reparadores antiguos que acercaban vueltas o remezclaban partidos */
+try{ telStrictCalFixData = function(data){ return data; }; }catch(e){}
+try{ telLock12Apply = function(data){ return data; }; }catch(e){}
+try{ telForceFirstTwoMatchdays = function(data){ return false; }; }catch(e){}
+try{ telFotoExactApply = function(data){ return data; }; }catch(e){}
+try{ telOVRebuildData = function(data){ return data; }; }catch(e){}
+try{ telRRRebuildData = function(data){ return data; }; }catch(e){}
+try{ telFinalCalRepairData = function(data){ return data; }; }catch(e){}
+try{ telReassignCleanData = function(data){ return data; }; }catch(e){}
+try{ telMax2GlobalCleanData = function(data){ return data; }; }catch(e){}
+try{ telCountJ12CleanData = function(data){ return data; }; }catch(e){}
+try{ telNoTripleCleanData = function(data){ return data; }; }catch(e){}
+
+app.get('/api/admin/regenerar-calendario-con-distancia', requireAdmin, (req,res)=>{
   try{
-    const data = readJson(DATA_FILE,{clubes:[],competiciones:[]});
-    telARMerge(data);
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data,null,2), 'utf8');
+    const data = readJson(DATA_FILE, {clubes:[], competiciones:[]});
+    if(typeof telFinalParticipantsCleanData === 'function'){
+      try{ telFinalParticipantsCleanData(data); }catch(error){}
+    }
+    telGapRebuildData(data);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+
+    const resumen = (data.competiciones || data.ligas || data.torneos || []).map(comp=>({
+      competicion:comp.nombre || comp.name || comp.id || 'Competición',
+      equiposActivos:Array.isArray(comp.equipos) ? comp.equipos.filter(e=>!telGapRemoved(e)).length : 0,
+      jornadas:comp.numeroJornadas || comp.jornadas || '',
+      partidos:Array.isArray(comp.partidos) ? comp.partidos.length : 0,
+      error:comp._calendarioDistanciaError || '',
+      problemas:comp._calendarioDistanciaProblemas || []
+    }));
+
     res.set('Cache-Control','no-store');
     res.json({
       ok:true,
-      message:'Autoguardado de resultados arreglado. Ya quedan protegidos antes de crear/borrar equipos o refrescos de Vercel.',
-      backupTotal:data.__tel_resultados_autoguardado?.total || 0,
-      restaurados:data.__tel_resultados_restaurados_ultima_vez || []
+      message:'Calendario regenerado con distancia entre ida y vuelta. Ejemplo: J2 aproximadamente J12.',
+      resumen
     });
   }catch(error){
+    console.error('[regenerar-calendario-con-distancia]', error);
     res.status(500).json({ok:false,message:String(error.message || error)});
   }
 });
-if(!global.__TEL_AUTOGUARDADO_RESULTADOS_SAFE_PATCHED__){
-  global.__TEL_AUTOGUARDADO_RESULTADOS_SAFE_PATCHED__ = true;
-  const __telARWrite = fs.writeFileSync.bind(fs);
-  let __telARInside = false;
-  fs.writeFileSync = function(filePath,data,...args){
+
+/* Protección: si el calendario ya fue generado con distancia, mantiene esa estructura al guardar */
+if(!global.__TEL_GAP_CALENDAR_WRITE_PATCHED__){
+  global.__TEL_GAP_CALENDAR_WRITE_PATCHED__ = true;
+  const __telGapOriginalWrite = fs.writeFileSync.bind(fs);
+  let __telGapInside = false;
+  fs.writeFileSync = function(filePath, data, ...args){
     try{
-      if(!__telARInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
+      if(!__telGapInside && path.resolve(String(filePath || '')) === path.resolve(DATA_FILE)){
         const parsed = JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
-        telARMerge(parsed);
-        data = JSON.stringify(parsed,null,2);
+        if(parsed && typeof parsed === 'object'){
+          const comps = parsed.competiciones || parsed.ligas || parsed.torneos || [];
+          const already = comps.some(c=>Array.isArray(c?.partidos) && c.partidos.some(m=>m.calendarioIdaVueltaConDistancia === true));
+          if(already){
+            telGapRebuildData(parsed);
+          }
+          data = JSON.stringify(parsed, null, 2);
+        }
       }
     }catch(error){}
-    __telARInside = true;
-    try{ return __telARWrite(filePath,data,...args); }
-    finally{ __telARInside = false; }
+    __telGapInside = true;
+    try{ return __telGapOriginalWrite(filePath, data, ...args); }
+    finally{ __telGapInside = false; }
   };
 }
 
