@@ -4201,8 +4201,6 @@ if(!global.__TEL_FINAL_CALENDAR_REPAIR_WRITE_PATCHED__){
    - 5 partidos por jornada
    - cada equipo juega 1 vez por jornada
    - ida y vuelta contra cada rival
-   - la vuelta se juega como mínimo 9 jornadas después de la ida
-     (J1 -> J10, J2 -> J11, etc.)
    - intenta conservar resultados existentes por cruce
    ============================================================ */
 function telRRNorm(value){
@@ -4506,31 +4504,19 @@ function telRRGenerateSchedule(teams){
 
   const full = [];
 
-  // Ida: jornadas 1 a 9.
-  firstHalf.forEach(round=>{
+  firstHalf.forEach((round, index)=>{
     full.push(round.map(([home, away])=>[home, away]));
   });
 
-  // Vuelta: se conserva exactamente el mismo orden de jornadas,
-  // invirtiendo local/visitante. Con 10 equipos, cada revancha queda
-  // 9 jornadas después: J1 -> J10, J2 -> J11, ..., J9 -> J18.
-  firstHalf.forEach(round=>{
+  firstHalf.forEach((round, index)=>{
     full.push(round.map(([home, away])=>[away, home]));
   });
 
   return full;
 }
-function telRRRequiredReturnGap(comp){
-  const activeCount = telRRActiveTeams(comp).length;
-  // En una liga a doble vuelta, la separación correcta es el número
-  // de jornadas de una vuelta completa. Para 10 equipos son 9 jornadas.
-  return Math.max(1, activeCount - 1);
-}
 function telRRValidateSchedule(comp){
   const problemas = [];
   const pairCount = new Map();
-  const pairRounds = new Map();
-  const minimumReturnGap = telRRRequiredReturnGap(comp);
 
   const byRound = new Map();
   for(const match of (comp.partidos || [])){
@@ -4539,11 +4525,7 @@ function telRRValidateSchedule(comp){
     byRound.get(jornada).push(match);
 
     const pair = telRRPairKey(telRRMatchName(match,'local'), telRRMatchName(match,'visitante'));
-    if(pair){
-      pairCount.set(pair, (pairCount.get(pair) || 0) + 1);
-      if(!pairRounds.has(pair)) pairRounds.set(pair, []);
-      pairRounds.get(pair).push(jornada);
-    }
+    if(pair) pairCount.set(pair, (pairCount.get(pair) || 0) + 1);
   }
 
   for(const [jornada, matches] of byRound.entries()){
@@ -4575,26 +4557,6 @@ function telRRValidateSchedule(comp){
         cruce:pair,
         veces:count
       });
-    }
-
-    const jornadas = (pairRounds.get(pair) || [])
-      .filter(jornada=>Number.isFinite(jornada) && jornada > 0)
-      .sort((a,b)=>a-b);
-
-    // Además de aparecer solo dos veces, la vuelta debe quedar separada
-    // por una vuelta completa. En una liga de 10 equipos: mínimo 9 jornadas.
-    if(jornadas.length >= 2){
-      const distancia = jornadas[1] - jornadas[0];
-      if(distancia < minimumReturnGap){
-        problemas.push({
-          tipo:'cruce_demasiado_cerca',
-          cruce:pair,
-          primeraJornada:jornadas[0],
-          segundaJornada:jornadas[1],
-          distancia,
-          distanciaMinima:minimumReturnGap
-        });
-      }
     }
   }
 
@@ -4710,7 +4672,7 @@ app.get('/api/admin/regenerar-calendario-round-robin-final', requireAdmin, (req,
     res.set('Cache-Control','no-store');
     res.json({
       ok:true,
-      message:'Calendario regenerado: 18 jornadas, 5 partidos por jornada y cada vuelta separada 9 jornadas de la ida (J1-J10, J2-J11, etc.).',
+      message:'Calendario regenerado en formato liga ida/vuelta: 18 jornadas, 5 partidos por jornada, sin equipos repetidos por jornada.',
       resumen
     });
   }catch(error){
@@ -10356,6 +10318,477 @@ app.delete('/api/admin/noticias/:id',requireAdmin,(req,res)=>{
   }
 });
 
+
+
+/* ============================================================
+   TEL DISTANCIA DEFINITIVA ENTRE ENFRENTAMIENTOS (VERCEL + LOCAL)
+   ----------------------------------------------------------------
+   Este bloque está FUERA de require.main para que también se ejecute
+   cuando Vercel importa el servidor mediante module.exports.
+
+   Regla:
+   - Una misma pareja no puede volver a enfrentarse antes de 9 jornadas.
+   - Ejemplo: J2 -> como pronto J11.
+   - Mantiene intactas J1/J2 y cualquier partido que ya tenga resultado.
+   - Reordena únicamente partidos pendientes dentro de sus jornadas.
+   - Se ejecuta al leer, al guardar y justo antes de responder JSON.
+   ============================================================ */
+function telDistanceFinalInstall(){
+  const MIN_GAP = 9;
+
+  function isCup(comp){
+    try{ return typeof telStrictCalIsCup === 'function' ? telStrictCalIsCup(comp) : false; }
+    catch(error){ return false; }
+  }
+  function pairKey(a,b){
+    return telStrictCalPairKey(a,b);
+  }
+  function side(match, which){
+    return telStrictCalSide(match, which);
+  }
+  function played(match){
+    return telStrictCalPlayed(match);
+  }
+  function roundOf(match){
+    return Number(match?.jornada || match?.round || 0);
+  }
+  function orderOf(match){
+    return Number(match?.ordenJornada || match?.orden || 9999);
+  }
+  function cloneHistory(history){
+    const next = new Map();
+    for(const [key,value] of history.entries()) next.set(key, {count:value.count,last:value.last});
+    return next;
+  }
+  function historyCanUse(history,key,jornada){
+    if(!key) return false;
+    const item = history.get(key);
+    if(!item) return true;
+    if(item.count >= 2) return false;
+    return jornada - item.last >= MIN_GAP;
+  }
+  function historyAdd(history,key,jornada){
+    if(!key) return;
+    const item = history.get(key);
+    if(!item) history.set(key,{count:1,last:jornada});
+    else history.set(key,{count:item.count+1,last:jornada});
+  }
+  function matchIsLocked(match,jornada){
+    if(played(match)) return true;
+    if(jornada <= 2) return true;
+    if(match?.fixtureOriginalFoto === true || match?.bloqueadoJornada12 === true) return true;
+    return false;
+  }
+  function competitionProblems(comp){
+    const problems = [];
+    const occurrences = new Map();
+    const rounds = new Map();
+
+    for(const match of (Array.isArray(comp?.partidos) ? comp.partidos : [])){
+      const jornada = roundOf(match);
+      if(!rounds.has(jornada)) rounds.set(jornada,[]);
+      rounds.get(jornada).push(match);
+
+      const key = pairKey(side(match,'local'), side(match,'visitante'));
+      if(!key) continue;
+      if(!occurrences.has(key)) occurrences.set(key,[]);
+      occurrences.get(key).push(jornada);
+    }
+
+    for(const [key,list] of occurrences.entries()){
+      list.sort((a,b)=>a-b);
+      if(list.length > 2){
+        problems.push({tipo:'cruce_mas_de_dos_veces',cruce:key,jornadas:list.slice()});
+      }
+      for(let i=1;i<list.length;i++){
+        const distance = list[i]-list[i-1];
+        if(distance < MIN_GAP){
+          problems.push({
+            tipo:'enfrentamientos_demasiado_cerca',
+            cruce:key,
+            jornadas:[list[i-1],list[i]],
+            distancia:distance,
+            distanciaMinima:MIN_GAP
+          });
+        }
+      }
+    }
+
+    for(const [jornada,matches] of rounds.entries()){
+      const used = new Map();
+      for(const match of matches){
+        for(const which of ['local','visitante']){
+          const team = side(match,which);
+          if(!team.key) continue;
+          used.set(team.key,(used.get(team.key)||0)+1);
+        }
+      }
+      const repeated = Array.from(used.entries()).filter(([,count])=>count>1);
+      if(repeated.length){
+        problems.push({tipo:'equipo_repetido_en_jornada',jornada,equipos:repeated});
+      }
+    }
+    return problems;
+  }
+  function collectRoundTeams(matches,comp){
+    const map = new Map();
+    for(const match of matches){
+      for(const which of ['local','visitante']){
+        const team = side(match,which);
+        if(team.key && !map.has(team.key)) map.set(team.key,team);
+      }
+    }
+
+    const expected = matches.length * 2;
+    if(map.size < expected && typeof telStrictCalActiveTeams === 'function'){
+      for(const team of telStrictCalActiveTeams(comp)){
+        if(team.key && !map.has(team.key)) map.set(team.key,team);
+        if(map.size >= expected) break;
+      }
+    }
+    return Array.from(map.values()).slice(0,expected);
+  }
+  function candidateMatchings(teams,history,jornada,originalPairs,maxCandidates){
+    const results = [];
+    const byKey = new Map(teams.map(team=>[team.key,team]));
+    const keys = teams.map(team=>team.key).sort();
+
+    function rec(remaining,pairs,score){
+      if(results.length > maxCandidates * 12) return;
+      if(!remaining.length){
+        results.push({pairs:pairs.slice(),score});
+        return;
+      }
+
+      const firstKey = remaining[0];
+      const first = byKey.get(firstKey);
+      if(!first) return;
+
+      const options = [];
+      for(let i=1;i<remaining.length;i++){
+        const other = byKey.get(remaining[i]);
+        if(!other) continue;
+        const key = pairKey(first,other);
+        if(!historyCanUse(history,key,jornada)) continue;
+        const old = history.get(key);
+        let pairScore = originalPairs.has(key) ? 10000 : 0;
+        pairScore += old ? Math.min(99,jornada-old.last) : 150;
+        options.push({i,other,key,pairScore});
+      }
+      options.sort((a,b)=>b.pairScore-a.pairScore || a.key.localeCompare(b.key,'es'));
+
+      for(const option of options){
+        const rest = remaining.filter((_,index)=>index!==0 && index!==option.i);
+        pairs.push([first,option.other]);
+        rec(rest,pairs,score+option.pairScore);
+        pairs.pop();
+      }
+    }
+
+    rec(keys,[],0);
+    results.sort((a,b)=>b.score-a.score);
+    return results.slice(0,maxCandidates);
+  }
+  function makeRoundDescriptor(jornada,matches,comp){
+    const sorted = matches.slice().sort((a,b)=>orderOf(a)-orderOf(b));
+    const lockedMatches = [];
+    const openMatches = [];
+    for(const match of sorted){
+      if(matchIsLocked(match,jornada)) lockedMatches.push(match);
+      else openMatches.push(match);
+    }
+
+    const lockedTeamKeys = new Set();
+    for(const match of lockedMatches){
+      lockedTeamKeys.add(side(match,'local').key);
+      lockedTeamKeys.add(side(match,'visitante').key);
+    }
+
+    let teams = collectRoundTeams(sorted,comp).filter(team=>team.key && !lockedTeamKeys.has(team.key));
+    const needed = openMatches.length * 2;
+    if(teams.length > needed) teams = teams.slice(0,needed);
+
+    const originalPairs = new Set();
+    for(const match of openMatches){
+      const key = pairKey(side(match,'local'),side(match,'visitante'));
+      if(key) originalPairs.add(key);
+    }
+
+    return {jornada,sorted,lockedMatches,openMatches,teams,originalPairs};
+  }
+  function solveCompetition(comp){
+    if(!comp || isCup(comp) || !Array.isArray(comp.partidos)) return null;
+    const initialProblems = competitionProblems(comp);
+    if(!initialProblems.length) return {changed:false,assignments:new Map(),problems:[]};
+
+    const byRound = new Map();
+    for(const match of comp.partidos){
+      const jornada = roundOf(match);
+      if(!jornada) continue;
+      if(!byRound.has(jornada)) byRound.set(jornada,[]);
+      byRound.get(jornada).push(match);
+    }
+    const descriptors = Array.from(byRound.keys())
+      .sort((a,b)=>a-b)
+      .map(jornada=>makeRoundDescriptor(jornada,byRound.get(jornada),comp));
+
+    const assignments = new Map();
+    const deadline = Date.now()+1800;
+    let nodes = 0;
+
+    function dfs(index,history){
+      nodes++;
+      if(nodes > 40000 || Date.now() > deadline) return false;
+      if(index >= descriptors.length) return true;
+
+      const descriptor = descriptors[index];
+      const jornada = descriptor.jornada;
+      let baseHistory = cloneHistory(history);
+
+      for(const match of descriptor.lockedMatches){
+        const key = pairKey(side(match,'local'),side(match,'visitante'));
+        if(!key) continue;
+        const old = baseHistory.get(key);
+        // Los partidos bloqueados/jugados no se cambian. Se registran aunque
+        // ya vinieran mal para poder reparar todos los partidos posteriores.
+        baseHistory.set(key,{count:(old?.count||0)+1,last:jornada});
+      }
+
+      if(!descriptor.openMatches.length){
+        assignments.set(jornada,[]);
+        if(dfs(index+1,baseHistory)) return true;
+        assignments.delete(jornada);
+        return false;
+      }
+
+      if(descriptor.teams.length !== descriptor.openMatches.length*2) return false;
+
+      const candidates = candidateMatchings(
+        descriptor.teams,
+        baseHistory,
+        jornada,
+        descriptor.originalPairs,
+        120
+      );
+
+      for(const candidate of candidates){
+        const nextHistory = cloneHistory(baseHistory);
+        let valid = true;
+        for(const [a,b] of candidate.pairs){
+          const key = pairKey(a,b);
+          if(!historyCanUse(nextHistory,key,jornada)){
+            valid = false;
+            break;
+          }
+          historyAdd(nextHistory,key,jornada);
+        }
+        if(!valid) continue;
+        assignments.set(jornada,candidate.pairs);
+        if(dfs(index+1,nextHistory)) return true;
+        assignments.delete(jornada);
+      }
+      return false;
+    }
+
+    const solved = dfs(0,new Map());
+    if(!solved){
+      return {changed:false,assignments:new Map(),problems:initialProblems,unresolved:true,nodes};
+    }
+    return {changed:true,assignments,problems:initialProblems,unresolved:false,nodes};
+  }
+  function clearPendingResult(match){
+    match.localGoles = null;
+    match.visitanteGoles = null;
+    match.golesLocal = null;
+    match.golesVisitante = null;
+    match.resultado = '';
+    match.estado = 'pendiente';
+    match.finalizado = false;
+  }
+  function applyAssignments(comp,solution){
+    if(!solution?.changed) return [];
+    const changes = [];
+    const byRound = new Map();
+    for(const match of comp.partidos){
+      const jornada = roundOf(match);
+      if(!byRound.has(jornada)) byRound.set(jornada,[]);
+      byRound.get(jornada).push(match);
+    }
+
+    for(const [jornada,pairsRaw] of solution.assignments.entries()){
+      if(!pairsRaw.length) continue;
+      const matches = (byRound.get(jornada)||[])
+        .filter(match=>!matchIsLocked(match,jornada))
+        .sort((a,b)=>orderOf(a)-orderOf(b));
+      const pairs = pairsRaw.slice();
+
+      // Primero conserva en su mismo hueco los cruces que ya eran válidos.
+      for(const match of matches){
+        const oldLocal = side(match,'local');
+        const oldAway = side(match,'visitante');
+        const oldKey = pairKey(oldLocal,oldAway);
+        const index = pairs.findIndex(([a,b])=>pairKey(a,b)===oldKey);
+        if(index < 0) continue;
+        match.__telDistancePair = pairs.splice(index,1)[0];
+      }
+      for(const match of matches){
+        if(!match.__telDistancePair) match.__telDistancePair = pairs.shift();
+      }
+
+      for(const match of matches){
+        const pair = match.__telDistancePair;
+        delete match.__telDistancePair;
+        if(!pair) continue;
+        let [a,b] = pair;
+        const oldLocal = side(match,'local');
+        const oldAway = side(match,'visitante');
+        const oldKey = pairKey(oldLocal,oldAway);
+        const newKey = pairKey(a,b);
+        if(oldKey === newKey) continue;
+
+        const directScore = (oldLocal.key===a.key?2:0)+(oldAway.key===b.key?2:0);
+        const reverseScore = (oldLocal.key===b.key?2:0)+(oldAway.key===a.key?2:0);
+        if(reverseScore > directScore){ const tmp=a; a=b; b=tmp; }
+
+        const before = `${oldLocal.name} vs ${oldAway.name}`;
+        telStrictCalApplySide(match,'local',a);
+        telStrictCalApplySide(match,'visitante',b);
+        clearPendingResult(match);
+        const after = `${side(match,'local').name} vs ${side(match,'visitante').name}`;
+        match.reparadoDistanciaEnfrentamientos = true;
+        match.cruceAnteriorDistancia = before;
+        match.cruceNuevoDistancia = after;
+        changes.push({jornada,antes:before,ahora:after});
+      }
+    }
+    return changes;
+  }
+  function repairCompetition(comp){
+    const solution = solveCompetition(comp);
+    if(!solution) return false;
+    if(solution.unresolved){
+      comp._distanciaEnfrentamientosSinSolucion = true;
+      comp._distanciaEnfrentamientosProblemas = solution.problems;
+      return false;
+    }
+    if(!solution.changed){
+      comp._distanciaEnfrentamientosProblemas = [];
+      return false;
+    }
+
+    const changes = applyAssignments(comp,solution);
+    const finalProblems = competitionProblems(comp);
+    comp._distanciaEnfrentamientosCambios = changes;
+    comp._distanciaEnfrentamientosProblemas = finalProblems;
+    comp._distanciaEnfrentamientosSinSolucion = finalProblems.length > 0;
+    comp._distanciaEnfrentamientosMinima = MIN_GAP;
+    comp._distanciaEnfrentamientosActualizadoEn = new Date().toISOString();
+    return changes.length > 0 && finalProblems.length === 0;
+  }
+  function repairData(data){
+    if(!data || typeof data !== 'object') return false;
+    const comps = data.competiciones || data.ligas || data.torneos || [];
+    let changed = false;
+    for(const comp of comps){
+      try{ if(repairCompetition(comp)) changed = true; }
+      catch(error){
+        comp._distanciaEnfrentamientosError = String(error?.message || error);
+      }
+    }
+    if(changed && typeof telCompTableApply === 'function'){
+      try{ telCompTableApply(data); }catch(error){}
+    }
+    return changed;
+  }
+  function patchPayload(payload){
+    try{
+      if(!payload || typeof payload !== 'object') return payload;
+      if(Array.isArray(payload)) repairData({competiciones:payload});
+      if(payload.data && typeof payload.data === 'object') repairData(payload.data);
+      if(payload.competiciones || payload.ligas || payload.torneos) repairData(payload);
+      if(payload.competicion && typeof payload.competicion === 'object') repairData({competiciones:[payload.competicion]});
+      return payload;
+    }catch(error){ return payload; }
+  }
+
+  // Desactiva regeneradores viejos que vuelven a mezclar el calendario.
+  const noData = data=>data;
+  const noFalse = ()=>false;
+  try{ telStrictCalFixData = noData; }catch(error){}
+  try{ telLock12Apply = noData; }catch(error){}
+  try{ telForceFirstTwoMatchdays = noFalse; }catch(error){}
+  try{ telFotoExactApply = noData; }catch(error){}
+  try{ telOVRebuildData = noData; }catch(error){}
+  try{ telRRRebuildData = noData; }catch(error){}
+  try{ telFinalCalRepairData = noData; }catch(error){}
+  try{ telReassignCleanData = noData; }catch(error){}
+  try{ telMax2GlobalCleanData = noData; }catch(error){}
+  try{ telCountJ12CleanData = noData; }catch(error){}
+  try{ telNoTripleCleanData = noData; }catch(error){}
+  try{ telS3FixData = noData; }catch(error){}
+  try{ telRealDupRepairData = noData; }catch(error){}
+  try{ telGapRebuildData = noData; }catch(error){}
+
+  // El middleware res.json se registró antes, pero consulta esta función
+  // al responder; al sustituirla, la reparación queda como último filtro.
+  try{ telStrictCalPatchPayload = patchPayload; }catch(error){}
+
+  if(!global.__TEL_DISTANCE_FINAL_HYDRATE_WRAPPED__ && typeof telHydrateDataForClient === 'function'){
+    global.__TEL_DISTANCE_FINAL_HYDRATE_WRAPPED__ = true;
+    const baseHydrate = telHydrateDataForClient;
+    telHydrateDataForClient = function(rawData){
+      try{ repairData(rawData); }catch(error){}
+      return baseHydrate(rawData);
+    };
+  }
+
+  if(!global.__TEL_DISTANCE_FINAL_READ_WRAPPED__ && typeof readJson === 'function'){
+    global.__TEL_DISTANCE_FINAL_READ_WRAPPED__ = true;
+    const baseReadJson = readJson;
+    let repairingRead = false;
+    readJson = function(file,fallback){
+      const data = baseReadJson(file,fallback);
+      try{
+        const isMain = path.resolve(String(file||'')) === path.resolve(DATA_FILE);
+        if(isMain && !repairingRead && data && typeof data === 'object'){
+          repairingRead = true;
+          try{
+            if(repairData(data)) fs.writeFileSync(DATA_FILE,JSON.stringify(data,null,2),'utf8');
+          }finally{ repairingRead = false; }
+        }
+      }catch(error){ repairingRead = false; }
+      return data;
+    };
+  }
+
+  // Se puede instalar más de una vez: en local se vuelve a llamar al final
+  // para quedar por encima de los wrappers antiguos creados en require.main.
+  const installNumber = Number(global.__TEL_DISTANCE_FINAL_WRITE_INSTALLS__ || 0)+1;
+  global.__TEL_DISTANCE_FINAL_WRITE_INSTALLS__ = installNumber;
+  const previousWrite = fs.writeFileSync.bind(fs);
+  let insideWrite = false;
+  fs.writeFileSync = function(filePath,data,...args){
+    try{
+      if(!insideWrite && path.resolve(String(filePath||'')) === path.resolve(DATA_FILE)){
+        const parsed = JSON.parse(Buffer.isBuffer(data)?data.toString('utf8'):String(data));
+        if(parsed && typeof parsed === 'object'){
+          repairData(parsed);
+          data = JSON.stringify(parsed,null,2);
+        }
+      }
+    }catch(error){}
+    insideWrite = true;
+    try{ return previousWrite(filePath,data,...args); }
+    finally{ insideWrite = false; }
+  };
+
+  global.telDistanceFinalRepairData = repairData;
+  global.telDistanceFinalValidateCompetition = competitionProblems;
+}
+
+// Imprescindible para Vercel: se instala durante la importación del módulo.
+telDistanceFinalInstall();
+
 if(require.main === module){
   
 try{
@@ -11537,7 +11970,7 @@ try{ telS3FixData = function(data){ return data; }; }catch(e){}
    - 5 partidos por jornada
    - cada cruce aparece 2 veces máximo
    - la segunda vez queda separada de la primera
-   - ejemplo: si juegan en J2, la vuelta cae en J11, nunca en J3 o J4
+   - ejemplo: si juegan en J2, la vuelta cae aprox. J12, no J3
    ============================================================ */
 function telGapNorm(v){
   return String(v || '')
@@ -11751,17 +12184,15 @@ function telGapGenerateFirstHalf(teams){
 function telGapBuildSchedule(teams){
   const first = telGapGenerateFirstHalf(teams); // J1-J9
 
-  /*
-     La segunda vuelta conserva exactamente el orden de jornadas de la ida,
-     invirtiendo únicamente local y visitante. De este modo todos los cruces
-     quedan separados por una vuelta completa:
-       J1 -> J10, J2 -> J11, J3 -> J12 ... J9 -> J18.
-     No se rota la segunda vuelta, porque esa rotación hacía que el cruce de
-     J9 reapareciera en J10 y podía dejar enfrentamientos demasiado próximos.
-  */
-  const second = first.map(round =>
-    round.map(([home, away]) => [away, home])
-  );
+  // Orden de vuelta separado. Offset 1:
+  // ida J2 => vuelta J12 aprox.
+  // fórmula: vuelta para ida r = 10 + ((r % 9) + 1)
+  // así J1->J11, J2->J12, ..., J8->J18, J9->J10
+  const second = new Array(9);
+  for(let i=0; i<9; i++){
+    const targetIndex = (i + 1) % 9;
+    second[targetIndex] = first[i].map(([home, away])=>[away, home]);
+  }
 
   return [...first, ...second];
 }
@@ -11782,7 +12213,7 @@ function telGapValidate(comp){
       if(!firstJ.has(key)) firstJ.set(key, j);
       else {
         const gap = Math.abs(j - firstJ.get(key));
-        if(gap < 9) problems.push({tipo:'poca_distancia_entre_ida_vuelta', cruce:key, jornadas:[firstJ.get(key), j], distancia:gap});
+        if(gap < 8) problems.push({tipo:'poca_distancia_entre_ida_vuelta', cruce:key, jornadas:[firstJ.get(key), j], distancia:gap});
       }
     }
   }
@@ -11881,36 +12312,6 @@ function telGapRebuildData(data){
   return data;
 }
 
-/*
-   Comprueba el calendario que ya está guardado. Si contiene un cruce como
-   J2/J4, una jornada incompleta, un equipo repetido o una separación menor
-   de 9 jornadas, se reconstruye automáticamente una sola vez.
-*/
-function telGapCompetitionNeedsRebuild(comp){
-  if(!comp || telGapIsCup(comp)) return false;
-  const teams = telGapActiveTeams(comp);
-  if(teams.length !== 10) return false;
-  const matches = Array.isArray(comp.partidos) ? comp.partidos : [];
-  if(matches.length !== 90) return true;
-  return telGapValidate(comp).length > 0;
-}
-function telGapEnsureData(data){
-  if(!data || typeof data !== 'object') return false;
-  const comps = data.competiciones || data.ligas || data.torneos || [];
-  let changed = false;
-  for(const comp of comps){
-    if(!telGapCompetitionNeedsRebuild(comp)) continue;
-    telGapRebuildCompetition(comp);
-    comp._calendarioCorregidoAutomaticamente = true;
-    comp._calendarioCorregidoEn = new Date().toISOString();
-    changed = true;
-  }
-  if(changed && typeof telCompTableApply === 'function'){
-    try{ telCompTableApply(data); }catch(error){}
-  }
-  return changed;
-}
-
 /* Desactiva reparadores antiguos que acercaban vueltas o remezclaban partidos */
 try{ telStrictCalFixData = function(data){ return data; }; }catch(e){}
 try{ telLock12Apply = function(data){ return data; }; }catch(e){}
@@ -11945,7 +12346,7 @@ app.get('/api/admin/regenerar-calendario-con-distancia', requireAdmin, (req,res)
     res.set('Cache-Control','no-store');
     res.json({
       ok:true,
-      message:'Calendario regenerado con distancia exacta entre ida y vuelta: J1-J10, J2-J11, J3-J12 ... J9-J18.',
+      message:'Calendario regenerado con distancia entre ida y vuelta. Ejemplo: J2 aproximadamente J12.',
       resumen
     });
   }catch(error){
@@ -11967,9 +12368,7 @@ if(!global.__TEL_GAP_CALENDAR_WRITE_PATCHED__){
           const comps = parsed.competiciones || parsed.ligas || parsed.torneos || [];
           const already = comps.some(c=>Array.isArray(c?.partidos) && c.partidos.some(m=>m.calendarioIdaVueltaConDistancia === true));
           if(already){
-            // No regenerar un calendario válido en cada guardado: solo repararlo
-            // cuando realmente haya un cruce demasiado próximo o estructura rota.
-            telGapEnsureData(parsed);
+            telGapRebuildData(parsed);
           }
           data = JSON.stringify(parsed, null, 2);
         }
@@ -11982,40 +12381,8 @@ if(!global.__TEL_GAP_CALENDAR_WRITE_PATCHED__){
 }
 
 
-/*
-   AUTOCORRECCIÓN AL LEER data.json
-   --------------------------------
-   El administrador no tiene que abrir ninguna URL especial. En la primera
-   lectura posterior al despliegue se comprueba el calendario vivo de Redis.
-   Si, por ejemplo, el mismo cruce aparece en J2 y J4, se genera la estructura
-   correcta J1/J10, J2/J11 ... J9/J18 y se guarda de nuevo persistentemente.
-*/
-if(!global.__TEL_GAP_READ_AUTO_FIX__){
-  global.__TEL_GAP_READ_AUTO_FIX__ = true;
-  const __telGapBaseReadJson = readJson;
-  let __telGapReadRepairing = false;
-  readJson = function(file, fallback){
-    const data = __telGapBaseReadJson(file, fallback);
-    try{
-      const isMainData = path.resolve(String(file || '')) === path.resolve(DATA_FILE);
-      if(isMainData && !__telGapReadRepairing && data && typeof data === 'object'){
-        __telGapReadRepairing = true;
-        try{
-          if(telGapEnsureData(data)){
-            fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
-          }
-        }finally{
-          __telGapReadRepairing = false;
-        }
-      }
-    }catch(error){
-      __telGapReadRepairing = false;
-      console.error('[calendario-distancia] No se pudo autocorregir el calendario:', error);
-    }
-    return data;
-  };
-}
-
+// Reaplicar después de todos los parches antiguos en ejecución local.
+telDistanceFinalInstall();
 
 app.listen(PORT, () => {
     console.log(`🌐 Web Thunder Elite League lista en http://localhost:${PORT}`);
